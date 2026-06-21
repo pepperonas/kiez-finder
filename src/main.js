@@ -97,9 +97,25 @@ card.addEventListener('click', (e) => {
 // ── state renderers ─────────────────────────────────────────────────────────
 function setCard(node, animate = true) {
   card.replaceChildren(node)
+  requestAnimationFrame(fitKiezName)
   if (animate && !reduceMotion()) {
     const rows = node.querySelectorAll('[data-reveal]')
     if (rows.length) revealStagger([...rows])
+  }
+}
+
+// Shrink the Kiez title only when it would overflow (a long single word like
+// "Schulenburgpark" can't wrap); multi-word names keep their full size + wrap.
+function fitKiezName() {
+  const el = card.querySelector('.kiez-name')
+  if (!el) return
+  el.style.fontSize = '' // reset to the stylesheet clamp
+  const base = parseFloat(getComputedStyle(el).fontSize) || 34
+  const min = Math.max(18, base * 0.5)
+  let size = base, guard = 0
+  while (el.scrollWidth > el.clientWidth + 1 && size > min && guard++ < 80) {
+    size -= 1
+    el.style.fontSize = size + 'px'
   }
 }
 
@@ -431,7 +447,10 @@ async function boot() {
     }
   }).catch(() => null)
   enableTilt()
-  window.addEventListener('resize', () => state.map && state.map.resize())
+  window.addEventListener('resize', () => {
+    state.map && state.map.resize()
+    fitKiezName()
+  })
   checkIn()
 }
 
