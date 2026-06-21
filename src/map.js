@@ -93,23 +93,33 @@ const bezAdjacency = (fc) => adjacency(fc, 'id')
 function computeSlots(fc, idKey) {
   const ids = fc.features.map((f) => f.properties[idKey])
   const adj = adjacency(fc, idKey)
+  // distance-2 neighbours (share a common neighbour) — so even areas that are
+  // only *near* each other (e.g. Flughafenkiez & Körnerkiez, with Rollberg
+  // between them) get pushed to different hues.
+  const adj2 = new Map()
+  for (const id of ids) {
+    const s = new Set(), d1 = adj.get(id)
+    for (const n of d1) for (const nn of adj.get(n)) if (nn !== id && !d1.has(nn)) s.add(nn)
+    adj2.set(id, s)
+  }
   const order = ids.slice().sort((a, b) => (adj.get(b).size - adj.get(a).size) || (a < b ? -1 : 1))
   const slot = new Map()
   const pick = (id) => {
-    const nb = [...adj.get(id)].map((x) => slot.get(x)).filter((v) => v != null)
-    let best = 0, bestScore = -Infinity
+    const nb1 = [...adj.get(id)].map((x) => slot.get(x)).filter((v) => v != null)
+    const nb2 = [...adj2.get(id)].map((x) => slot.get(x)).filter((v) => v != null)
     const used = new Array(PAL_N).fill(0)
     for (const v of slot.values()) used[v]++
+    let best = 0, bestScore = -Infinity
     for (let s = 0; s < PAL_N; s++) {
-      let mind = PAL_N
-      for (const v of nb) { const d = Math.abs(s - v); if (d < mind) mind = d }
-      const sc = mind * 100 - used[s] // maximise min hue gap, then balance usage
+      let m1 = PAL_N; for (const v of nb1) { const d = Math.abs(s - v); if (d < m1) m1 = d }
+      let m2 = PAL_N; for (const v of nb2) { const d = Math.abs(s - v); if (d < m2) m2 = d }
+      const sc = m1 * 1000 + m2 * 8 - used[s] // adjacent gap dominates, then near gap, then balance
       if (sc > bestScore) { bestScore = sc; best = s }
     }
     return best
   }
   for (const id of order) slot.set(id, pick(id))
-  for (let pass = 0; pass < 4; pass++) for (const id of order) slot.set(id, pick(id))
+  for (let pass = 0; pass < 6; pass++) for (const id of order) slot.set(id, pick(id))
   return slot
 }
 
