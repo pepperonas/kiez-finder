@@ -227,14 +227,35 @@ body {
   border: 1px solid var(--outline-faint);
   border-radius: var(--r-xl);
   box-shadow: var(--shadow-2);
-  padding: clamp(1.1rem, 3vw, 1.6rem);
-  max-height: min(72vh, 640px); overflow: auto; overscroll-behavior: contain;
+  max-height: min(72vh, 640px);
+  overflow: hidden; /* clip the scroll region to the rounded corners */
+  display: flex; flex-direction: column;
   transform: perspective(1200px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
   transform-style: preserve-3d;
   will-change: transform;
   animation: pass-in var(--dur-long) var(--ease-emphasized) both;
+}
+.pass-scroll {
+  flex: 1 1 auto; min-height: 0;
+  overflow: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+  padding: clamp(1.1rem, 3vw, 1.6rem);
   scrollbar-width: thin;
 }
+/* drag handle — hidden on desktop, shown as the bottom-sheet grabber on mobile */
+.sheet-handle {
+  display: none; flex: 0 0 auto; align-items: center; justify-content: center;
+  height: 30px; padding: 0; border: none; background: transparent;
+  cursor: grab; touch-action: none; -webkit-tap-highlight-color: transparent;
+}
+.sheet-handle::before {
+  content: ''; width: 40px; height: 4px; border-radius: 999px; background: var(--outline);
+  transition: background-color var(--dur-short) var(--ease-standard),
+              width var(--dur-short) var(--ease-emphasized);
+}
+.sheet-handle:hover::before { background: var(--on-surface-var); }
+.sheet-handle:active { cursor: grabbing; }
+.sheet-handle:active::before { width: 52px; background: var(--accent); }
+.pass.dragging { transition: none; }
 @keyframes pass-in {
   from { opacity: 0; transform: translateY(26px) scale(.97); }
   60% { opacity: 1; }
@@ -435,6 +456,30 @@ body {
 ::view-transition-old(root) { z-index: 1; }
 ::view-transition-new(root) { z-index: 2; }
 
+/* ── touch ergonomics (mobile) ── */
+.btn, .icon-btn, .meta-row--btn, .level-title, .seg-btn, .brand, .sheet-handle {
+  touch-action: manipulation; /* no 300ms delay, no double-tap zoom */
+}
+.meta-row--btn { min-height: 48px; }
+
+/* ── responsive: mobile = MD3 bottom sheet (drag handle, peek/open snap) ── */
+@media (max-width: 839px) {
+  .stage { padding: 0; align-items: stretch; justify-content: stretch; }
+  .pass {
+    position: fixed; left: 0; right: 0; bottom: 0; width: 100%; max-width: none; margin: 0;
+    border-radius: var(--r-xl) var(--r-xl) 0 0;
+    border-left: none; border-right: none; border-bottom: none;
+    max-height: 88vh; max-height: 88dvh;
+    /* default off-screen until JS measures + slides it up (no first-frame flash) */
+    transform: translateY(var(--sheet-y, 110%));
+    animation: none; /* JS-driven slide-up + spring snapping */
+  }
+  .sheet-handle { display: flex; }
+  .pass-scroll {
+    padding: .15rem clamp(1.1rem, 4.5vw, 1.5rem) calc(1.1rem + env(safe-area-inset-bottom));
+  }
+}
+
 /* ── responsive: desktop = floating side panel ── */
 @media (min-width: 840px) {
   .stage { align-items: stretch; justify-content: flex-start; padding: 1.25rem; }
@@ -450,7 +495,7 @@ body {
 /* ── reduced motion: kill spatial motion, keep things visible ── */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
-  .pass { animation: none; transform: none; }
+  .pass { animation: none; } /* keep mobile translateY (sheet position); snaps are instant via JS */
   .radar-sweep, .radar-ring, .stamp-ring, .beacon-ring { animation: none; }
   [data-reveal] { opacity: 1 !important; transform: none !important; }
 }

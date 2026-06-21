@@ -84,24 +84,109 @@ const topbar = h('header', { class: 'topbar' },
 
 const mapEl = h('div', { id: 'map', aria: { hidden: 'true' } })
 const card = h('section', { class: 'pass', aria: { live: 'polite' } })
+// drag handle (mobile bottom-sheet grabber) + scrolling content region
+const sheetHandle = h('button', {
+  class: 'sheet-handle', type: 'button',
+  aria: { label: 'Karte ein- oder ausklappen', expanded: 'true' },
+})
+const passScroll = h('div', { class: 'pass-scroll' })
+card.append(sheetHandle, passScroll)
 const stage = h('div', { class: 'stage' }, card)
 
 app.append(mapEl, stage, topbar)
 
 // delegated: clicking a hierarchy level highlights it on the map (persists across renders)
-card.addEventListener('click', (e) => {
+passScroll.addEventListener('click', (e) => {
   const btn = e.target.closest('[data-level]')
-  if (btn && card.contains(btn)) selectLevel(btn.getAttribute('data-level'))
+  if (btn && passScroll.contains(btn)) selectLevel(btn.getAttribute('data-level'))
 })
 
 // ── state renderers ─────────────────────────────────────────────────────────
 function setCard(node, animate = true) {
-  card.replaceChildren(node)
+  passScroll.replaceChildren(node)
   requestAnimationFrame(fitKiezName)
+  sheetOnRender()
   if (animate && !reduceMotion()) {
     const rows = node.querySelectorAll('[data-reveal]')
     if (rows.length) revealStagger([...rows])
   }
+}
+
+// ── mobile bottom sheet (MD3): drag handle, peek/open snap with spring ────────
+const sheet = { y: 0, H: 0, peek: 0, state: 'open', entered: false, cancel: null }
+function sheetEnabled() { return window.matchMedia('(max-width: 839px)').matches }
+function setSheetY(y) {
+  sheet.y = y
+  card.style.setProperty('--sheet-y', y.toFixed(1) + 'px')
+}
+function measureSheet() {
+  sheet.H = card.offsetHeight
+  const cardTop = card.getBoundingClientRect().top
+  const titleEl = card.querySelector('.level-title, .kiez-name, .locating-title') || passScroll.firstElementChild
+  let peek = 176
+  if (titleEl) peek = (titleEl.getBoundingClientRect().bottom - cardTop) + 20
+  sheet.peek = Math.max(120, Math.min(sheet.H - 48, peek))
+}
+function snapTarget(state) { return state === 'peek' ? Math.max(0, sheet.H - sheet.peek) : 0 }
+function snapTo(state, instant = false) {
+  sheet.state = state
+  card.setAttribute('data-sheet', state)
+  sheetHandle.setAttribute('aria-expanded', state === 'open' ? 'true' : 'false')
+  const target = snapTarget(state)
+  if (sheet.cancel) { sheet.cancel(); sheet.cancel = null }
+  if (instant || reduceMotion()) { setSheetY(target); return }
+  sheet.cancel = spring(sheet.y, target, SPRINGS.spatialDefault, setSheetY)
+}
+function sheetOnRender() {
+  if (!sheetEnabled()) { card.style.removeProperty('--sheet-y'); card.removeAttribute('data-sheet'); return }
+  requestAnimationFrame(() => {
+    measureSheet()
+    if (!sheet.entered) { sheet.entered = true; setSheetY(sheet.H); requestAnimationFrame(() => snapTo('open')) }
+    else snapTo('open')
+  })
+}
+function initSheetDrag() {
+  let dragging = false, startY = 0, startSheetY = 0, lastY = 0, lastT = 0, vel = 0, moved = false
+  const toggle = () => { if (sheetEnabled()) snapTo(sheet.state === 'open' ? 'peek' : 'open') }
+  sheetHandle.addEventListener('pointerdown', (e) => {
+    if (!sheetEnabled()) return
+    dragging = true; moved = false
+    startY = lastY = e.clientY; startSheetY = sheet.y; lastT = e.timeStamp; vel = 0
+    if (sheet.cancel) { sheet.cancel(); sheet.cancel = null }
+    card.classList.add('dragging')
+    try { sheetHandle.setPointerCapture(e.pointerId) } catch (err) {}
+  })
+  sheetHandle.addEventListener('pointermove', (e) => {
+    if (!dragging) return
+    const dy = e.clientY - startY
+    if (Math.abs(dy) > 4) moved = true
+    const max = snapTarget('peek')
+    let y = startSheetY + dy
+    if (y < 0) y *= 0.3            // rubber-band past fully open
+    else if (y > max) y = max + (y - max) * 0.3
+    setSheetY(y)
+    const dt = e.timeStamp - lastT
+    if (dt > 0) vel = (e.clientY - lastY) / dt // px/ms
+    lastY = e.clientY; lastT = e.timeStamp
+  })
+  const end = (e) => {
+    if (!dragging) return
+    dragging = false
+    card.classList.remove('dragging')
+    try { sheetHandle.releasePointerCapture(e.pointerId) } catch (err) {}
+    if (!moved) { toggle(); return } // pointer tap → toggle here (no reliance on click)
+    const max = snapTarget('peek')
+    let target
+    if (vel > 0.45) target = 'peek'
+    else if (vel < -0.45) target = 'open'
+    else target = sheet.y > max * 0.5 ? 'peek' : 'open'
+    snapTo(target)
+  }
+  sheetHandle.addEventListener('pointerup', end)
+  sheetHandle.addEventListener('pointercancel', end)
+  // keyboard activation only (Enter/Space → click with detail 0); pointer taps
+  // are handled in pointerup, so ignore pointer-generated clicks (detail > 0).
+  sheetHandle.addEventListener('click', (e) => { if (e.detail === 0) toggle() })
 }
 
 // Shrink the Kiez title only when it would overflow (a long single word like
@@ -474,9 +559,12 @@ async function boot() {
     }
   }).catch(() => null)
   enableTilt()
+  initSheetDrag()
   window.addEventListener('resize', () => {
     state.map && state.map.resize()
     fitKiezName()
+    if (sheetEnabled()) { measureSheet(); snapTo(sheet.state, true) }
+    else { card.style.removeProperty('--sheet-y'); card.removeAttribute('data-sheet') }
   })
   checkIn()
 }
