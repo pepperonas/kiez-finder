@@ -27,11 +27,15 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
 - `src/main.js` — orchestrator + state machine (locating → found / outside-Berlin / error), builds the
   DOM with a safe `h()` helper (Kiez names via `textContent`, only static strings via innerHTML),
   owns the lock-on flow, theme toggle (View Transitions circular reveal), install prompt, card tilt.
-  **Interactive levels:** the Kiez title + the Bezirk/Bezirksregion/Prognoseraum rows are `<button>`s
-  with `data-level`; a delegated click on the card calls `selectLevel()` → `map.highlight(…,{fit})`.
-  A **map click** → `pickAt()` → `locateAt()` (shared with geolocation `checkIn()`, `_seq`-guarded
-  against out-of-order results), which always resets to the Kiez level. The address row renders
-  instantly and is patched async (`patchAddress`).
+  **Interactive levels:** the Kiez title + the Bezirksregion/Bezirk rows are `<button>`s with
+  `data-level` (`kiez`/`bzr`/`bez`); a delegated click calls `selectLevel()` → `map.highlight(…,{fit})`.
+  **Default highlight = the merged colloquial Kiez** (`level: 'kiez'` → `kiezAreaFor`), so the whole
+  Kiez is one area, not the single Planungsraum. Title = precomputed colloquial `kiez` (instant),
+  subline = the exact `plr_name`. A **map click** → `pickAt()` → `locateAt()` (shared with geolocation
+  `checkIn()`, `_seq`-guarded), which highlights `kiezAreaFor(kiez)`. Address row patched async.
+  **Mobile bottom sheet** (`sheet`/`initSheetDrag`): on `≤839px` the card is a fixed bottom sheet with
+  a drag handle; pointer drag + velocity/position snap between `open`↔`peek` via the M3 spring,
+  `--sheet-y` transform, tap-to-toggle, keyboard-activatable. Non-modal (map stays usable).
 - `src/map.js` — `KiezMap` class wrapping MapLibre GL. Keyless CARTO tiles (dark-matter/positron).
   `lockOn()` is the signature moment: `flyTo` the user, drop the beacon, then animate the Kiez
   fill/outline in with a spring. `highlight(feature,{fit})` highlights any LOR level (+`fitBounds`);
@@ -55,10 +59,13 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   otherwise a big polygon gets a duplicate label per vector tile it spans.
 - `src/kiez.js` — loads `public/data/kieze.geojson`, hand-rolled ray-cast point-in-polygon
   (bbox-prefiltered, handles MultiPolygon + holes). `findKiez(lon,lat)` → feature or null.
+  Each Planungsraum carries `gid` + `kiez` (precomputed colloquial Kiez, see pipeline below).
+  **`kiezAreaFor(plr)`** → the merged colloquial-Kiez polygon (union of all Planungsräume sharing
+  its `gid`) from `kiez-areas.geojson` (loaded alongside in `loadKieze`); falls back to the single plr.
   Also loads the 3 **aggregate LOR levels** (`bezirke`/`prognoseraeume`/`bezirksregionen.geojson`,
-  lazy via `loadLevels()`) and exposes `featureForLevel(level, plrFeature)` — derives the level's id
-  from the Kiez's `plr_id` prefix (Bezirk=2, Prognoseraum=4, Bezirksregion=6, Kiez=8) and looks it up.
-  `bboxOf()` feeds `fitBounds`.
+  lazy via `loadLevels()`) and exposes `featureForLevel(level, plrFeature)` — `kiez` → `kiezAreaFor`,
+  else derives the level's id from the `plr_id` prefix (Bezirk=2, Prognoseraum=4, Bezirksregion=6) and
+  looks it up. `bboxOf()` feeds `fitBounds`.
 - `src/geo.js` — `getPosition()` (geolocation, mapped errors) + `reverseGeocode()` (Nominatim,
   best-effort, cached in sessionStorage). Returns `{ line, kiez, raw }`: `line` = address,
   `kiez` = OSM `quarter`/`neighbourhood` (the colloquial Kiez name, e.g. "Flughafenkiez").
@@ -77,8 +84,17 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
 - **No API keys / secrets.** Tiles are keyless CARTO; geocoding is Nominatim (1 req/s policy → results
   are cached). The classification is our own point-in-polygon against official boundaries, NOT Nominatim.
 - **Kiez data** (`public/data/`) is pre-processed with mapshaper from the Geoportal Berlin WFS
-  (LOR 2021 Planungsräume, EPSG:4326). Regeneration steps are in the README. `kieze.geojson` ≈ 628 KB
-  (542 features, simplified 12%); `berlin-outline.geojson` is the dissolved city boundary.
+  (LOR 2021 Planungsräume, EPSG:4326). Regeneration steps are in the README. `kieze.geojson` ≈ 647 KB
+  (542 features, simplified 12%, carries `gid`+`kiez`); `berlin-outline.geojson` = dissolved city boundary;
+  `bezirke`/`prognoseraeume`/`bezirksregionen.geojson` = aggregate LOR levels; `kiez-names.geojson` =
+  537 OSM colloquial-Kiez label points.
+- **Merged Kiez-areas** (`kiez-areas.geojson`, 355 features): each colloquial Kiez (Schillerkiez =
+  4 Planungsräume) is ONE dissolved polygon. Built by reverse-geocoding every Planungsraum's inner
+  point via Nominatim → its `quarter`/`neighbourhood`, grouping by name **within connected components**
+  (shared-vertex adjacency, so distant same-named Kieze don't merge), then `mapshaper -dissolve gid`.
+  This is more precise than the Bezirksregion (which would over-include, e.g. Silbersteinstraße =
+  Körnerkiez, not Schillerkiez). Coverage ≈78 % (OSM `quarter` isn't flächendeckend); the rest stays
+  its own Planungsraum. One-time build (slow: 542 rate-limited Nominatim calls).
 - **nginx Permissions-Policy gotcha:** geolocation must be allowed on the *HTML document*. Because
   `try_files … /index.html` internally redirects to `location = /index.html`, and that block defines
   its own `add_header`, nginx drops the server-level headers there — so the security headers

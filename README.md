@@ -52,8 +52,9 @@ gehorchen alle diesem einen Satz.
 ## Features
 
 - 📍 **Standort → Kiez** über die offiziellen LOR-2021-Planungsräume (542 Kieze), Point-in-Polygon im Browser
-- 🗣️ **Umgangssprachlicher Kiez-Name** — wenn OpenStreetMap einen geläufigen Namen kennt (z.B. *Flughafenkiez*), wird er zum Titel; der amtliche Planungsraum-Name (*Flughafenstraße*) steht als Unterzeile
-- 🧅 **Vier wählbare LOR-Ebenen** — tippe in der Card auf **Kiez · Bezirk · Bezirksregion · Prognoseraum**, und die zugehörige Fläche wird auf der Karte hervorgehoben (Auto-Zoom auf ihre Ausdehnung)
+- 🗣️ **Umgangssprachlicher Kiez** — der geläufige Kiez-Name (z.B. *Schillerkiez*, *Flughafenkiez*) ist der Titel; der amtliche Planungsraum (z.B. *Wartheplatz*) steht als Unterzeile
+- 🧩 **Kiez als EINE Fläche** — ein umgangssprachlicher Kiez besteht oft aus mehreren amtlichen Planungsräumen (Schillerkiez = Hasenheide + Schillerpromenade Nord/Süd + Wartheplatz). Die werden **zusammengeführt** und als eine zusammenhängende Fläche hervorgehoben — präzise, nicht die zu grobe Bezirksregion (355 Kiez-Flächen aus 542 Planungsräumen)
+- 🧅 **Wählbare LOR-Ebenen** — tippe in der Card auf **Kiez · Bezirksregion · Bezirk**, und die zugehörige Fläche wird hervorgehoben (Auto-Zoom auf ihre Ausdehnung)
 - 🖱️ **Karte ist anklickbar** — tippe irgendwohin in Berlin, und die Card springt auf den Kiez dieses Punkts (inkl. neuer Adresse)
 - 🗺️ **Sektoren-Overlay** (3-Stufen-Button) — *aus · Bezirke · Bezirksregionen*: färbt alle Bezirke/Regionen in einer kohärenten, kühlen Palette. Bezirksregionen erben den Farbton ihres Bezirks und variieren in der Helligkeit → gruppiert erkennbar **und** lokal unterscheidbar
 - 🏷️ **Eigene Label-Ebene** — Bezirke groß/hell (schon bei weitem Zoom), Bezirksregionen kleiner; MapLibre-Kollision zeigt immer die im Ausschnitt passenden Labels (Basemap-Ortsteil-Labels werden ausgeblendet, damit die offizielle Hierarchie dominiert)
@@ -61,7 +62,7 @@ gehorchen alle diesem einen Satz.
 - 🗺️ **Lebendige Vektorkarte** (MapLibre GL) mit `flyTo`-Lock-on und sich selbst zeichnender Kiez-Grenze
 - 🎨 **Material 3 Expressive** — Feder-Physik statt Easing-Fades, tonale Flächen, XL-Shapes, Shape-Morph beim Tippen
 - 🌗 **Hell/Dunkel** mit kreisförmigem View-Transition-Reveal (dark-matter ↔ positron)
-- 📱 **PWA** — installierbar, offline-fähig (Kiez-Grenzen & Karten werden gecacht)
+- 📱 **PWA + Mobile** — installierbar, offline-fähig (Kiez-Grenzen & Karten gecacht); die Card ist auf Mobilgeräten ein **MD3-Bottom-Sheet** (Drag-Handle, Snap auf/zu, nicht-modal über der Karte), Touch-Targets ≥ 48 px, Safe-Area-Insets, `dvh`-Höhe
 - ♿ **Robust** — Progressive Enhancement, `prefers-reduced-motion`, sichtbarer Fokus, Tastatur (`R` = neu einchecken), Touch-Targets ≥ 44 px
 - 🔑 **Kein API-Key** — keyless Carto-Tiles + Nominatim, keine Secrets im Code
 
@@ -124,6 +125,18 @@ npx mapshaper public/data/kieze.geojson -dissolve -o public/data/berlin-outline.
 npx mapshaper public/data/kieze.geojson -each 'id=plr_id.substring(0,2)' -dissolve id copy-fields=bez                -o public/data/bezirke.geojson precision=0.0001
 npx mapshaper public/data/kieze.geojson -each 'id=plr_id.substring(0,4)' -dissolve id copy-fields=pgr_name,bez       -o public/data/prognoseraeume.geojson precision=0.00001
 npx mapshaper public/data/kieze.geojson -each 'id=plr_id.substring(0,6)' -dissolve id copy-fields=bzr_name,bez       -o public/data/bezirksregionen.geojson precision=0.00001
+
+# 5) zusammengeführte „Kiez-Flächen" (umgangssprachliche Kieze):
+#    jeder Planungsraum wird per Reverse-Geocoding (Nominatim, quarter/neighbourhood)
+#    seinem umgangssprachlichen Kiez zugeordnet, dann nach Kiez-Name + zusammenhängender
+#    Komponente gruppiert (shared-vertex Adjazenz) und per `-dissolve gid` verschmolzen.
+#    Ergebnis: kieze.geojson bekommt gid+kiez je Planungsraum, kiez-areas.geojson = eine
+#    Fläche je Kiez (355 aus 542). Quarter ist nicht flächendeckend → ~78 % Abdeckung,
+#    der Rest bleibt sein eigener Planungsraum. (Build-Skripte: siehe git-Historie /
+#    `/tmp/rev-all.mjs` + `/tmp/build-kiez-areas.mjs`.)
+
+# 6) OSM-Kiez-Namen (Punkt-Labels) via Overpass → kiez-names.geojson
+#    node-Query: place=quarter|neighbourhood in Berlin → 537 Punkte
 ```
 
 ## Deploy
