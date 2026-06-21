@@ -194,10 +194,13 @@ function renderFound({ kiez, pos, address }) {
       type: 'button', 'data-level': 'plr', 'data-reveal': '',
       aria: { pressed: titleActive ? 'true' : 'false', label: `Kiez ${p.plr_name} auf der Karte zeigen` },
     }, h('h1', { class: 'kiez-name', text: p.plr_name })),
+    // ordered by ascending area size (Kiez = title above; then bigger → biggest).
+    // The Prognoseraum is hidden when it only duplicates the Bezirk name.
     h('div', { class: 'meta' },
-      levelRow('bez', 'Bezirk', bezirkName(p.bez)),
       levelRow('bzr', 'Bezirksregion', p.bzr_name),
-      levelRow('pgr', 'Prognoseraum', p.pgr_name),
+      p.pgr_name && p.pgr_name !== bezirkName(p.bez)
+        ? levelRow('pgr', 'Prognoseraum', p.pgr_name) : null,
+      levelRow('bez', 'Bezirk', bezirkName(p.bez)),
       addressRow(address && address.line),
     ),
     h('p', { class: 'hint', 'data-reveal': '', text:
