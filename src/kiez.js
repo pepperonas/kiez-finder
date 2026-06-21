@@ -9,6 +9,8 @@
 let _kieze = null // FeatureCollection
 let _bbox = null  // per-feature [minX,minY,maxX,maxY]
 let _outline = null
+let _levelMaps = null // { bez: Map<id,feature>, pgr: …, bzr: … }
+let _levelsPromise = null
 
 async function loadJSON(url) {
   const res = await fetch(url)
@@ -21,6 +23,62 @@ export async function loadKieze() {
   _kieze = await loadJSON('/data/kieze.geojson')
   _bbox = _kieze.features.map(featureBBox)
   return _kieze
+}
+
+// ── aggregate LOR levels (dissolved from the Kieze) — lazy, non-blocking ──────
+// The hierarchy nests by plr_id prefix:
+//   Bezirk (2) ⊃ Prognoseraum (4) ⊃ Bezirksregion (6) ⊃ Planungsraum/Kiez (8)
+export const LEVELS = [
+  { key: 'plr', label: 'Kiez' },
+  { key: 'bez', label: 'Bezirk' },
+  { key: 'bzr', label: 'Bezirksregion' },
+  { key: 'pgr', label: 'Prognoseraum' },
+]
+
+export function loadLevels() {
+  if (_levelsPromise) return _levelsPromise
+  _levelsPromise = Promise.all([
+    loadJSON('/data/bezirke.geojson'),
+    loadJSON('/data/prognoseraeume.geojson'),
+    loadJSON('/data/bezirksregionen.geojson'),
+  ]).then(([bez, pgr, bzr]) => {
+    const toMap = (fc) => {
+      const m = new Map()
+      for (const f of fc.features) m.set(f.properties.id, f)
+      return m
+    }
+    _levelMaps = { bez: toMap(bez), pgr: toMap(pgr), bzr: toMap(bzr) }
+    return _levelMaps
+  })
+  return _levelsPromise
+}
+
+// id prefix length per level
+const PREFIX = { bez: 2, pgr: 4, bzr: 6 }
+
+/** The polygon Feature for a given level, derived from a Kiez (plr) feature. */
+export function featureForLevel(level, plrFeature) {
+  if (!plrFeature) return null
+  if (level === 'plr') return plrFeature
+  if (!_levelMaps) return null
+  const id = plrFeature.properties.plr_id.substring(0, PREFIX[level])
+  return _levelMaps[level] ? _levelMaps[level].get(id) || null : null
+}
+
+/** Display name for a level, given a Kiez feature. */
+export function levelName(level, plrFeature) {
+  if (!plrFeature) return '—'
+  const p = plrFeature.properties
+  if (level === 'plr') return p.plr_name
+  if (level === 'bez') return bezirkName(p.bez)
+  if (level === 'bzr') return p.bzr_name
+  if (level === 'pgr') return p.pgr_name
+  return '—'
+}
+
+/** [minLon, minLat, maxLon, maxLat] for a feature (for fitBounds). */
+export function bboxOf(feature) {
+  return feature ? featureBBox(feature) : null
 }
 
 export async function loadOutline() {

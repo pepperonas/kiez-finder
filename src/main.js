@@ -9,7 +9,8 @@
 // ─────────────────────────────────────────────────────────────────────────
 import './style.css'
 import { KiezMap } from './map.js'
-import { loadKieze, loadOutline, findKiez, bezirkName, kmFromBerlin } from './kiez.js'
+import { loadKieze, loadOutline, loadLevels, findKiez, bezirkName, kmFromBerlin,
+  featureForLevel, levelName } from './kiez.js'
 import { getPosition, reverseGeocode } from './geo.js'
 import { revealStagger, tweenNumber, spring, SPRINGS, reduceMotion, finePointer, damdamper } from './motion.js'
 
@@ -36,6 +37,7 @@ const ICONS = {
   refresh: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12a7 7 0 1 1-2.05-4.95M19 4.5V8h-3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   target: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.6"/><path d="M12 1.8v3M12 19.2v3M1.8 12h3M19.2 12h3" stroke-linecap="round"/></svg>',
   pin: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-6.4 7-11.3A7 7 0 0 0 5 9.7C5 14.6 12 21 12 21Z"/><circle cx="12" cy="9.6" r="2.4" fill="var(--surface)"/></svg>',
+  layers: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 3.5 8 12 12.5 20.5 8 12 3.5Z" stroke-linejoin="round"/><path d="M4 12.2 12 16.5l8-4.3M4 15.9 12 20.2l8-4.3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
 }
 
 const state = {
@@ -44,6 +46,9 @@ const state = {
   deferredInstall: null,
   busy: false,
   tilt: null,
+  plr: null,        // current Kiez feature
+  pos: null,        // current position { lat, lon, accuracy }
+  level: 'plr',     // active highlight level: plr | bez | bzr | pgr
 }
 
 // ── shell ──────────────────────────────────────────────────────────────────
@@ -73,6 +78,12 @@ const card = h('section', { class: 'pass', aria: { live: 'polite' } })
 const stage = h('div', { class: 'stage' }, card)
 
 app.append(mapEl, stage, topbar)
+
+// delegated: clicking a hierarchy level highlights it on the map (persists across renders)
+card.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-level]')
+  if (btn && card.contains(btn)) selectLevel(btn.getAttribute('data-level'))
+})
 
 // ── state renderers ─────────────────────────────────────────────────────────
 function setCard(node, animate = true) {
@@ -106,29 +117,66 @@ function metaRow(label, value) {
     h('span', { class: 'meta-value', text: value || '—' }))
 }
 
+// a selectable hierarchy level (button) — clicking highlights it on the map
+function levelRow(level, label, value) {
+  const active = state.level === level
+  return h('button', {
+    class: 'meta-row meta-row--btn' + (active ? ' is-active' : ''),
+    type: 'button', 'data-level': level, 'data-reveal': '',
+    aria: { pressed: active ? 'true' : 'false', label: `${label} ${value} auf der Karte zeigen` },
+  },
+    h('span', { class: 'meta-label', text: label }),
+    h('span', { class: 'meta-value', text: value || '—' }),
+    h('span', { class: 'meta-go', 'aria-hidden': 'true', html: ICONS.layers }))
+}
+
+let _addrValueEl = null
+function addressRow(line) {
+  _addrValueEl = h('span', {
+    class: 'meta-value' + (line ? '' : ' meta-value--pending'),
+    text: line || 'wird ermittelt …',
+  })
+  return h('div', { class: 'meta-row', 'data-reveal': '' },
+    h('span', { class: 'meta-label', text: 'Adresse' }), _addrValueEl)
+}
+function patchAddress(line) {
+  if (!_addrValueEl) return
+  _addrValueEl.textContent = line
+  _addrValueEl.classList.remove('meta-value--pending')
+}
+
 function renderFound({ kiez, pos, address }) {
+  state.plr = kiez
+  state.pos = pos
   const p = kiez.properties
   const coordsEl = h('span', { class: 'coords-val', text: '52.00000, 13.00000' })
+  const titleActive = state.level === 'plr'
 
   const recheck = h('button', { class: 'btn btn-filled', type: 'button', 'data-reveal': '' },
     h('span', { class: 'btn-icon', html: ICONS.refresh }), 'Erneut einchecken')
   recheck.addEventListener('click', () => checkIn())
 
   const showMap = h('button', { class: 'btn btn-tonal', type: 'button', 'data-reveal': '' },
-    h('span', { class: 'btn-icon', html: ICONS.target }), 'Auf Karte zeigen')
-  showMap.addEventListener('click', () => state.map && state.map.recenter())
+    h('span', { class: 'btn-icon', html: ICONS.target }), 'Auf Karte zentrieren')
+  showMap.addEventListener('click', () => fitActive())
 
   const body = h('div', { class: 'pass-body pass-found' },
     h('div', { class: 'stamp', 'aria-hidden': 'true' },
       h('span', { class: 'stamp-ring' }), h('span', { class: 'stamp-pin', html: ICONS.pin })),
     h('p', { class: 'eyebrow', 'data-reveal': '', text: 'Du stehst im Kiez' }),
-    h('h1', { class: 'kiez-name', 'data-reveal': '', text: p.plr_name }),
-    h('div', { class: 'meta', },
-      metaRow('Bezirk', bezirkName(p.bez)),
-      metaRow('Bezirksregion', p.bzr_name),
-      metaRow('Prognoseraum', p.pgr_name),
-      address && address.line ? metaRow('Adresse', address.line) : null,
+    h('button', {
+      class: 'level-title' + (titleActive ? ' is-active' : ''),
+      type: 'button', 'data-level': 'plr', 'data-reveal': '',
+      aria: { pressed: titleActive ? 'true' : 'false', label: `Kiez ${p.plr_name} auf der Karte zeigen` },
+    }, h('h1', { class: 'kiez-name', text: p.plr_name })),
+    h('div', { class: 'meta' },
+      levelRow('bez', 'Bezirk', bezirkName(p.bez)),
+      levelRow('bzr', 'Bezirksregion', p.bzr_name),
+      levelRow('pgr', 'Prognoseraum', p.pgr_name),
+      addressRow(address && address.line),
     ),
+    h('p', { class: 'hint', 'data-reveal': '', text:
+      'Tippe eine Ebene an, um sie hervorzuheben — oder tippe auf die Karte.' }),
     h('div', { class: 'coords', 'data-reveal': '' },
       h('span', { class: 'coords-label', text: 'Koordinaten' }), coordsEl),
     h('div', { class: 'actions' }, recheck, showMap),
@@ -136,9 +184,31 @@ function renderFound({ kiez, pos, address }) {
       'Kiez-Grenzen: LOR 2021 · Geoportal Berlin / Amt für Statistik Berlin-Brandenburg' }),
   )
   setCard(body)
-  // coordinate readout arrives, it doesn't just appear
-  const fmt = (n) => n // placeholder, overwritten below
   tweenCoords(coordsEl, pos)
+}
+
+// reflect the active level in the card chrome without re-rendering (no replay)
+function syncLevelUI() {
+  card.querySelectorAll('[data-level]').forEach((el) => {
+    const on = el.getAttribute('data-level') === state.level
+    el.classList.toggle('is-active', on)
+    el.setAttribute('aria-pressed', on ? 'true' : 'false')
+  })
+}
+
+async function selectLevel(level) {
+  if (!state.plr || !state.map) return
+  state.level = level
+  syncLevelUI()
+  await loadLevels().catch(() => null)
+  const feature = featureForLevel(level, state.plr)
+  if (feature) state.map.highlight(feature, { fit: true })
+}
+
+function fitActive() {
+  if (!state.plr || !state.map) return
+  const feature = featureForLevel(state.level, state.plr)
+  if (feature) state.map.fitTo(feature)
 }
 
 function tweenCoords(el, pos) {
@@ -193,29 +263,49 @@ function renderError(err) {
 }
 
 // ── core flow ────────────────────────────────────────────────────────────────
+let _seq = 0 // guards against out-of-order results when picks overlap
+
+// Geolocation check-in — the dramatic lock-on flight.
 async function checkIn() {
   if (state.busy) return
   state.busy = true
   renderLocating()
   try {
     const pos = await getPosition()
-    const kiez = findKiez(pos.lon, pos.lat)
-    // start the camera flight immediately; enrich the address in parallel
-    state.map && state.map.lockOn(pos.lon, pos.lat, kiez || null)
-    if (kiez) {
-      const address = await Promise.race([
-        reverseGeocode(pos.lat, pos.lon),
-        new Promise((r) => setTimeout(() => r(null), 4000)),
-      ])
-      renderFound({ kiez, pos, address })
-    } else {
-      renderOutside({ pos })
-    }
+    await locateAt(pos, { fly: true })
   } catch (err) {
+    state.plr = null
     renderError(err)
   } finally {
     state.busy = false
   }
+}
+
+// Map click — pick a new point; always resolves to its Kiez.
+async function pickAt(lon, lat) {
+  await locateAt({ lat, lon, accuracy: null }, { fly: false })
+}
+
+// Shared: resolve a position → Kiez, move the map, render the card.
+async function locateAt(pos, { fly = false } = {}) {
+  const mine = ++_seq
+  state.level = 'plr'
+  const kiez = findKiez(pos.lon, pos.lat)
+
+  if (state.map) {
+    if (fly) state.map.lockOn(pos.lon, pos.lat, kiez || null)
+    else state.map.goTo(pos.lon, pos.lat, kiez || null)
+  }
+
+  if (!kiez) {
+    state.plr = null
+    renderOutside({ pos })
+    return
+  }
+
+  renderFound({ kiez, pos, address: null }) // show instantly
+  const address = await reverseGeocode(pos.lat, pos.lon).catch(() => null)
+  if (mine === _seq && address && address.line) patchAddress(address.line)
 }
 
 // ── theme toggle with MD3-expressive circular reveal (View Transitions) ──────
@@ -290,8 +380,11 @@ async function boot() {
   renderLocating()
   const outline = await loadOutline().catch(() => null)
   state.map = new KiezMap(mapEl, state.theme, outline)
+  state.map.onPick((lon, lat) => pickAt(lon, lat))
   // load polygons + map shell in parallel, then check in
   await Promise.all([loadKieze().catch(() => null), state.map.whenReady()])
+  // pull the aggregate levels in the background so level-switches are instant
+  loadLevels().catch(() => null)
   enableTilt()
   window.addEventListener('resize', () => state.map && state.map.resize())
   checkIn()

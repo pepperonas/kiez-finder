@@ -276,6 +276,62 @@ body {
 }
 .btn-tonal { background: var(--accent-container); color: var(--on-accent-container); flex: 0 1 auto; }
 
+/* ── selectable hierarchy levels (Kiez title + rows) ── */
+.level-title {
+  appearance: none; -webkit-appearance: none;
+  background: transparent; border: none; padding: .1rem .15rem; margin: 0;
+  width: 100%; text-align: left; cursor: pointer; position: relative;
+  border-radius: var(--r-m);
+  transition: transform var(--dur-short) var(--ease-emphasized);
+}
+.level-title .kiez-name { margin: 0; }
+.level-title:hover { transform: translateX(2px); }
+.level-title::after { /* active underline */
+  content: ''; position: absolute; left: .15rem; bottom: -3px; height: 3px; border-radius: 3px;
+  width: 0; background: var(--accent);
+  transition: width var(--dur-med) var(--ease-emphasized);
+}
+.level-title.is-active::after { width: clamp(40px, 22%, 72px); }
+
+.meta-row--btn {
+  appearance: none; -webkit-appearance: none;
+  background: transparent; border: none; border-bottom: 1px solid var(--outline-faint);
+  font: inherit; color: inherit; text-align: left; cursor: pointer;
+  width: 100%; position: relative; border-radius: 0; overflow: hidden;
+  transition: padding-left var(--dur-med) var(--ease-emphasized);
+}
+.meta-row--btn::before { /* state layer */
+  content: ''; position: absolute; inset: 0; background: currentColor; opacity: 0;
+  transition: opacity var(--dur-short) var(--ease-standard); pointer-events: none;
+}
+.meta-row--btn:hover::before { opacity: var(--st-hover); }
+.meta-row--btn:active::before { opacity: var(--st-press); }
+.meta-row--btn .meta-value { flex: 1; }
+.meta-go {
+  display: inline-flex; margin-left: .55rem; color: var(--on-surface-var); opacity: .4;
+  transition: opacity var(--dur-short) var(--ease-standard),
+              transform var(--dur-med) var(--ease-emphasized);
+}
+.meta-go svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; }
+.meta-row--btn:hover .meta-go { opacity: .85; }
+.meta-row--btn.is-active {
+  padding-left: .8rem;
+  background: color-mix(in srgb, var(--accent) 13%, transparent);
+}
+.meta-row--btn.is-active::after { /* accent bar */
+  content: ''; position: absolute; left: 0; top: 16%; bottom: 16%; width: 3px;
+  border-radius: 0 3px 3px 0; background: var(--accent);
+}
+.meta-row--btn.is-active .meta-value { color: var(--accent); }
+.meta-row--btn.is-active .meta-go { opacity: 1; color: var(--accent); transform: scale(1.12); }
+
+.meta-value--pending { color: var(--on-surface-var); font-weight: 500; opacity: .75; font-style: italic; }
+
+.hint {
+  margin: .75rem 0 0; font-size: .8rem; line-height: 1.4;
+  color: var(--on-surface-var);
+}
+
 /* ── stamp (found / void) ── */
 .stamp {
   position: relative; width: 56px; height: 56px; margin-bottom: .2rem;

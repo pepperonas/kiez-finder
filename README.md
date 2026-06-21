@@ -47,6 +47,8 @@ gehorchen alle diesem einen Satz.
 ## Features
 
 - 📍 **Standort → Kiez** über die offiziellen LOR-2021-Planungsräume (542 Kieze), Point-in-Polygon im Browser
+- 🧅 **Vier wählbare LOR-Ebenen** — tippe in der Card auf **Kiez · Bezirk · Bezirksregion · Prognoseraum**, und die zugehörige Fläche wird auf der Karte hervorgehoben (Auto-Zoom auf ihre Ausdehnung)
+- 🖱️ **Karte ist anklickbar** — tippe irgendwohin in Berlin, und die Card springt auf den Kiez dieses Punkts (inkl. neuer Adresse)
 - 🗺️ **Lebendige Vektorkarte** (MapLibre GL) mit `flyTo`-Lock-on und sich selbst zeichnender Kiez-Grenze
 - 🎨 **Material 3 Expressive** — Feder-Physik statt Easing-Fades, tonale Flächen, XL-Shapes, Shape-Morph beim Tippen
 - 🌗 **Hell/Dunkel** mit kreisförmigem View-Transition-Reveal (dark-matter ↔ positron)
@@ -107,6 +109,12 @@ npx mapshaper plr.geojson -filter-fields plr_id,plr_name,bzr_name,pgr_name,bez \
 
 # 3) Stadtgrenze für den Übersichts-Zustand
 npx mapshaper public/data/kieze.geojson -dissolve -o public/data/berlin-outline.geojson precision=0.0001
+
+# 4) aggregierte Ebenen für die Highlight-Auswahl (aus den Kiezen dissolved,
+#    genestet über die plr_id-Präfixe: Bezirk 2 ⊃ Prognoseraum 4 ⊃ Bezirksregion 6 ⊃ Kiez 8)
+npx mapshaper public/data/kieze.geojson -each 'id=plr_id.substring(0,2)' -dissolve id copy-fields=bez                -o public/data/bezirke.geojson precision=0.0001
+npx mapshaper public/data/kieze.geojson -each 'id=plr_id.substring(0,4)' -dissolve id copy-fields=pgr_name,bez       -o public/data/prognoseraeume.geojson precision=0.00001
+npx mapshaper public/data/kieze.geojson -each 'id=plr_id.substring(0,6)' -dissolve id copy-fields=bzr_name,bez       -o public/data/bezirksregionen.geojson precision=0.00001
 ```
 
 ## Deploy

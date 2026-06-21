@@ -27,11 +27,22 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
 - `src/main.js` — orchestrator + state machine (locating → found / outside-Berlin / error), builds the
   DOM with a safe `h()` helper (Kiez names via `textContent`, only static strings via innerHTML),
   owns the lock-on flow, theme toggle (View Transitions circular reveal), install prompt, card tilt.
+  **Interactive levels:** the Kiez title + the Bezirk/Bezirksregion/Prognoseraum rows are `<button>`s
+  with `data-level`; a delegated click on the card calls `selectLevel()` → `map.highlight(…,{fit})`.
+  A **map click** → `pickAt()` → `locateAt()` (shared with geolocation `checkIn()`, `_seq`-guarded
+  against out-of-order results), which always resets to the Kiez level. The address row renders
+  instantly and is patched async (`patchAddress`).
 - `src/map.js` — `KiezMap` class wrapping MapLibre GL. Keyless CARTO tiles (dark-matter/positron).
   `lockOn()` is the signature moment: `flyTo` the user, drop the beacon, then animate the Kiez
-  fill/outline in with a spring. `setTheme()` re-adds custom layers after `setStyle()`.
+  fill/outline in with a spring. `highlight(feature,{fit})` highlights any LOR level (+`fitBounds`);
+  `goTo()` handles a map-click pick; `onPick(cb)` fires on map clicks → main re-locates.
+  `setTheme()` re-adds custom layers after `setStyle()`.
 - `src/kiez.js` — loads `public/data/kieze.geojson`, hand-rolled ray-cast point-in-polygon
   (bbox-prefiltered, handles MultiPolygon + holes). `findKiez(lon,lat)` → feature or null.
+  Also loads the 3 **aggregate LOR levels** (`bezirke`/`prognoseraeume`/`bezirksregionen.geojson`,
+  lazy via `loadLevels()`) and exposes `featureForLevel(level, plrFeature)` — derives the level's id
+  from the Kiez's `plr_id` prefix (Bezirk=2, Prognoseraum=4, Bezirksregion=6, Kiez=8) and looks it up.
+  `bboxOf()` feeds `fitBounds`.
 - `src/geo.js` — `getPosition()` (geolocation, mapped errors) + `reverseGeocode()` (Nominatim,
   best-effort, cached in sessionStorage; only enriches the address line).
 - `src/motion.js` — **the spring system.** CSS has no springs, so spatial motion uses a tiny Euler
