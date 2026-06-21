@@ -15,6 +15,12 @@ const STYLES = {
 
 // brand accent per theme (the Kiez fill / outline colour)
 const ACCENT = { dark: '#7da2ff', light: '#3b5bdb' }
+// strong selection outline: a bright crisp line over a dark/light casing halo so
+// the active boundary stands out on any background (incl. the dense colour overlay)
+const SELECTION = {
+  dark: { line: '#ffffff', casing: 'rgba(5,9,17,0.85)' },
+  light: { line: '#0b1c52', casing: 'rgba(255,255,255,0.9)' },
+}
 
 // fonts that ship with the Carto glyph endpoint (bold + regular stacks)
 const FONT_BOLD = ['Montserrat Medium', 'Open Sans Bold']
@@ -247,7 +253,10 @@ export class KiezMap {
         },
       })
     }
-    // Active Kiez — starts empty, filled in on lock
+    // Active selection — starts empty, filled in on lock. A dark casing under a
+    // bright crisp line makes the boundary pop on ANY background (dark map or the
+    // dense colour overlay).
+    const sel = SELECTION[this.theme]
     this.map.addSource('kiez', { type: 'geojson', data: emptyFC() })
     this.map.addLayer({
       id: 'kiez-fill',
@@ -256,15 +265,18 @@ export class KiezMap {
       paint: { 'fill-color': accent, 'fill-opacity': 0 },
     })
     this.map.addLayer({
+      id: 'kiez-casing',
+      type: 'line',
+      source: 'kiez',
+      layout: { 'line-join': 'round', 'line-cap': 'round' },
+      paint: { 'line-color': sel.casing, 'line-width': 0, 'line-opacity': 0, 'line-blur': 0.8 },
+    })
+    this.map.addLayer({
       id: 'kiez-line',
       type: 'line',
       source: 'kiez',
-      paint: {
-        'line-color': accent,
-        'line-width': 2.4,
-        'line-opacity': 0,
-        'line-blur': 0.3,
-      },
+      layout: { 'line-join': 'round', 'line-cap': 'round' },
+      paint: { 'line-color': sel.line, 'line-width': 0, 'line-opacity': 0, 'line-blur': 0.2 },
     })
 
     this._tuneBasemapLabels()
@@ -527,18 +539,17 @@ export class KiezMap {
     this.map.getSource('kiez').setData(fc(feature))
     if (this._cancelFill) this._cancelFill()
     const targetFill = this.theme === 'dark' ? 0.16 : 0.12
-    if (instant || reduceMotion()) {
-      this.map.setPaintProperty('kiez-fill', 'fill-opacity', targetFill)
-      this.map.setPaintProperty('kiez-line', 'line-opacity', 0.9)
-      this.map.setPaintProperty('kiez-line', 'line-width', 2.4)
-      return
-    }
-    // animate fill + outline with the slow spatial spring (a confident reveal)
-    this._cancelFill = spring(0, 1, SPRINGS.spatialSlow, (p) => {
+    const LW = 3.8, CW = 8.5 // line + casing widths (strong, pops over the overlay)
+    const set = (p) => {
       this.map.setPaintProperty('kiez-fill', 'fill-opacity', targetFill * p)
-      this.map.setPaintProperty('kiez-line', 'line-opacity', Math.min(1, p) * 0.9)
-      this.map.setPaintProperty('kiez-line', 'line-width', 1 + 1.8 * p)
-    })
+      this.map.setPaintProperty('kiez-line', 'line-opacity', Math.min(1, p))
+      this.map.setPaintProperty('kiez-line', 'line-width', LW * p)
+      this.map.setPaintProperty('kiez-casing', 'line-opacity', Math.min(1, p) * 0.9)
+      this.map.setPaintProperty('kiez-casing', 'line-width', CW * p)
+    }
+    if (instant || reduceMotion()) { set(1); return }
+    // animate fill + outline with the slow spatial spring (a confident reveal)
+    this._cancelFill = spring(0, 1, SPRINGS.spatialSlow, set)
   }
 
   clearHighlight() {
@@ -546,6 +557,7 @@ export class KiezMap {
     this.map.getSource('kiez').setData(emptyFC())
     this.map.setPaintProperty('kiez-fill', 'fill-opacity', 0)
     this.map.setPaintProperty('kiez-line', 'line-opacity', 0)
+    this.map.setPaintProperty('kiez-casing', 'line-opacity', 0)
   }
 
   _placeBeacon([lon, lat]) {

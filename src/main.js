@@ -494,11 +494,12 @@ themeBtn.addEventListener('click', (e) => {
 
 // ── sector overlay toggle: aus → Bezirke → Bezirksregionen → Kieze ────────────
 const OVERLAY_ORDER = ['off', 'bezirke', 'bzr', 'kiez']
+// label suffix L/M/S = how coarse→fine the highlighted area is
 const OVERLAY_META = {
-  off:     { label: '',         aria: 'aus',             next: 'Bezirke einblenden' },
-  bezirke: { label: 'Bezirke',  aria: 'Bezirke',         next: 'Bezirksregionen einblenden' },
-  bzr:     { label: 'Regionen', aria: 'Bezirksregionen', next: 'Kieze einblenden' },
-  kiez:    { label: 'Kieze',    aria: 'Kieze',           next: 'Flächen ausblenden' },
+  off:     { label: '',             aria: 'aus',             next: 'Bezirke einblenden' },
+  bezirke: { label: 'Bezirke (L)',  aria: 'Bezirke',         next: 'Bezirksregionen einblenden' },
+  bzr:     { label: 'Regionen (M)', aria: 'Bezirksregionen', next: 'Kieze einblenden' },
+  kiez:    { label: 'Kieze (S)',    aria: 'Kieze',           next: 'Flächen ausblenden' },
 }
 function applyOverlay(mode) {
   state.overlay = mode
