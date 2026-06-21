@@ -21,12 +21,15 @@ async function loadJSON(url) {
 
 let _kiezAreaByGid = null // gid → merged colloquial-Kiez polygon (union of its Planungsräume)
 let _kiezAreas = null     // the raw kiez-areas FeatureCollection (for search)
+let _osmKieze = null       // OSM place=quarter/neighbourhood polygons (precise named Kieze)
+let _osmBbox = null
 
 export async function loadKieze() {
   if (_kieze) return _kieze
-  const [kieze, areas] = await Promise.all([
+  const [kieze, areas, osm] = await Promise.all([
     loadJSON('/data/kieze.geojson'),
     loadJSON('/data/kiez-areas.geojson').catch(() => null),
+    loadJSON('/data/osm-kieze.geojson').catch(() => null),
   ])
   _kieze = kieze
   _bbox = _kieze.features.map(featureBBox)
@@ -35,12 +38,34 @@ export async function loadKieze() {
     _kiezAreaByGid = new Map()
     for (const f of areas.features) _kiezAreaByGid.set(f.properties.gid, f)
   }
+  if (osm) { _osmKieze = osm; _osmBbox = osm.features.map(featureBBox) }
   return _kieze
 }
 
 /** Loaded data accessors (for the search index). */
 export function kiezeFC() { return _kieze }
 export function kiezAreasFC() { return _kiezAreas }
+export function osmKiezeFC() { return _osmKieze }
+
+/**
+ * Finest OSM-defined Kiez polygon containing the point (smallest bbox wins, so a
+ * nested Kiez like Scheunenviertel beats its surrounding Spandauer Vorstadt).
+ * These are precise named-Kiez boundaries OSM has but LOR can't express (finer
+ * than a Planungsraum). null if the point isn't inside any.
+ */
+export function findOsmKiez(lon, lat) {
+  if (!_osmKieze) return null
+  let best = null, bestArea = Infinity
+  const fs = _osmKieze.features
+  for (let i = 0; i < fs.length; i++) {
+    const b = _osmBbox[i]
+    if (lon < b[0] || lon > b[2] || lat < b[1] || lat > b[3]) continue
+    if (!inGeometry([lon, lat], fs[i].geometry)) continue
+    const area = (b[2] - b[0]) * (b[3] - b[1])
+    if (area < bestArea) { bestArea = area; best = fs[i] }
+  }
+  return best
+}
 
 /**
  * The merged colloquial-Kiez area for a Planungsraum — the union of all

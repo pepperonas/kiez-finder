@@ -10,7 +10,8 @@
 import './style.css'
 import { KiezMap } from './map.js'
 import { loadKieze, loadOutline, loadLevels, levelFC, loadKiezNames, findKiez, bezirkName,
-  kmFromBerlin, featureForLevel, levelName, kiezAreaFor, kiezeFC, kiezAreasFC } from './kiez.js'
+  kmFromBerlin, featureForLevel, levelName, kiezAreaFor, kiezeFC, kiezAreasFC,
+  osmKiezeFC, findOsmKiez } from './kiez.js'
 import { buildSearchIndex, search } from './search.js'
 import { getPosition, reverseGeocode } from './geo.js'
 import { revealStagger, tweenNumber, spring, SPRINGS, reduceMotion, finePointer, damdamper } from './motion.js'
@@ -57,6 +58,7 @@ const state = {
   overlayReady: false,
   searchReady: false,
   selectedPlace: null,
+  kiezArea: null,   // resolved highlight area for the active Kiez (OSM or merged group)
 }
 
 // ── shell ──────────────────────────────────────────────────────────────────
@@ -275,15 +277,16 @@ function patchAddress(line) {
   _addrValueEl.classList.remove('meta-value--pending')
 }
 
-function renderFound({ kiez, pos, address }) {
+function renderFound({ kiez, pos, address, kiezName }) {
   state.plr = kiez
   state.pos = pos
   const p = kiez.properties
   const coordsEl = h('span', { class: 'coords-val', text: '52.00000, 13.00000' })
   const titleActive = state.level === 'kiez'
-  // colloquial Kiez name (precomputed, groups several Planungsräume) → title;
-  // the exact official Planungsraum becomes the subline.
-  const colloquial = p.kiez && p.kiez !== p.plr_name ? p.kiez : null
+  // Title = the colloquial Kiez: a precise OSM Kiez (kiezName) if standing in one,
+  // else the precomputed Kiez (groups several Planungsräume). The exact official
+  // Planungsraum becomes the subline.
+  const colloquial = kiezName || (p.kiez && p.kiez !== p.plr_name ? p.kiez : null)
   const titleText = colloquial || p.plr_name
 
   const recheck = h('button', { class: 'btn btn-filled', type: 'button', 'data-reveal': '' },
@@ -335,18 +338,25 @@ function syncLevelUI() {
   })
 }
 
+// resolve the polygon for a level — the Kiez level uses the resolved area
+// (precise OSM Kiez if standing in one, else the merged Planungsraum-group)
+function levelFeature(level) {
+  if (level === 'kiez' && state.kiezArea) return state.kiezArea
+  return featureForLevel(level, state.plr)
+}
+
 async function selectLevel(level) {
   if (!state.plr || !state.map) return
   state.level = level
   syncLevelUI()
   await loadLevels().catch(() => null)
-  const feature = featureForLevel(level, state.plr)
+  const feature = levelFeature(level)
   if (feature) state.map.highlight(feature, { fit: true })
 }
 
 function fitActive() {
   if (!state.plr || !state.map) return
-  const feature = featureForLevel(state.level, state.plr)
+  const feature = levelFeature(state.level)
   if (feature) state.map.fitTo(feature)
 }
 
@@ -430,8 +440,12 @@ async function locateAt(pos, { fly = false } = {}) {
   const mine = ++_seq
   state.level = 'kiez'
   const kiez = findKiez(pos.lon, pos.lat)
-  // highlight the whole colloquial Kiez (merged group of Planungsräume), not just one
-  const area = kiez ? kiezAreaFor(kiez) : null
+  // Prefer a precise OSM-defined Kiez (e.g. Scheunenviertel) when standing inside
+  // one — finer than a Planungsraum; else the merged Planungsraum-group.
+  const osm = kiez ? findOsmKiez(pos.lon, pos.lat) : null
+  const area = osm || (kiez ? kiezAreaFor(kiez) : null)
+  const kiezName = osm ? osm.properties.name : null
+  state.kiezArea = area
 
   if (state.map) {
     if (fly) state.map.lockOn(pos.lon, pos.lat, area)
@@ -444,7 +458,7 @@ async function locateAt(pos, { fly = false } = {}) {
     return
   }
 
-  renderFound({ kiez, pos, address: null }) // title (colloquial Kiez) is precomputed → instant
+  renderFound({ kiez, pos, kiezName, address: null }) // title precomputed → instant
   const address = await reverseGeocode(pos.lat, pos.lon).catch(() => null)
   if (mine !== _seq || !address) return
   if (address.line) patchAddress(address.line)
@@ -670,7 +684,7 @@ async function boot() {
     }
     // build the fuzzy search index across all levels + colloquial Kieze
     if (fc) {
-      buildSearchIndex({ kieze: kiezeFC(), areas: kiezAreasFC(), bez: fc.bez, bzr: fc.bzr, pgr: fc.pgr })
+      buildSearchIndex({ kieze: kiezeFC(), areas: kiezAreasFC(), osmKieze: osmKiezeFC(), bez: fc.bez, bzr: fc.bzr, pgr: fc.pgr })
       state.searchReady = true
     }
   }).catch(() => null)

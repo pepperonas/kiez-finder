@@ -28,7 +28,7 @@ export function norm(s) {
 
 let _index = []
 
-export function buildSearchIndex({ kieze, areas, bez, bzr, pgr }) {
+export function buildSearchIndex({ kieze, areas, osmKieze, bez, bzr, pgr }) {
   const out = []
   const seen = new Set() // dedup by norm|type
   const add = (label, type, sub, feature) => {
@@ -48,6 +48,9 @@ export function buildSearchIndex({ kieze, areas, bez, bzr, pgr }) {
   }
 
   if (bez) for (const f of bez.features) add(bezirkName(f.properties.bez), 'bez', 'Berlin', f)
+  // OSM Kiez polygons first → precise named Kieze (e.g. Scheunenviertel) win the
+  // norm|type dedup over a same-named Planungsraum-union
+  if (osmKieze) for (const f of osmKieze.features) add(f.properties.name, 'kiez', '', f)
   if (areas) for (const f of areas.features) add(f.properties.kiez, 'kiez', gidBez.get(f.properties.gid) || '', f)
   if (bzr) for (const f of bzr.features) add(f.properties.bzr_name, 'bzr', bezirkName(f.properties.bez), f)
   if (pgr) for (const f of pgr.features) {

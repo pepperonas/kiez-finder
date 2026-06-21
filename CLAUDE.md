@@ -62,6 +62,9 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   Each Planungsraum carries `gid` + `kiez` (precomputed colloquial Kiez, see pipeline below).
   **`kiezAreaFor(plr)`** → the merged colloquial-Kiez polygon (union of all Planungsräume sharing
   its `gid`) from `kiez-areas.geojson` (loaded alongside in `loadKieze`); falls back to the single plr.
+  **`findOsmKiez(lon,lat)`** → finest OSM `place=quarter/neighbourhood` polygon containing the point
+  (`osm-kieze.geojson`, 71 precise named Kieze that are *finer than a Planungsraum*, e.g. Scheunenviertel).
+  `locateAt` prefers it over the Planungsraum-group when standing inside one; also fed into search.
   Also loads the 3 **aggregate LOR levels** (`bezirke`/`prognoseraeume`/`bezirksregionen.geojson`,
   lazy via `loadLevels()`) and exposes `featureForLevel(level, plrFeature)` — `kiez` → `kiezAreaFor`,
   else derives the level's id from the `plr_id` prefix (Bezirk=2, Prognoseraum=4, Bezirksregion=6) and
