@@ -41,6 +41,10 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   smaller). `setOverlayMode('off'|'bezirke'|'bzr')` toggles fill/line visibility. Per-feature colours
   are precomputed in `augment()` from a cohesive cool HSL palette (`bezHue`/`bezColors`/`bzrColors`):
   Bezirke get 12 distinct hues; Bezirksregionen inherit their Bezirk's hue and vary by lightness.
+  **Neighbour-aware assignment:** `computeBezSlots()` detects Bezirk adjacency from shared boundary
+  vertices (`bezAdjacency()`, robust because the dissolve keeps shared borders topologically
+  identical) and spreads the palette via deterministic greedy local search so adjacent Bezirke land
+  far apart on the hue ramp (min neighbour gap ≈42° instead of 14°). Same palette, smarter mapping.
   `_tuneBasemapLabels()` hides the basemap's own suburb/hamlet/village place labels to avoid
   duplication. `setTheme()` re-adds custom layers AND recolours overlays after `setStyle()`.
 - `src/kiez.js` — loads `public/data/kieze.geojson`, hand-rolled ray-cast point-in-polygon

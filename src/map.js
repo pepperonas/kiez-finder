@@ -51,8 +51,84 @@ function bzrColors(idx, sub, theme) {
     : { fill: hslHex(h, 58, clamp(50 + dl, 38, 62)), line: hslHex(h, 64, clamp(40 + dl / 2, 30, 52)) }
 }
 
-// build an overlay source FC: shares geometry, adds name + per-theme colours
-function augment(fc, level, theme) {
+// ── neighbour-aware palette assignment ───────────────────────────────────────
+// Adjacent Bezirke must look clearly different. We detect adjacency from shared
+// boundary vertices (the dissolve keeps shared borders topologically identical),
+// then spread the 12 palette slots so neighbours land far apart on the hue ramp.
+function ringsOf(geom) {
+  return geom.type === 'Polygon' ? geom.coordinates
+    : geom.type === 'MultiPolygon' ? geom.coordinates.flat() : []
+}
+
+function bezAdjacency(fc) {
+  const at = new Map()              // "x,y" → Set(bezCode)
+  const adj = new Map()            // bezCode → Set(bezCode)
+  for (const f of fc.features) adj.set(f.properties.id, new Set())
+  for (const f of fc.features) {
+    const code = f.properties.id
+    for (const ring of ringsOf(f.geometry)) {
+      for (const [x, y] of ring) {
+        const k = x.toFixed(4) + ',' + y.toFixed(4)
+        let s = at.get(k); if (!s) at.set(k, (s = new Set()))
+        s.add(code)
+      }
+    }
+  }
+  for (const s of at.values()) {
+    if (s.size < 2) continue
+    const a = [...s]
+    for (let i = 0; i < a.length; i++)
+      for (let j = i + 1; j < a.length; j++) { adj.get(a[i]).add(a[j]); adj.get(a[j]).add(a[i]) }
+  }
+  return adj
+}
+
+// Assign each Bezirk a palette slot (0…n-1) maximising the minimum hue gap
+// between adjacent Bezirke. Deterministic: greedy local search (pair swaps) over
+// a few fixed start permutations, no RNG → stable colours across reloads.
+function computeBezSlots(fc) {
+  const codes = fc.features.map((f) => f.properties.id).sort()
+  const n = codes.length
+  const idx = new Map(codes.map((c, i) => [c, i]))
+  const adj = bezAdjacency(fc)
+  const nbr = codes.map((c) => [...adj.get(c)].map((x) => idx.get(x)).filter((v) => v != null))
+  const score = (s) => {
+    let min = Infinity, sum = 0
+    for (let i = 0; i < n; i++) for (const j of nbr[i]) if (j > i) {
+      const d = Math.abs(s[i] - s[j]); if (d < min) min = d; sum += d
+    }
+    return { min, sum }
+  }
+  const better = (a, b) => a.min > b.min || (a.min === b.min && a.sum > b.sum)
+  const optimise = (start) => {
+    const s = start.slice()
+    let cur = score(s), improved = true, guard = 0
+    while (improved && guard++ < 200) {
+      improved = false
+      for (let a = 0; a < n; a++) for (let b = a + 1; b < n; b++) {
+        ;[s[a], s[b]] = [s[b], s[a]]
+        const sc = score(s)
+        if (better(sc, cur)) { cur = sc; improved = true } else { [s[a], s[b]] = [s[b], s[a]] }
+      }
+    }
+    return { s, sc: cur }
+  }
+  // deterministic start permutations: identity, reversed, even-then-odd interleave
+  const ident = codes.map((_, i) => i)
+  const starts = [
+    ident,
+    ident.slice().reverse(),
+    [...ident.filter((i) => i % 2 === 0), ...ident.filter((i) => i % 2 === 1)],
+  ]
+  let best = null
+  for (const st of starts) { const r = optimise(st); if (!best || better(r.sc, best.sc)) best = r }
+  return new Map(codes.map((c, i) => [c, best.s[i]]))
+}
+
+// build an overlay source FC: shares geometry, adds name + per-theme colours.
+// slotMap maps a Bezirk code → its assigned palette slot (neighbour-spread).
+function augment(fc, level, theme, slotMap) {
+  const slotFor = (code) => (slotMap && slotMap.has(code) ? slotMap.get(code) : parseInt(code, 10) - 1)
   const subCount = {} // bezCode → running index (for Bezirksregion lightness)
   return {
     type: 'FeatureCollection',
@@ -60,15 +136,13 @@ function augment(fc, level, theme) {
       const p = f.properties
       let name, col, lin
       if (level === 'bez') {
-        const idx = parseInt(p.id, 10) - 1
         name = bezirkName(p.bez)
-        const c = bezColors(idx, theme); col = c.fill; lin = c.line
+        const c = bezColors(slotFor(p.id), theme); col = c.fill; lin = c.line
       } else {
         const bezCode = p.id.substring(0, 2)
-        const idx = parseInt(bezCode, 10) - 1
         const sub = (subCount[bezCode] = (subCount[bezCode] || 0) + 1) - 1
         name = p.bzr_name
-        const c = bzrColors(idx, sub, theme); col = c.fill; lin = c.line
+        const c = bzrColors(slotFor(bezCode), sub, theme); col = c.fill; lin = c.line
       }
       return { type: 'Feature', geometry: f.geometry, properties: { name, col, lin } }
     }),
@@ -183,6 +257,7 @@ export class KiezMap {
   async setOverlayData(bezFC, bzrFC) {
     await this._ready
     this._overlayRaw = { bez: bezFC, bzr: bzrFC }
+    this._bezSlot = computeBezSlots(bezFC) // neighbour-spread palette assignment
     this._addOverlayLayers()
   }
 
@@ -190,8 +265,8 @@ export class KiezMap {
     if (!this._overlayRaw) return
     const dark = this.theme === 'dark'
     const defs = [
-      { lvl: 'bez', src: 'ov-bez', data: augment(this._overlayRaw.bez, 'bez', this.theme) },
-      { lvl: 'bzr', src: 'ov-bzr', data: augment(this._overlayRaw.bzr, 'bzr', this.theme) },
+      { lvl: 'bez', src: 'ov-bez', data: augment(this._overlayRaw.bez, 'bez', this.theme, this._bezSlot) },
+      { lvl: 'bzr', src: 'ov-bzr', data: augment(this._overlayRaw.bzr, 'bzr', this.theme, this._bezSlot) },
     ]
     for (const d of defs) {
       if (this.map.getSource(d.src)) this.map.getSource(d.src).setData(d.data)
