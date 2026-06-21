@@ -52,6 +52,7 @@ gehorchen alle diesem einen Satz.
 ## Features
 
 - 📍 **Standort → Kiez** über die offiziellen LOR-2021-Planungsräume (542 Kieze), Point-in-Polygon im Browser
+- 🗣️ **Umgangssprachlicher Kiez-Name** — wenn OpenStreetMap einen geläufigen Namen kennt (z.B. *Flughafenkiez*), wird er zum Titel; der amtliche Planungsraum-Name (*Flughafenstraße*) steht als Unterzeile
 - 🧅 **Vier wählbare LOR-Ebenen** — tippe in der Card auf **Kiez · Bezirk · Bezirksregion · Prognoseraum**, und die zugehörige Fläche wird auf der Karte hervorgehoben (Auto-Zoom auf ihre Ausdehnung)
 - 🖱️ **Karte ist anklickbar** — tippe irgendwohin in Berlin, und die Card springt auf den Kiez dieses Punkts (inkl. neuer Adresse)
 - 🗺️ **Sektoren-Overlay** (3-Stufen-Button) — *aus · Bezirke · Bezirksregionen*: färbt alle Bezirke/Regionen in einer kohärenten, kühlen Palette. Bezirksregionen erben den Farbton ihres Bezirks und variieren in der Helligkeit → gruppiert erkennbar **und** lokal unterscheidbar

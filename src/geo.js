@@ -67,7 +67,10 @@ export async function reverseGeocode(lat, lon) {
     const line = [street, [a.postcode, a.suburb || a.city_district || a.borough].filter(Boolean).join(' ')]
       .filter(Boolean)
       .join(', ')
-    const out = { line: line || data.display_name || null, raw: a }
+    // colloquial neighbourhood name ("Flughafenkiez") — OSM quarter/neighbourhood,
+    // not flächendeckend, so it only augments the official LOR Kiez name.
+    const kiez = a.quarter || a.neighbourhood || null
+    const out = { line: line || data.display_name || null, kiez, raw: a }
     try {
       sessionStorage.setItem(key, JSON.stringify(out))
     } catch (e) {}

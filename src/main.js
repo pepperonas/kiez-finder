@@ -170,6 +170,22 @@ function patchAddress(line) {
   _addrValueEl.classList.remove('meta-value--pending')
 }
 
+// When OSM knows the colloquial Kiez name (e.g. "Flughafenkiez"), promote it to
+// the title and demote the official LOR Planungsraum name to a subline.
+let _kiezOfficialEl = null
+function patchKiezName(colloquial, official) {
+  const nameEl = card.querySelector('.kiez-name')
+  const titleBtn = card.querySelector('.level-title')
+  if (!nameEl || !colloquial || colloquial === official) return
+  nameEl.textContent = colloquial
+  if (_kiezOfficialEl) {
+    _kiezOfficialEl.textContent = `amtl. Planungsraum · ${official}`
+    _kiezOfficialEl.hidden = false
+  }
+  if (titleBtn) titleBtn.setAttribute('aria-label', `Kiez ${colloquial} (amtlich ${official}) auf der Karte zeigen`)
+  fitKiezName()
+}
+
 function renderFound({ kiez, pos, address }) {
   state.plr = kiez
   state.pos = pos
@@ -193,7 +209,9 @@ function renderFound({ kiez, pos, address }) {
       class: 'level-title' + (titleActive ? ' is-active' : ''),
       type: 'button', 'data-level': 'plr', 'data-reveal': '',
       aria: { pressed: titleActive ? 'true' : 'false', label: `Kiez ${p.plr_name} auf der Karte zeigen` },
-    }, h('h1', { class: 'kiez-name', text: p.plr_name })),
+    },
+      h('h1', { class: 'kiez-name', text: p.plr_name }),
+      (_kiezOfficialEl = h('p', { class: 'kiez-official', hidden: true }))),
     // ordered by ascending area size (Kiez = title above; then bigger → biggest).
     // The Prognoseraum is hidden when it only duplicates the Bezirk name.
     h('div', { class: 'meta' },
@@ -331,9 +349,12 @@ async function locateAt(pos, { fly = false } = {}) {
     return
   }
 
-  renderFound({ kiez, pos, address: null }) // show instantly
+  renderFound({ kiez, pos, address: null }) // show instantly (official LOR name)
   const address = await reverseGeocode(pos.lat, pos.lon).catch(() => null)
-  if (mine === _seq && address && address.line) patchAddress(address.line)
+  if (mine !== _seq || !address) return
+  if (address.line) patchAddress(address.line)
+  // promote the colloquial Kiez name to the title when OSM has one
+  if (address.kiez) patchKiezName(address.kiez, kiez.properties.plr_name)
 }
 
 // ── theme toggle with MD3-expressive circular reveal (View Transitions) ──────

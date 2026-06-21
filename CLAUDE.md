@@ -50,7 +50,11 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   from the Kiez's `plr_id` prefix (Bezirk=2, Prognoseraum=4, Bezirksregion=6, Kiez=8) and looks it up.
   `bboxOf()` feeds `fitBounds`.
 - `src/geo.js` — `getPosition()` (geolocation, mapped errors) + `reverseGeocode()` (Nominatim,
-  best-effort, cached in sessionStorage; only enriches the address line).
+  best-effort, cached in sessionStorage). Returns `{ line, kiez, raw }`: `line` = address,
+  `kiez` = OSM `quarter`/`neighbourhood` (the colloquial Kiez name, e.g. "Flughafenkiez").
+  When present and ≠ the LOR name, `main.js` `patchKiezName()` promotes it to the title and demotes
+  the official Planungsraum name (e.g. "Flughafenstraße") to a `.kiez-official` subline. OSM `quarter`
+  isn't flächendeckend, so it only augments — the LOR name is the instant default + fallback.
 - `src/motion.js` — **the spring system.** CSS has no springs, so spatial motion uses a tiny Euler
   spring integrator with the verbatim **M3 Expressive** tokens (spatial-fast 800/0.6,
   spatial-default 380/0.8, spatial-slow 200/0.8). Opacity/colour stay on CSS easing. Honors

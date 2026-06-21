@@ -255,6 +255,11 @@ body {
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
 .locating-title { font-size: clamp(1.6rem, 6vw, 2.2rem); }
+.kiez-official {
+  margin: .3rem 0 0; font-family: var(--font-body);
+  font-size: .78rem; font-weight: 500; letter-spacing: .01em;
+  color: var(--on-surface-var);
+}
 .muted { margin: .15rem 0 0; color: var(--on-surface-var); line-height: 1.5; max-width: 46ch; }
 .muted.small { font-size: .85rem; }
 
