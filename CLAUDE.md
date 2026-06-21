@@ -66,6 +66,12 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   lazy via `loadLevels()`) and exposes `featureForLevel(level, plrFeature)` — `kiez` → `kiezAreaFor`,
   else derives the level's id from the `plr_id` prefix (Bezirk=2, Prognoseraum=4, Bezirksregion=6) and
   looks it up. `bboxOf()` feeds `fitBounds`.
+- `src/search.js` — dependency-free fuzzy place search. `buildSearchIndex({kieze,areas,bez,bzr,pgr})`
+  builds ~950 entries (Bezirk/Kiez/Bezirksregion/Planungsraum/Prognoseraum, deduped by norm|type,
+  redundant pgr/plr skipped). `norm()` folds diacritics + ß→ss + „straße"→„str". `search(q,limit)`
+  scores per multi-tier (exact→prefix→word-prefix→substring→subsequence→bounded Levenshtein typo) +
+  type priority; ~0.2 ms/query. `main.js` wires the topbar search box → `selectPlace()` →
+  `map.highlight(feature,{fit})` + a `renderPlace()` card ("Ausgewählt", "Mein Standort" back to geo).
 - `src/geo.js` — `getPosition()` (geolocation, mapped errors) + `reverseGeocode()` (Nominatim,
   best-effort, cached in sessionStorage). Returns `{ line, kiez, raw }`: `line` = address,
   `kiez` = OSM `quarter`/`neighbourhood` (the colloquial Kiez name, e.g. "Flughafenkiez").

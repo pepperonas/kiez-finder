@@ -10,7 +10,8 @@
 import './style.css'
 import { KiezMap } from './map.js'
 import { loadKieze, loadOutline, loadLevels, levelFC, loadKiezNames, findKiez, bezirkName,
-  kmFromBerlin, featureForLevel, levelName, kiezAreaFor } from './kiez.js'
+  kmFromBerlin, featureForLevel, levelName, kiezAreaFor, kiezeFC, kiezAreasFC } from './kiez.js'
+import { buildSearchIndex, search } from './search.js'
 import { getPosition, reverseGeocode } from './geo.js'
 import { revealStagger, tweenNumber, spring, SPRINGS, reduceMotion, finePointer, damdamper } from './motion.js'
 
@@ -38,6 +39,9 @@ const ICONS = {
   target: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.6"/><path d="M12 1.8v3M12 19.2v3M1.8 12h3M19.2 12h3" stroke-linecap="round"/></svg>',
   pin: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-6.4 7-11.3A7 7 0 0 0 5 9.7C5 14.6 12 21 12 21Z"/><circle cx="12" cy="9.6" r="2.4" fill="var(--surface)"/></svg>',
   layers: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 3.5 8 12 12.5 20.5 8 12 3.5Z" stroke-linejoin="round"/><path d="M4 12.2 12 16.5l8-4.3M4 15.9 12 20.2l8-4.3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  search: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5" stroke-linecap="round"/></svg>',
+  x: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke-linecap="round"/></svg>',
+  loc: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><circle cx="12" cy="12" r="7.5"/><path d="M12 1.6v3M12 19.4v3M1.6 12h3M19.4 12h3" stroke-linecap="round"/></svg>',
 }
 
 const state = {
@@ -51,6 +55,8 @@ const state = {
   level: 'kiez',    // active highlight level: kiez | bez | bzr | pgr (default = colloquial Kiez = merged group)
   overlay: 'off',   // map sector overlay: off | bezirke | bzr
   overlayReady: false,
+  searchReady: false,
+  selectedPlace: null,
 }
 
 // ── shell ──────────────────────────────────────────────────────────────────
@@ -74,11 +80,25 @@ const overlayBtn = h('button', {
 },
   h('span', { class: 'seg-icon', html: ICONS.layers }), overlayLabelEl)
 
+// ── fuzzy search (Bezirke / Bezirksregionen / Prognoseräume / Kieze / Planungsräume) ──
+const searchInput = h('input', {
+  class: 'search-input', type: 'search', enterkeyhint: 'search',
+  placeholder: 'Kiez, Bezirk, Ortsteil …', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false',
+  aria: { label: 'Berlin durchsuchen', autocomplete: 'list', controls: 'search-results', expanded: 'false' },
+  role: 'combobox',
+})
+const searchClear = h('button', { class: 'search-clear', type: 'button', hidden: true, title: 'Löschen', aria: { label: 'Suche löschen' }, html: ICONS.x })
+const searchResults = h('div', { id: 'search-results', class: 'search-results', role: 'listbox', hidden: true })
+const searchBox = h('div', { class: 'search' },
+  h('span', { class: 'search-icon', 'aria-hidden': 'true', html: ICONS.search }),
+  searchInput, searchClear, searchResults)
+
 const topbar = h('header', { class: 'topbar' },
   h('a', { class: 'brand', href: '/', aria: { label: 'Kiez-Finder Startseite' } },
     h('span', { class: 'brand-mark', html: ICONS.pin }),
     h('span', { class: 'brand-name' },
       h('strong', { text: 'Kiez' }), h('span', { text: '-Finder' }))),
+  searchBox,
   h('div', { class: 'topbar-actions' }, installBtn, overlayBtn, themeBtn),
 )
 
@@ -480,6 +500,109 @@ overlayBtn.addEventListener('click', () => {
   applyOverlay(OVERLAY_ORDER[(i + 1) % OVERLAY_ORDER.length])
 })
 
+// ── search controller ────────────────────────────────────────────────────────
+const TYPE_ICON = { bez: ICONS.layers, bzr: ICONS.layers, pgr: ICONS.layers, kiez: ICONS.pin, plr: ICONS.pin }
+let _hits = [], _active = -1
+
+function highlightMatch(label, query) {
+  const fold = (s) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  const fq = fold(query.trim())
+  const i = fq ? fold(label).indexOf(fq) : -1
+  if (i < 0) return document.createTextNode(label)
+  const frag = document.createDocumentFragment()
+  frag.append(document.createTextNode(label.slice(0, i)))
+  const mk = document.createElement('mark'); mk.textContent = label.slice(i, i + fq.length); frag.append(mk)
+  frag.append(document.createTextNode(label.slice(i + fq.length)))
+  return frag
+}
+
+function setActive(i) {
+  _active = i
+  const items = searchResults.querySelectorAll('.search-item')
+  items.forEach((el, k) => el.classList.toggle('is-active', k === i))
+  if (i >= 0 && items[i]) {
+    items[i].scrollIntoView({ block: 'nearest' })
+    searchInput.setAttribute('aria-activedescendant', items[i].id)
+  } else searchInput.removeAttribute('aria-activedescendant')
+}
+
+function renderSearchResults(hits) {
+  _hits = hits; _active = -1
+  if (!hits.length) {
+    searchResults.replaceChildren(); searchResults.hidden = true
+    searchInput.setAttribute('aria-expanded', 'false')
+    return
+  }
+  const items = hits.map((e, i) => {
+    const item = h('button', { class: 'search-item', type: 'button', role: 'option', id: 'sr-' + i, 'aria-selected': 'false' },
+      h('span', { class: 'search-item-icon', 'aria-hidden': 'true', html: TYPE_ICON[e.type] || ICONS.pin }),
+      h('span', { class: 'search-item-text' },
+        h('span', { class: 'search-item-name' }, highlightMatch(e.label, searchInput.value)),
+        e.sub ? h('span', { class: 'search-item-sub', text: e.sub }) : null),
+      h('span', { class: 'search-item-type', text: e.typeLabel }))
+    item.addEventListener('click', () => selectPlace(e))
+    item.addEventListener('pointermove', () => { if (_active !== i) setActive(i) })
+    return item
+  })
+  searchResults.replaceChildren(...items)
+  searchResults.hidden = false
+  searchInput.setAttribute('aria-expanded', 'true')
+}
+
+function selectPlace(e) {
+  searchResults.hidden = true
+  searchInput.setAttribute('aria-expanded', 'false')
+  searchInput.value = e.label
+  searchClear.hidden = false
+  searchInput.blur()
+  state.selectedPlace = e
+  if (state.map) state.map.highlight(e.feature, { fit: true })
+  renderPlace(e)
+}
+
+function renderPlace(e) {
+  state.plr = null
+  const back = h('button', { class: 'btn btn-filled', type: 'button', 'data-reveal': '' },
+    h('span', { class: 'btn-icon', html: ICONS.loc }), 'Mein Standort')
+  back.addEventListener('click', () => { searchInput.value = ''; searchClear.hidden = true; checkIn() })
+  const center = h('button', { class: 'btn btn-tonal', type: 'button', 'data-reveal': '' },
+    h('span', { class: 'btn-icon', html: ICONS.target }), 'Auf Karte zentrieren')
+  center.addEventListener('click', () => state.map && state.map.fitTo(e.feature))
+  setCard(
+    h('div', { class: 'pass-body pass-found' },
+      h('div', { class: 'stamp', 'aria-hidden': 'true' },
+        h('span', { class: 'stamp-ring' }), h('span', { class: 'stamp-pin', html: ICONS.pin })),
+      h('p', { class: 'eyebrow', 'data-reveal': '', text: 'Ausgewählt · ' + e.typeLabel }),
+      h('h1', { class: 'kiez-name', 'data-reveal': '', text: e.label }),
+      e.sub ? h('p', { class: 'muted', 'data-reveal': '', text: e.sub === 'Berlin' ? 'Berliner Bezirk' : `in ${e.sub}` }) : null,
+      h('div', { class: 'actions' }, back, center),
+      h('p', { class: 'source', 'data-reveal': '', html: 'Grenzen: LOR 2021 · Geoportal Berlin / Amt für Statistik Berlin-Brandenburg' }),
+    )
+  )
+}
+
+searchInput.addEventListener('input', () => {
+  searchClear.hidden = !searchInput.value
+  if (!state.searchReady) return
+  renderSearchResults(searchInput.value.trim() ? search(searchInput.value, 8) : [])
+})
+searchInput.addEventListener('focus', () => {
+  if (searchInput.value.trim() && state.searchReady && _hits.length) { searchResults.hidden = false; searchInput.setAttribute('aria-expanded', 'true') }
+})
+searchInput.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowDown') { e.preventDefault(); if (_hits.length) setActive((_active + 1) % _hits.length) }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); if (_hits.length) setActive((_active - 1 + _hits.length) % _hits.length) }
+  else if (e.key === 'Enter') { const e2 = _hits[_active] || _hits[0]; if (e2) { e.preventDefault(); selectPlace(e2) } }
+  else if (e.key === 'Escape') { e.preventDefault(); if (searchResults.hidden) { searchInput.value = ''; searchClear.hidden = true } else { searchResults.hidden = true; searchInput.setAttribute('aria-expanded', 'false') } }
+})
+searchClear.addEventListener('click', () => {
+  searchInput.value = ''; searchClear.hidden = true
+  renderSearchResults([]); searchInput.focus()
+})
+document.addEventListener('click', (e) => {
+  if (!searchBox.contains(e.target)) { searchResults.hidden = true; searchInput.setAttribute('aria-expanded', 'false') }
+})
+
 // ── install prompt (bespoke, not the browser default mini-infobar) ───────────
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault()
@@ -544,6 +667,11 @@ async function boot() {
         state.overlayReady = true
         state.map.setOverlayMode(state.overlay)
       })
+    }
+    // build the fuzzy search index across all levels + colloquial Kieze
+    if (fc) {
+      buildSearchIndex({ kieze: kiezeFC(), areas: kiezAreasFC(), bez: fc.bez, bzr: fc.bzr, pgr: fc.pgr })
+      state.searchReady = true
     }
   }).catch(() => null)
   enableTilt()

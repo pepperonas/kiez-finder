@@ -20,6 +20,7 @@ async function loadJSON(url) {
 }
 
 let _kiezAreaByGid = null // gid → merged colloquial-Kiez polygon (union of its Planungsräume)
+let _kiezAreas = null     // the raw kiez-areas FeatureCollection (for search)
 
 export async function loadKieze() {
   if (_kieze) return _kieze
@@ -30,11 +31,16 @@ export async function loadKieze() {
   _kieze = kieze
   _bbox = _kieze.features.map(featureBBox)
   if (areas) {
+    _kiezAreas = areas
     _kiezAreaByGid = new Map()
     for (const f of areas.features) _kiezAreaByGid.set(f.properties.gid, f)
   }
   return _kieze
 }
+
+/** Loaded data accessors (for the search index). */
+export function kiezeFC() { return _kieze }
+export function kiezAreasFC() { return _kiezAreas }
 
 /**
  * The merged colloquial-Kiez area for a Planungsraum — the union of all

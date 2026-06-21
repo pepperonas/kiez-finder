@@ -158,6 +158,59 @@ body {
 .brand-name span { font-weight: 500; color: var(--on-surface-var); }
 
 .topbar-actions { display: flex; gap: .5rem; }
+
+/* ── fuzzy search ── */
+.search {
+  position: relative; flex: 1 1 auto; min-width: 0; max-width: 460px;
+  display: flex; align-items: center; gap: .5rem;
+  height: 46px; padding: 0 .5rem 0 .85rem; border-radius: var(--r-full);
+  background: color-mix(in srgb, var(--sc-high) 78%, transparent);
+  border: 1px solid var(--outline-faint);
+  backdrop-filter: blur(14px) saturate(1.2); box-shadow: var(--shadow-1);
+  transition: border-color var(--dur-short) var(--ease-standard), box-shadow var(--dur-short) var(--ease-standard);
+}
+.search:focus-within { border-color: color-mix(in srgb, var(--accent) 55%, var(--outline)); box-shadow: var(--glow); }
+.search-icon { display: inline-flex; flex: 0 0 auto; color: var(--on-surface-var); }
+.search-icon svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.9; }
+.search-input {
+  flex: 1 1 auto; min-width: 0; border: none; background: transparent; outline: none;
+  color: var(--on-surface); font-family: var(--font-body);
+  font-size: 16px; /* ≥16px → no iOS zoom-on-focus */ font-weight: 500;
+}
+.search-input::placeholder { color: var(--on-surface-var); opacity: .85; }
+.search-input::-webkit-search-cancel-button { display: none; }
+.search-clear {
+  flex: 0 0 auto; width: 34px; height: 34px; display: grid; place-items: center;
+  border: none; background: transparent; color: var(--on-surface-var); cursor: pointer;
+  border-radius: var(--r-full); position: relative;
+}
+.search-clear svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; }
+.search-clear:active { transform: scale(.9); }
+
+.search-results {
+  position: absolute; top: calc(100% + .5rem); left: 0; right: 0; z-index: 20;
+  background: var(--sc-high); border: 1px solid var(--outline-faint);
+  border-radius: var(--r-l); box-shadow: var(--shadow-2);
+  padding: .35rem; max-height: min(62vh, 460px); overflow: auto; overscroll-behavior: contain;
+  animation: md-pop var(--dur-med) var(--ease-emphasized) both;
+}
+@keyframes md-pop { from { opacity: 0; transform: translateY(-8px) scale(.98); } to { opacity: 1; transform: none; } }
+.search-item {
+  position: relative; width: 100%; display: flex; align-items: center; gap: .7rem;
+  padding: .6rem .65rem; border: none; background: transparent; cursor: pointer;
+  text-align: left; border-radius: var(--r-m); color: var(--on-surface); min-height: 48px;
+}
+.search-item::before { content: ''; position: absolute; inset: 0; border-radius: inherit; background: currentColor; opacity: 0; transition: opacity var(--dur-short) var(--ease-standard); }
+.search-item.is-active::before, .search-item:hover::before { opacity: var(--st-hover); }
+.search-item-icon { flex: 0 0 auto; display: grid; place-items: center; width: 30px; height: 30px; border-radius: var(--r-s); background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+.search-item-icon svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+.search-item-icon svg circle, .search-item-icon svg path[fill] { fill: currentColor; stroke: none; }
+.search-item-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: .05rem; }
+.search-item-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.search-item-name mark { background: transparent; color: var(--accent); font-weight: 800; }
+.search-item-sub { font-size: .76rem; color: var(--on-surface-var); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.search-item-type { flex: 0 0 auto; font-size: .68rem; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; color: var(--on-surface-var); padding: .15rem .45rem; border: 1px solid var(--outline-faint); border-radius: var(--r-full); }
+
 .icon-btn {
   position: relative; width: 46px; height: 46px; flex: 0 0 auto;
   display: grid; place-items: center; border: 1px solid var(--outline-faint);
@@ -478,6 +531,14 @@ body {
   .pass-scroll {
     padding: .15rem clamp(1.1rem, 4.5vw, 1.5rem) calc(1.1rem + env(safe-area-inset-bottom));
   }
+}
+
+/* give the search bar room on small screens: drop the brand wordmark */
+@media (max-width: 600px) {
+  .topbar { gap: .5rem; }
+  .brand { padding: .4rem; }
+  .brand-name { display: none; }
+  .search { height: 44px; }
 }
 
 /* ── responsive: desktop = floating side panel ── */
