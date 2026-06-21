@@ -254,10 +254,12 @@ export class KiezMap {
   }
 
   // ── district / region overlay (choropleth + always-on labels) ──────────────
-  async setOverlayData(bezFC, bzrFC) {
+  async setOverlayData({ bez, bzr, bezPts, bzrPts, kiezNames } = {}) {
     await this._ready
-    this._overlayRaw = { bez: bezFC, bzr: bzrFC }
-    this._bezSlot = computeBezSlots(bezFC) // neighbour-spread palette assignment
+    this._overlayRaw = { bez, bzr }
+    this._labelPts = { bez: bezPts || null, bzr: bzrPts || null }
+    this._kiezNames = kiezNames || this._kiezNames || null
+    this._bezSlot = computeBezSlots(bez) // neighbour-spread palette assignment
     this._addOverlayLayers()
   }
 
@@ -271,6 +273,16 @@ export class KiezMap {
     for (const d of defs) {
       if (this.map.getSource(d.src)) this.map.getSource(d.src).setData(d.data)
       else this.map.addSource(d.src, { type: 'geojson', data: d.data })
+    }
+    // label POINT sources (one point per area → no multi-tile duplicate labels)
+    const pts = [
+      { src: 'pt-bez', data: this._labelPts && this._labelPts.bez },
+      { src: 'pt-bzr', data: this._labelPts && this._labelPts.bzr },
+    ]
+    for (const p of pts) {
+      if (!p.data) continue
+      if (this.map.getSource(p.src)) this.map.getSource(p.src).setData(p.data)
+      else this.map.addSource(p.src, { type: 'geojson', data: p.data })
     }
 
     // fills + lines sit BELOW the blue selection so it stays prominent
@@ -302,9 +314,35 @@ export class KiezMap {
 
     // labels render ON TOP of everything; always visible (collision-managed)
     const haloDark = 'rgba(6,9,16,0.88)', haloLight = 'rgba(255,255,255,0.92)'
-    if (!this.map.getLayer('lbl-bzr')) {
+
+    // colloquial Kiez names (OSM quarter/neighbourhood) — the heart of the app,
+    // so they're accent-tinted to read as a distinct layer. High zoom, lowest
+    // collision priority (official Bezirk/Bezirksregion labels win).
+    if (this._kiezNames) {
+      if (this.map.getSource('kiez-names')) this.map.getSource('kiez-names').setData(this._kiezNames)
+      else this.map.addSource('kiez-names', { type: 'geojson', data: this._kiezNames })
+      if (!this.map.getLayer('lbl-kiez')) {
+        this.map.addLayer({
+          id: 'lbl-kiez', type: 'symbol', source: 'kiez-names', minzoom: 12.5,
+          layout: {
+            'text-field': ['get', 'name'], 'text-font': FONT_REG,
+            'text-size': ['interpolate', ['linear'], ['zoom'], 12.5, 10, 14, 12.5, 16, 15],
+            'text-max-width': 8, 'text-padding': 3, 'text-letter-spacing': 0.01,
+            'symbol-sort-key': 3,
+          },
+          paint: {
+            'text-color': ACCENT[this.theme],
+            'text-halo-color': dark ? haloDark : haloLight,
+            'text-halo-width': 1.5, 'text-halo-blur': 0.3,
+            'text-opacity': ['interpolate', ['linear'], ['zoom'], 12, 0, 12.6, 1],
+          },
+        })
+      }
+    }
+
+    if (this.map.getSource('pt-bzr') && !this.map.getLayer('lbl-bzr')) {
       this.map.addLayer({
-        id: 'lbl-bzr', type: 'symbol', source: 'ov-bzr', minzoom: 10.5,
+        id: 'lbl-bzr', type: 'symbol', source: 'pt-bzr', minzoom: 10.5,
         layout: {
           'text-field': ['get', 'name'], 'text-font': FONT_REG,
           'text-size': ['interpolate', ['linear'], ['zoom'], 11, 9.5, 13, 11.5, 15, 13.5, 17, 15.5],
@@ -318,9 +356,9 @@ export class KiezMap {
         },
       })
     }
-    if (!this.map.getLayer('lbl-bez')) {
+    if (this.map.getSource('pt-bez') && !this.map.getLayer('lbl-bez')) {
       this.map.addLayer({
-        id: 'lbl-bez', type: 'symbol', source: 'ov-bez',
+        id: 'lbl-bez', type: 'symbol', source: 'pt-bez',
         layout: {
           'text-field': ['get', 'name'], 'text-font': FONT_BOLD,
           'text-size': ['interpolate', ['linear'], ['zoom'], 8, 11, 10, 14.5, 12, 19, 14, 23, 16, 27],

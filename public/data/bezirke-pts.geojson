@@ -1,0 +1,14 @@
+{"type":"FeatureCollection", "features": [
+{"type":"Feature","geometry":{"type":"Point","coordinates":[13.36072,52.53041]},"properties":{"name":"Mitte","id":"01"}},
+{"type":"Feature","geometry":{"type":"Point","coordinates":[13.44368,52.51156]},"properties":{"name":"Friedrichshain-Kreuzberg","id":"02"}},
+{"type":"Feature","geometry":{"type":"Point","coordinates":[13.4343,52.59126]},"properties":{"name":"Pankow","id":"03"}},
+{"type":"Feature","geometry":{"type":"Point","coordinates":[13.27026,52.4983]},"properties":{"name":"Charlottenburg-Wilmersdorf","id":"04"}},
+{"type":"Feature","geometry":{"type":"Point","coordinates":[13.18607,52.54442]},"properties":{"name":"Spandau","id":"05"}},
+{"type":"Feature","geometry":{"type":"Point","coordinates":[13.27229,52.43617]},"properties":{"name":"Steglitz-Zehlendorf","id":"06"}},
+{"type":"Feature","geometry":{"type":"Point","coordinates":[13.38889,52.45592]},"properties":{"name":"Tempelhof-Schöneberg","id":"07"}},
+{"type":"Feature","geometry":{"type":"Point","coordinates":[13.44365,52.44046]},"properties":{"name":"Neukölln","id":"08"}},
+{"type":"Feature","geometry":{"type":"Point","coordinates":[13.62464,52.42434]},"properties":{"name":"Treptow-Köpenick","id":"09"}},
+{"type":"Feature","geometry":{"type":"Point","coordinates":[13.57404,52.51589]},"properties":{"name":"Marzahn-Hellersdorf","id":"10"}},
+{"type":"Feature","geometry":{"type":"Point","coordinates":[13.49584,52.52785]},"properties":{"name":"Lichtenberg","id":"11"}},
+{"type":"Feature","geometry":{"type":"Point","coordinates":[13.28496,52.59141]},"properties":{"name":"Reinickendorf","id":"12"}}
+]}

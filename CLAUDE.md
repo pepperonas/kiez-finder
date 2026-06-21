@@ -47,6 +47,12 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   far apart on the hue ramp (min neighbour gap ≈42° instead of 14°). Same palette, smarter mapping.
   `_tuneBasemapLabels()` hides the basemap's own suburb/hamlet/village place labels to avoid
   duplication. `setTheme()` re-adds custom layers AND recolours overlays after `setStyle()`.
+  **Colloquial Kiez labels:** `lbl-kiez` renders OSM `place=quarter/neighbourhood` names
+  (`public/data/kiez-names.geojson`, 537 pts from Overpass) accent-tinted at z≥12.5 — the vernacular
+  Kieze (Flughafenkiez, Reuterkiez …), distinct from the official labels.
+  **Label points:** Bezirk/Bezirksregion labels (`lbl-bez`/`lbl-bzr`) are driven by POINT sources
+  (`bezirke-pts`/`bezirksregionen-pts.geojson`, mapshaper `-points inner`), NOT the polygons —
+  otherwise a big polygon gets a duplicate label per vector tile it spans.
 - `src/kiez.js` — loads `public/data/kieze.geojson`, hand-rolled ray-cast point-in-polygon
   (bbox-prefiltered, handles MultiPolygon + holes). `findKiez(lon,lat)` → feature or null.
   Also loads the 3 **aggregate LOR levels** (`bezirke`/`prognoseraeume`/`bezirksregionen.geojson`,

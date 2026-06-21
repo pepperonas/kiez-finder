@@ -42,13 +42,16 @@ export function loadLevels() {
     loadJSON('/data/bezirke.geojson'),
     loadJSON('/data/prognoseraeume.geojson'),
     loadJSON('/data/bezirksregionen.geojson'),
-  ]).then(([bez, pgr, bzr]) => {
+    loadJSON('/data/bezirke-pts.geojson'),
+    loadJSON('/data/bezirksregionen-pts.geojson'),
+  ]).then(([bez, pgr, bzr, bezPts, bzrPts]) => {
     const toMap = (fc) => {
       const m = new Map()
       for (const f of fc.features) m.set(f.properties.id, f)
       return m
     }
-    _levelFC = { bez, pgr, bzr }
+    // label points avoid the multi-tile duplicate-label bug for big polygons
+    _levelFC = { bez, pgr, bzr, bezPts, bzrPts }
     _levelMaps = { bez: toMap(bez), pgr: toMap(pgr), bzr: toMap(bzr) }
     return _levelMaps
   })
@@ -92,6 +95,14 @@ export async function loadOutline() {
   if (_outline) return _outline
   _outline = await loadJSON('/data/berlin-outline.geojson')
   return _outline
+}
+
+// colloquial Kiez names from OSM (place=quarter/neighbourhood) — point labels
+let _kiezNames = null
+export async function loadKiezNames() {
+  if (_kiezNames) return _kiezNames
+  _kiezNames = await loadJSON('/data/kiez-names.geojson')
+  return _kiezNames
 }
 
 function eachRing(geom, fn) {

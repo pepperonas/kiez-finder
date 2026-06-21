@@ -9,8 +9,8 @@
 // ─────────────────────────────────────────────────────────────────────────
 import './style.css'
 import { KiezMap } from './map.js'
-import { loadKieze, loadOutline, loadLevels, levelFC, findKiez, bezirkName, kmFromBerlin,
-  featureForLevel, levelName } from './kiez.js'
+import { loadKieze, loadOutline, loadLevels, levelFC, loadKiezNames, findKiez, bezirkName,
+  kmFromBerlin, featureForLevel, levelName } from './kiez.js'
 import { getPosition, reverseGeocode } from './geo.js'
 import { revealStagger, tweenNumber, spring, SPRINGS, reduceMotion, finePointer, damdamper } from './motion.js'
 
@@ -460,11 +460,14 @@ async function boot() {
   applyOverlay(state.overlay)
   // load polygons + map shell in parallel, then check in
   await Promise.all([loadKieze().catch(() => null), state.map.whenReady()])
-  // aggregate levels feed both the level-switch highlight and the sector overlay
-  loadLevels().then(() => {
+  // aggregate levels feed the level-switch highlight + sector overlay;
+  // colloquial OSM Kiez names feed the accent map labels
+  Promise.all([loadLevels(), loadKiezNames().catch(() => null)]).then(([, kiezNames]) => {
     const fc = levelFC()
     if (fc && state.map) {
-      state.map.setOverlayData(fc.bez, fc.bzr).then(() => {
+      state.map.setOverlayData({
+        bez: fc.bez, bzr: fc.bzr, bezPts: fc.bezPts, bzrPts: fc.bzrPts, kiezNames,
+      }).then(() => {
         state.overlayReady = true
         state.map.setOverlayMode(state.overlay)
       })
