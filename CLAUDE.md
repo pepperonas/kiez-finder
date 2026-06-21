@@ -109,6 +109,10 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   (incl. `Permissions-Policy: geolocation=(self)`) are repeated inside the `location = /index.html`
   block. Without it the browser blocks `getCurrentPosition`.
 - **Theme:** pre-paint inline script in `index.html` sets `data-theme` (no FOUC) and flags `html.js`.
+- **OG/preview image** `public/og.png` (1200×630) is generated from the real Bezirksregionen geometry:
+  a Node script projects them to an SVG (cool-palette fills) + brand wordmark/tagline and renders to PNG
+  via `@resvg/resvg-js` using the self-hosted woff2 fonts. (Playwright screenshots are unreliable in
+  this env — use resvg, not a browser screenshot.) Meta tags + JSON-LD (WebApplication) in `index.html`.
 - The original app (React + Google Maps, at mrx3k1.de/kiez-finder) was rebuilt from scratch here —
   keyless, Berlin-specialized, MD3 Expressive, with a proper motion/craft pass.
 

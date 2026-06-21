@@ -1,30 +1,52 @@
 <div align="center">
 
+<img src="docs/og.png" alt="Kiez-Finder — Berlin-Karte mit eingefärbten Kiezen" width="100%"/>
+
 # 🧭 Kiez-Finder
 
 ### Dein Kiez-Pass für Berlin — check ein und erfahre sofort, in welchem Kiez du gerade stehst.
 
 [![Live](https://img.shields.io/badge/live-kiezfinder.celox.io-7da2ff?style=for-the-badge&logo=icloud&logoColor=white)](https://kiezfinder.celox.io)
-[![License: MIT](https://img.shields.io/badge/License-MIT-b69cff.svg?style=for-the-badge)](LICENSE)
 [![PWA](https://img.shields.io/badge/PWA-installierbar-5a3fd6?style=for-the-badge&logo=pwa&logoColor=white)](https://kiezfinder.celox.io)
+[![License: MIT](https://img.shields.io/badge/License-MIT-b69cff.svg?style=for-the-badge)](LICENSE)
 
+<!-- status -->
+[![Last commit](https://img.shields.io/github/last-commit/pepperonas/kiez-finder?logo=git&logoColor=white)](https://github.com/pepperonas/kiez-finder/commits/main)
+[![Commit activity](https://img.shields.io/github/commit-activity/m/pepperonas/kiez-finder)](https://github.com/pepperonas/kiez-finder/commits/main)
+[![Repo size](https://img.shields.io/github/repo-size/pepperonas/kiez-finder)](https://github.com/pepperonas/kiez-finder)
+[![Top language](https://img.shields.io/github/languages/top/pepperonas/kiez-finder?logo=javascript&logoColor=000)](#tech-stack)
+[![Stars](https://img.shields.io/github/stars/pepperonas/kiez-finder?style=flat&logo=github)](https://github.com/pepperonas/kiez-finder/stargazers)
+
+<!-- tech -->
 [![Vite](https://img.shields.io/badge/Vite-6-646CFF?logo=vite&logoColor=white)](https://vite.dev)
 [![MapLibre GL](https://img.shields.io/badge/MapLibre%20GL-4-396CB2?logo=maplibre&logoColor=white)](https://maplibre.org)
 [![Material 3](https://img.shields.io/badge/Material%203-Expressive-7da2ff?logo=materialdesign&logoColor=white)](https://m3.material.io)
-[![Vanilla JS](https://img.shields.io/badge/Vanilla-JS-f7df1e?logo=javascript&logoColor=000)](#)
+[![Vanilla JS](https://img.shields.io/badge/Vanilla-JS-f7df1e?logo=javascript&logoColor=000)](#tech-stack)
+[![No framework](https://img.shields.io/badge/framework-none-success)](#tech-stack)
+[![Self-hosted fonts](https://img.shields.io/badge/fonts-self--hosted-b69cff)](#tech-stack)
+
+<!-- data -->
+[![Daten LOR 2021](https://img.shields.io/badge/Daten-LOR%202021-1f9d55)](#datenquellen)
+[![Kieze](https://img.shields.io/badge/Kieze-542-1f9d55)](#datenquellen)
+[![Bezirke](https://img.shields.io/badge/Bezirke-12-1f9d55)](#datenquellen)
+[![Bezirksregionen](https://img.shields.io/badge/Bezirksregionen-143-1f9d55)](#datenquellen)
+[![OpenStreetMap](https://img.shields.io/badge/OpenStreetMap-Kiez--Namen-7ebc6f?logo=openstreetmap&logoColor=white)](#datenquellen)
 [![No API key](https://img.shields.io/badge/API%20key-none-success)](#datenquellen)
-[![Daten](https://img.shields.io/badge/Daten-LOR%202021%20·%20542%20Kieze-1f9d55)](#datenquellen)
-[![Berlin](https://img.shields.io/badge/Berlin-12%20Bezirke-e8590c)](#)
+
+<!-- features -->
+[![Fuzzy search](https://img.shields.io/badge/Suche-fuzzy-7da2ff)](#features)
+[![Offline](https://img.shields.io/badge/offline-ready-5a3fd6)](#features)
+[![Sprache](https://img.shields.io/badge/Sprache-Deutsch-e8590c)](#)
+[![a11y](https://img.shields.io/badge/a11y-reduced--motion%20·%20Tastatur-blueviolet)](#features)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#mitmachen)
 
 <br/>
 
-<img src="docs/screenshot-mobile.png" alt="Kiez-Finder — Pass-Karte über der Karte" width="300"/>
+<img src="docs/screenshot-mobile.png" alt="Kiez-Finder — Pass-Karte als Bottom-Sheet" width="270"/>
+&nbsp;
+<img src="docs/screenshot-bezirke.png" alt="Bezirke-Overlay mit Labels" width="48%"/>
 
-<br/><br/>
-
-<img src="docs/screenshot-bezirke.png" alt="Bezirke-Overlay mit Labels" width="49%"/>
-<img src="docs/screenshot-regionen-dark.png" alt="Bezirksregionen-Overlay (Dark)" width="49%"/>
+<sub><i>Bottom-Sheet auf Mobil · farbige Ebenen-Overlays (Bezirke L · Regionen M · Kieze S)</i></sub>
 
 </div>
 
@@ -58,7 +80,8 @@ gehorchen alle diesem einen Satz.
 - 🏘️ **Feinkörnige OSM-Kieze** — benannte Kieze, die *kleiner* als ein Planungsraum sind (z.B. *Scheunenviertel*, *Möckernkiez*, *Fischerinsel*), kommen mit ihrer **exakten OSM-Grenze** (71 Polygone) — suchbar, hervorhebbar und beim Drinstehen automatisch erkannt
 - 🧅 **Wählbare LOR-Ebenen** — tippe in der Card auf **Kiez · Bezirksregion · Bezirk**, und die zugehörige Fläche wird hervorgehoben (Auto-Zoom auf ihre Ausdehnung)
 - 🖱️ **Karte ist anklickbar** — tippe irgendwohin in Berlin, und die Card springt auf den Kiez dieses Punkts (inkl. neuer Adresse)
-- 🗺️ **Sektoren-Overlay** (4-Stufen-Button) — *aus · Bezirke · Bezirksregionen · Kieze*: färbt die jeweilige Ebene in einer kohärenten, kühlen Palette. **Nachbarschafts-bewusste Färbung** auf jeder Ebene (Graph-Coloring über geteilte Grenzen) → aneinandergrenzende Flächen bekommen weit auseinanderliegende Farbtöne und sind klar unterscheidbar
+- 🗺️ **Sektoren-Overlay** (4-Stufen-Button) — *aus · Bezirke (L) · Regionen (M) · Kieze (S)*, von grob nach fein. Färbt die jeweilige Ebene **nachbarschafts-bewusst** (Distanz-2-Graph-Coloring über geteilte Grenzen) → angrenzende **und** nahe Flächen bekommen weit auseinanderliegende Farbtöne und sind klar unterscheidbar
+- 🟦 **Starke Auswahl-Umrandung** — die aktive Auswahl wird mit kräftiger heller Linie + dunklem Casing-Halo gezeichnet, damit sie auch über dem dichten Farb-Overlay klar heraussticht
 - 🏷️ **Eigene Label-Ebene** — Bezirke groß/hell (schon bei weitem Zoom), Bezirksregionen kleiner; MapLibre-Kollision zeigt immer die im Ausschnitt passenden Labels (Basemap-Ortsteil-Labels werden ausgeblendet, damit die offizielle Hierarchie dominiert)
 - 🗺️🗣️ **Umgangssprachliche Kiez-Namen auf der Karte** — 537 OSM-Kieze (`place=quarter`/`neighbourhood`, z.B. Flughafenkiez, Reuterkiez, Sprengelkiez) als akzentfarbene Labels bei höherem Zoom
 - 🗺️ **Lebendige Vektorkarte** (MapLibre GL) mit `flyTo`-Lock-on und sich selbst zeichnender Kiez-Grenze

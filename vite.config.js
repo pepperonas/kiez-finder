@@ -11,7 +11,7 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
-      includeAssets: ['icons/icon-192.png', 'icons/icon-512.png', 'favicon.svg', 'kiez-finder.jpg'],
+      includeAssets: ['icons/icon-192.png', 'icons/icon-512.png', 'favicon.svg', 'og.png'],
       // The Kiez polygons are large + rarely change → precache them so the app
       // works offline once visited.
       workbox: {

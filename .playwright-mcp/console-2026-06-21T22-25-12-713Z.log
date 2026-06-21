@@ -1,0 +1,1 @@
+[     133ms] [INFO] Banner not shown: beforeinstallpromptevent.preventDefault() called. The page must call beforeinstallpromptevent.prompt() to show the banner. @ http://localhost:4321/_og.html:0
