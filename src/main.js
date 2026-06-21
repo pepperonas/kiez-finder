@@ -48,7 +48,7 @@ const state = {
   tilt: null,
   plr: null,        // current Kiez feature
   pos: null,        // current position { lat, lon, accuracy }
-  level: 'plr',     // active highlight level: plr | bez | bzr | pgr
+  level: 'bzr',     // active highlight level: plr | bez | bzr | pgr (default = whole Kiez = Bezirksregion)
   overlay: 'off',   // map sector overlay: off | bezirke | bzr
   overlayReady: false,
 }
@@ -276,7 +276,8 @@ function renderFound({ kiez, pos, address }) {
   state.pos = pos
   const p = kiez.properties
   const coordsEl = h('span', { class: 'coords-val', text: '52.00000, 13.00000' })
-  const titleActive = state.level === 'plr'
+  // the title represents the whole Kiez → highlights the Bezirksregion (one coherent area)
+  const titleActive = state.level === 'bzr'
 
   const recheck = h('button', { class: 'btn btn-filled', type: 'button', 'data-reveal': '' },
     h('span', { class: 'btn-icon', html: ICONS.refresh }), 'Erneut einchecken')
@@ -292,8 +293,8 @@ function renderFound({ kiez, pos, address }) {
     h('p', { class: 'eyebrow', 'data-reveal': '', text: 'Du stehst im Kiez' }),
     h('button', {
       class: 'level-title' + (titleActive ? ' is-active' : ''),
-      type: 'button', 'data-level': 'plr', 'data-reveal': '',
-      aria: { pressed: titleActive ? 'true' : 'false', label: `Kiez ${p.plr_name} auf der Karte zeigen` },
+      type: 'button', 'data-level': 'bzr', 'data-reveal': '',
+      aria: { pressed: titleActive ? 'true' : 'false', label: `Ganzen Kiez ${p.plr_name} auf der Karte zeigen` },
     },
       h('h1', { class: 'kiez-name', text: p.plr_name }),
       (_kiezOfficialEl = h('p', { class: 'kiez-official', hidden: true }))),
@@ -420,12 +421,18 @@ async function pickAt(lon, lat) {
 // Shared: resolve a position → Kiez, move the map, render the card.
 async function locateAt(pos, { fly = false } = {}) {
   const mine = ++_seq
-  state.level = 'plr'
+  state.level = 'bzr'
   const kiez = findKiez(pos.lon, pos.lat)
+  // need the aggregate levels so we can highlight the WHOLE Kiez (its Bezirksregion,
+  // the dissolved union of all its Planungsräume) as one coherent area — not just the
+  // single Planungsraum the point sits in. Usually already loaded by check-in time.
+  await loadLevels().catch(() => null)
+  if (mine !== _seq) return
+  const area = kiez ? (featureForLevel('bzr', kiez) || kiez) : null
 
   if (state.map) {
-    if (fly) state.map.lockOn(pos.lon, pos.lat, kiez || null)
-    else state.map.goTo(pos.lon, pos.lat, kiez || null)
+    if (fly) state.map.lockOn(pos.lon, pos.lat, area)
+    else state.map.goTo(pos.lon, pos.lat, area)
   }
 
   if (!kiez) {
