@@ -492,12 +492,13 @@ themeBtn.addEventListener('click', (e) => {
   applyTheme(state.theme === 'dark' ? 'light' : 'dark', { x: r.left + r.width / 2, y: r.top + r.height / 2 })
 })
 
-// ── sector overlay toggle: aus → Bezirke → Bezirksregionen ───────────────────
-const OVERLAY_ORDER = ['off', 'bezirke', 'bzr']
+// ── sector overlay toggle: aus → Bezirke → Bezirksregionen → Kieze ────────────
+const OVERLAY_ORDER = ['off', 'bezirke', 'bzr', 'kiez']
 const OVERLAY_META = {
-  off:     { label: '',         aria: 'aus',                   next: 'Bezirke einblenden' },
-  bezirke: { label: 'Bezirke',  aria: 'Bezirke',               next: 'Bezirksregionen einblenden' },
-  bzr:     { label: 'Regionen', aria: 'Bezirksregionen',       next: 'Flächen ausblenden' },
+  off:     { label: '',         aria: 'aus',             next: 'Bezirke einblenden' },
+  bezirke: { label: 'Bezirke',  aria: 'Bezirke',         next: 'Bezirksregionen einblenden' },
+  bzr:     { label: 'Regionen', aria: 'Bezirksregionen', next: 'Kieze einblenden' },
+  kiez:    { label: 'Kieze',    aria: 'Kieze',           next: 'Flächen ausblenden' },
 }
 function applyOverlay(mode) {
   state.overlay = mode
@@ -676,7 +677,7 @@ async function boot() {
     const fc = levelFC()
     if (fc && state.map) {
       state.map.setOverlayData({
-        bez: fc.bez, bzr: fc.bzr, bezPts: fc.bezPts, bzrPts: fc.bzrPts, kiezNames,
+        bez: fc.bez, bzr: fc.bzr, areas: kiezAreasFC(), bezPts: fc.bezPts, bzrPts: fc.bzrPts, kiezNames,
       }).then(() => {
         state.overlayReady = true
         state.map.setOverlayMode(state.overlay)

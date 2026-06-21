@@ -58,7 +58,7 @@ gehorchen alle diesem einen Satz.
 - 🏘️ **Feinkörnige OSM-Kieze** — benannte Kieze, die *kleiner* als ein Planungsraum sind (z.B. *Scheunenviertel*, *Möckernkiez*, *Fischerinsel*), kommen mit ihrer **exakten OSM-Grenze** (71 Polygone) — suchbar, hervorhebbar und beim Drinstehen automatisch erkannt
 - 🧅 **Wählbare LOR-Ebenen** — tippe in der Card auf **Kiez · Bezirksregion · Bezirk**, und die zugehörige Fläche wird hervorgehoben (Auto-Zoom auf ihre Ausdehnung)
 - 🖱️ **Karte ist anklickbar** — tippe irgendwohin in Berlin, und die Card springt auf den Kiez dieses Punkts (inkl. neuer Adresse)
-- 🗺️ **Sektoren-Overlay** (3-Stufen-Button) — *aus · Bezirke · Bezirksregionen*: färbt alle Bezirke/Regionen in einer kohärenten, kühlen Palette. Bezirksregionen erben den Farbton ihres Bezirks und variieren in der Helligkeit → gruppiert erkennbar **und** lokal unterscheidbar
+- 🗺️ **Sektoren-Overlay** (4-Stufen-Button) — *aus · Bezirke · Bezirksregionen · Kieze*: färbt die jeweilige Ebene in einer kohärenten, kühlen Palette. **Nachbarschafts-bewusste Färbung** auf jeder Ebene (Graph-Coloring über geteilte Grenzen) → aneinandergrenzende Flächen bekommen weit auseinanderliegende Farbtöne und sind klar unterscheidbar
 - 🏷️ **Eigene Label-Ebene** — Bezirke groß/hell (schon bei weitem Zoom), Bezirksregionen kleiner; MapLibre-Kollision zeigt immer die im Ausschnitt passenden Labels (Basemap-Ortsteil-Labels werden ausgeblendet, damit die offizielle Hierarchie dominiert)
 - 🗺️🗣️ **Umgangssprachliche Kiez-Namen auf der Karte** — 537 OSM-Kieze (`place=quarter`/`neighbourhood`, z.B. Flughafenkiez, Reuterkiez, Sprengelkiez) als akzentfarbene Labels bei höherem Zoom
 - 🗺️ **Lebendige Vektorkarte** (MapLibre GL) mit `flyTo`-Lock-on und sich selbst zeichnender Kiez-Grenze

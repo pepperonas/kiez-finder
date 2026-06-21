@@ -40,15 +40,14 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   `lockOn()` is the signature moment: `flyTo` the user, drop the beacon, then animate the Kiez
   fill/outline in with a spring. `highlight(feature,{fit})` highlights any LOR level (+`fitBounds`);
   `goTo()` handles a map-click pick; `onPick(cb)` fires on map clicks → main re-locates.
-  **Sector overlay + labels:** `setOverlayData(bezFC,bzrFC)` adds choropleth fill/line layers (below
-  the blue selection) + always-on label symbol layers (Bezirk = big/bold/uppercase, Bezirksregion =
-  smaller). `setOverlayMode('off'|'bezirke'|'bzr')` toggles fill/line visibility. Per-feature colours
-  are precomputed in `augment()` from a cohesive cool HSL palette (`bezHue`/`bezColors`/`bzrColors`):
-  Bezirke get 12 distinct hues; Bezirksregionen inherit their Bezirk's hue and vary by lightness.
-  **Neighbour-aware assignment:** `computeBezSlots()` detects Bezirk adjacency from shared boundary
-  vertices (`bezAdjacency()`, robust because the dissolve keeps shared borders topologically
-  identical) and spreads the palette via deterministic greedy local search so adjacent Bezirke land
-  far apart on the hue ramp (min neighbour gap ≈42° instead of 14°). Same palette, smarter mapping.
+  **Sector overlay + labels:** `setOverlayData({bez,bzr,areas,…})` adds choropleth fill/line layers
+  (below the blue selection) + always-on label symbol layers. **4 modes**
+  `setOverlayMode('off'|'bezirke'|'bzr'|'kiez')` — the `kiez` mode colours the merged colloquial
+  Kiez-areas (so Flughafenkiez ≠ Körnerkiez, which the Bezirksregion mode can't show as they share a
+  Bezirksregion). **Every level is neighbour-aware coloured**: `adjacency(fc,idKey)` detects shared
+  borders (the dissolve keeps them topologically identical), `computeSlots()` graph-colours over a
+  14-hue cool ramp (greedy by degree + local passes, deterministic) so adjacent areas get far-apart
+  hues; `colorAt(slot)` maps slot→colour. Bezirke keep `computeBezSlots()` (12 unique slots).
   `_tuneBasemapLabels()` hides the basemap's own suburb/hamlet/village place labels to avoid
   duplication. `setTheme()` re-adds custom layers AND recolours overlays after `setStyle()`.
   **Colloquial Kiez labels:** `lbl-kiez` renders OSM `place=quarter/neighbourhood` names

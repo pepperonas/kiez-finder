@@ -43,12 +43,14 @@ function bezColors(idx, theme) {
     ? { fill: hslHex(h, 52, 60), line: hslHex(h, 64, 74) }
     : { fill: hslHex(h, 60, 50), line: hslHex(h, 66, 38) }
 }
-function bzrColors(idx, sub, theme) {
-  const h = bezHue(idx) + (sub % 2 ? 7 : -7)
-  const dl = ((sub % 5) - 2) * 7 // -14…+14 lightness spread within a Bezirk
+// generic distinct colour for a graph-coloured slot (Bezirksregionen + Kieze) —
+// each adjacent area gets a far-apart hue, so neighbours read clearly different.
+const PAL_N = 14
+function colorAt(slot, theme) {
+  const h = 158 + ((slot % PAL_N) + PAL_N) % PAL_N * (172 / (PAL_N - 1)) // 158…330° (cool jewel ramp)
   return theme === 'dark'
-    ? { fill: hslHex(h, 50, clamp(60 + dl, 46, 75)), line: hslHex(h, 60, clamp(74 + dl / 2, 60, 84)) }
-    : { fill: hslHex(h, 58, clamp(50 + dl, 38, 62)), line: hslHex(h, 64, clamp(40 + dl / 2, 30, 52)) }
+    ? { fill: hslHex(h, 58, 62), line: hslHex(h, 70, 76) }
+    : { fill: hslHex(h, 64, 47), line: hslHex(h, 68, 37) }
 }
 
 // ── neighbour-aware palette assignment ───────────────────────────────────────
@@ -60,17 +62,18 @@ function ringsOf(geom) {
     : geom.type === 'MultiPolygon' ? geom.coordinates.flat() : []
 }
 
-function bezAdjacency(fc) {
-  const at = new Map()              // "x,y" → Set(bezCode)
-  const adj = new Map()            // bezCode → Set(bezCode)
-  for (const f of fc.features) adj.set(f.properties.id, new Set())
+// adjacency from shared boundary vertices (the dissolve keeps shared borders
+// topologically identical), keyed by an arbitrary id property.
+function adjacency(fc, idKey) {
+  const at = new Map(), adj = new Map()
+  for (const f of fc.features) adj.set(f.properties[idKey], new Set())
   for (const f of fc.features) {
-    const code = f.properties.id
+    const id = f.properties[idKey]
     for (const ring of ringsOf(f.geometry)) {
       for (const [x, y] of ring) {
-        const k = x.toFixed(4) + ',' + y.toFixed(4)
+        const k = x.toFixed(5) + ',' + y.toFixed(5)
         let s = at.get(k); if (!s) at.set(k, (s = new Set()))
-        s.add(code)
+        s.add(id)
       }
     }
   }
@@ -81,6 +84,33 @@ function bezAdjacency(fc) {
       for (let j = i + 1; j < a.length; j++) { adj.get(a[i]).add(a[j]); adj.get(a[j]).add(a[i]) }
   }
   return adj
+}
+const bezAdjacency = (fc) => adjacency(fc, 'id')
+
+// Graph-colour many areas (Bezirksregionen, Kieze) over PAL_N hues so adjacent
+// areas land far apart on the ramp. Greedy by descending degree + a few local
+// passes — deterministic (no RNG), fast for hundreds of features.
+function computeSlots(fc, idKey) {
+  const ids = fc.features.map((f) => f.properties[idKey])
+  const adj = adjacency(fc, idKey)
+  const order = ids.slice().sort((a, b) => (adj.get(b).size - adj.get(a).size) || (a < b ? -1 : 1))
+  const slot = new Map()
+  const pick = (id) => {
+    const nb = [...adj.get(id)].map((x) => slot.get(x)).filter((v) => v != null)
+    let best = 0, bestScore = -Infinity
+    const used = new Array(PAL_N).fill(0)
+    for (const v of slot.values()) used[v]++
+    for (let s = 0; s < PAL_N; s++) {
+      let mind = PAL_N
+      for (const v of nb) { const d = Math.abs(s - v); if (d < mind) mind = d }
+      const sc = mind * 100 - used[s] // maximise min hue gap, then balance usage
+      if (sc > bestScore) { bestScore = sc; best = s }
+    }
+    return best
+  }
+  for (const id of order) slot.set(id, pick(id))
+  for (let pass = 0; pass < 4; pass++) for (const id of order) slot.set(id, pick(id))
+  return slot
 }
 
 // Assign each Bezirk a palette slot (0…n-1) maximising the minimum hue gap
@@ -126,25 +156,24 @@ function computeBezSlots(fc) {
 }
 
 // build an overlay source FC: shares geometry, adds name + per-theme colours.
-// slotMap maps a Bezirk code → its assigned palette slot (neighbour-spread).
+// slotMap is the level's own neighbour-spread assignment (id/gid → palette slot).
 function augment(fc, level, theme, slotMap) {
-  const slotFor = (code) => (slotMap && slotMap.has(code) ? slotMap.get(code) : parseInt(code, 10) - 1)
-  const subCount = {} // bezCode → running index (for Bezirksregion lightness)
   return {
     type: 'FeatureCollection',
     features: fc.features.map((f) => {
       const p = f.properties
-      let name, col, lin
+      let name, c
       if (level === 'bez') {
         name = bezirkName(p.bez)
-        const c = bezColors(slotFor(p.id), theme); col = c.fill; lin = c.line
-      } else {
-        const bezCode = p.id.substring(0, 2)
-        const sub = (subCount[bezCode] = (subCount[bezCode] || 0) + 1) - 1
+        c = bezColors(slotMap && slotMap.has(p.id) ? slotMap.get(p.id) : parseInt(p.id, 10) - 1, theme)
+      } else if (level === 'kiez') {
+        name = p.kiez
+        c = colorAt(slotMap.get(p.gid) || 0, theme)
+      } else { // bzr
         name = p.bzr_name
-        const c = bzrColors(slotFor(bezCode), sub, theme); col = c.fill; lin = c.line
+        c = colorAt(slotMap.get(p.id) || 0, theme)
       }
-      return { type: 'Feature', geometry: f.geometry, properties: { name, col, lin } }
+      return { type: 'Feature', geometry: f.geometry, properties: { name, col: c.fill, lin: c.line } }
     }),
   }
 }
@@ -254,12 +283,17 @@ export class KiezMap {
   }
 
   // ── district / region overlay (choropleth + always-on labels) ──────────────
-  async setOverlayData({ bez, bzr, bezPts, bzrPts, kiezNames } = {}) {
+  async setOverlayData({ bez, bzr, areas, bezPts, bzrPts, kiezNames } = {}) {
     await this._ready
-    this._overlayRaw = { bez, bzr }
+    this._overlayRaw = { bez, bzr, areas }
     this._labelPts = { bez: bezPts || null, bzr: bzrPts || null }
     this._kiezNames = kiezNames || this._kiezNames || null
-    this._bezSlot = computeBezSlots(bez) // neighbour-spread palette assignment
+    // neighbour-aware palette slots per level → adjacent areas clearly differ
+    this._slots = {
+      bez: computeBezSlots(bez),
+      bzr: computeSlots(bzr, 'id'),
+      kiez: areas ? computeSlots(areas, 'gid') : null,
+    }
     this._addOverlayLayers()
   }
 
@@ -267,9 +301,11 @@ export class KiezMap {
     if (!this._overlayRaw) return
     const dark = this.theme === 'dark'
     const defs = [
-      { lvl: 'bez', src: 'ov-bez', data: augment(this._overlayRaw.bez, 'bez', this.theme, this._bezSlot) },
-      { lvl: 'bzr', src: 'ov-bzr', data: augment(this._overlayRaw.bzr, 'bzr', this.theme, this._bezSlot) },
+      { src: 'ov-bez', data: augment(this._overlayRaw.bez, 'bez', this.theme, this._slots.bez) },
+      { src: 'ov-bzr', data: augment(this._overlayRaw.bzr, 'bzr', this.theme, this._slots.bzr) },
     ]
+    if (this._overlayRaw.areas && this._slots.kiez)
+      defs.push({ src: 'ov-kiez', data: augment(this._overlayRaw.areas, 'kiez', this.theme, this._slots.kiez) })
     for (const d of defs) {
       if (this.map.getSource(d.src)) this.map.getSource(d.src).setData(d.data)
       else this.map.addSource(d.src, { type: 'geojson', data: d.data })
@@ -292,7 +328,7 @@ export class KiezMap {
       this.map.addLayer({
         id, type: 'fill', source: src,
         layout: { visibility: vis },
-        paint: { 'fill-color': ['get', 'col'], 'fill-opacity': dark ? 0.34 : 0.32 },
+        paint: { 'fill-color': ['get', 'col'], 'fill-opacity': dark ? 0.42 : 0.36 },
       }, before)
     }
     const addLine = (id, src, vis) => {
@@ -311,6 +347,10 @@ export class KiezMap {
     addLine('ov-bez-line', 'ov-bez', this._mode === 'bezirke' ? 'visible' : 'none')
     addFill('ov-bzr-fill', 'ov-bzr', this._mode === 'bzr' ? 'visible' : 'none')
     addLine('ov-bzr-line', 'ov-bzr', this._mode === 'bzr' ? 'visible' : 'none')
+    if (this.map.getSource('ov-kiez')) {
+      addFill('ov-kiez-fill', 'ov-kiez', this._mode === 'kiez' ? 'visible' : 'none')
+      addLine('ov-kiez-line', 'ov-kiez', this._mode === 'kiez' ? 'visible' : 'none')
+    }
 
     // labels render ON TOP of everything; always visible (collision-managed)
     const haloDark = 'rgba(6,9,16,0.88)', haloLight = 'rgba(255,255,255,0.92)'
@@ -389,6 +429,8 @@ export class KiezMap {
     set('ov-bez-line', this._mode === 'bezirke')
     set('ov-bzr-fill', this._mode === 'bzr')
     set('ov-bzr-line', this._mode === 'bzr')
+    set('ov-kiez-fill', this._mode === 'kiez')
+    set('ov-kiez-line', this._mode === 'kiez')
     // the dashed city outline is redundant once sectors are coloured
     set('berlin-line', this._mode === 'off')
   }
