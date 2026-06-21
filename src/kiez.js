@@ -19,11 +19,34 @@ async function loadJSON(url) {
   return res.json()
 }
 
+let _kiezAreaByGid = null // gid → merged colloquial-Kiez polygon (union of its Planungsräume)
+
 export async function loadKieze() {
   if (_kieze) return _kieze
-  _kieze = await loadJSON('/data/kieze.geojson')
+  const [kieze, areas] = await Promise.all([
+    loadJSON('/data/kieze.geojson'),
+    loadJSON('/data/kiez-areas.geojson').catch(() => null),
+  ])
+  _kieze = kieze
   _bbox = _kieze.features.map(featureBBox)
+  if (areas) {
+    _kiezAreaByGid = new Map()
+    for (const f of areas.features) _kiezAreaByGid.set(f.properties.gid, f)
+  }
   return _kieze
+}
+
+/**
+ * The merged colloquial-Kiez area for a Planungsraum — the union of all
+ * Planungsräume that share its colloquial Kiez (e.g. Schillerkiez = Hasenheide +
+ * Schillerpromenade Nord/Süd + Wartheplatz), as ONE polygon. Falls back to the
+ * single Planungsraum if no group data is available.
+ */
+export function kiezAreaFor(plrFeature) {
+  if (!plrFeature) return null
+  const gid = plrFeature.properties && plrFeature.properties.gid
+  if (_kiezAreaByGid && gid != null && _kiezAreaByGid.has(gid)) return _kiezAreaByGid.get(gid)
+  return plrFeature
 }
 
 // ── aggregate LOR levels (dissolved from the Kieze) — lazy, non-blocking ──────
@@ -69,6 +92,7 @@ const PREFIX = { bez: 2, pgr: 4, bzr: 6 }
 /** The polygon Feature for a given level, derived from a Kiez (plr) feature. */
 export function featureForLevel(level, plrFeature) {
   if (!plrFeature) return null
+  if (level === 'kiez') return kiezAreaFor(plrFeature) // merged colloquial Kiez
   if (level === 'plr') return plrFeature
   if (!_levelMaps) return null
   const id = plrFeature.properties.plr_id.substring(0, PREFIX[level])
@@ -79,6 +103,7 @@ export function featureForLevel(level, plrFeature) {
 export function levelName(level, plrFeature) {
   if (!plrFeature) return '—'
   const p = plrFeature.properties
+  if (level === 'kiez') return p.kiez || p.plr_name
   if (level === 'plr') return p.plr_name
   if (level === 'bez') return bezirkName(p.bez)
   if (level === 'bzr') return p.bzr_name

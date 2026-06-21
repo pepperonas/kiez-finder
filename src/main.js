@@ -10,7 +10,7 @@
 import './style.css'
 import { KiezMap } from './map.js'
 import { loadKieze, loadOutline, loadLevels, levelFC, loadKiezNames, findKiez, bezirkName,
-  kmFromBerlin, featureForLevel, levelName } from './kiez.js'
+  kmFromBerlin, featureForLevel, levelName, kiezAreaFor } from './kiez.js'
 import { getPosition, reverseGeocode } from './geo.js'
 import { revealStagger, tweenNumber, spring, SPRINGS, reduceMotion, finePointer, damdamper } from './motion.js'
 
@@ -48,7 +48,7 @@ const state = {
   tilt: null,
   plr: null,        // current Kiez feature
   pos: null,        // current position { lat, lon, accuracy }
-  level: 'plr',     // active highlight level: plr | bez | bzr | pgr (default = the Kiez = Planungsraum)
+  level: 'kiez',    // active highlight level: kiez | bez | bzr | pgr (default = colloquial Kiez = merged group)
   overlay: 'off',   // map sector overlay: off | bezirke | bzr
   overlayReady: false,
 }
@@ -255,28 +255,16 @@ function patchAddress(line) {
   _addrValueEl.classList.remove('meta-value--pending')
 }
 
-// When OSM knows the colloquial Kiez name (e.g. "Flughafenkiez"), promote it to
-// the title and demote the official LOR Planungsraum name to a subline.
-let _kiezOfficialEl = null
-function patchKiezName(colloquial, official) {
-  const nameEl = card.querySelector('.kiez-name')
-  const titleBtn = card.querySelector('.level-title')
-  if (!nameEl || !colloquial || colloquial === official) return
-  nameEl.textContent = colloquial
-  if (_kiezOfficialEl) {
-    _kiezOfficialEl.textContent = `amtl. Planungsraum · ${official}`
-    _kiezOfficialEl.hidden = false
-  }
-  if (titleBtn) titleBtn.setAttribute('aria-label', `Kiez ${colloquial} (amtlich ${official}) auf der Karte zeigen`)
-  fitKiezName()
-}
-
 function renderFound({ kiez, pos, address }) {
   state.plr = kiez
   state.pos = pos
   const p = kiez.properties
   const coordsEl = h('span', { class: 'coords-val', text: '52.00000, 13.00000' })
-  const titleActive = state.level === 'plr'
+  const titleActive = state.level === 'kiez'
+  // colloquial Kiez name (precomputed, groups several Planungsräume) → title;
+  // the exact official Planungsraum becomes the subline.
+  const colloquial = p.kiez && p.kiez !== p.plr_name ? p.kiez : null
+  const titleText = colloquial || p.plr_name
 
   const recheck = h('button', { class: 'btn btn-filled', type: 'button', 'data-reveal': '' },
     h('span', { class: 'btn-icon', html: ICONS.refresh }), 'Erneut einchecken')
@@ -292,11 +280,11 @@ function renderFound({ kiez, pos, address }) {
     h('p', { class: 'eyebrow', 'data-reveal': '', text: 'Du stehst im Kiez' }),
     h('button', {
       class: 'level-title' + (titleActive ? ' is-active' : ''),
-      type: 'button', 'data-level': 'plr', 'data-reveal': '',
-      aria: { pressed: titleActive ? 'true' : 'false', label: `Kiez ${p.plr_name} auf der Karte zeigen` },
+      type: 'button', 'data-level': 'kiez', 'data-reveal': '',
+      aria: { pressed: titleActive ? 'true' : 'false', label: `Kiez ${titleText} auf der Karte zeigen` },
     },
-      h('h1', { class: 'kiez-name', text: p.plr_name }),
-      (_kiezOfficialEl = h('p', { class: 'kiez-official', hidden: true }))),
+      h('h1', { class: 'kiez-name', text: titleText }),
+      colloquial ? h('p', { class: 'kiez-official', text: `amtl. Planungsraum · ${p.plr_name}` }) : null),
     // ordered by ascending area size (Kiez = title above; then bigger → biggest).
     // The Prognoseraum is hidden when it only duplicates the Bezirk name.
     h('div', { class: 'meta' },
@@ -420,12 +408,14 @@ async function pickAt(lon, lat) {
 // Shared: resolve a position → Kiez, move the map, render the card.
 async function locateAt(pos, { fly = false } = {}) {
   const mine = ++_seq
-  state.level = 'plr'
+  state.level = 'kiez'
   const kiez = findKiez(pos.lon, pos.lat)
+  // highlight the whole colloquial Kiez (merged group of Planungsräume), not just one
+  const area = kiez ? kiezAreaFor(kiez) : null
 
   if (state.map) {
-    if (fly) state.map.lockOn(pos.lon, pos.lat, kiez || null)
-    else state.map.goTo(pos.lon, pos.lat, kiez || null)
+    if (fly) state.map.lockOn(pos.lon, pos.lat, area)
+    else state.map.goTo(pos.lon, pos.lat, area)
   }
 
   if (!kiez) {
@@ -434,12 +424,10 @@ async function locateAt(pos, { fly = false } = {}) {
     return
   }
 
-  renderFound({ kiez, pos, address: null }) // show instantly (official LOR name)
+  renderFound({ kiez, pos, address: null }) // title (colloquial Kiez) is precomputed → instant
   const address = await reverseGeocode(pos.lat, pos.lon).catch(() => null)
   if (mine !== _seq || !address) return
   if (address.line) patchAddress(address.line)
-  // promote the colloquial Kiez name to the title when OSM has one
-  if (address.kiez) patchKiezName(address.kiez, kiez.properties.plr_name)
 }
 
 // ── theme toggle with MD3-expressive circular reveal (View Transitions) ──────
