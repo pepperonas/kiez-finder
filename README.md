@@ -4,9 +4,9 @@
 
 ### Dein Kiez-Pass für Berlin — check ein und erfahre sofort, in welchem Kiez du gerade stehst.
 
-[![Live](https://img.shields.io/badge/live-kiez--finder.celox.io-7da2ff?style=for-the-badge&logo=icloud&logoColor=white)](https://kiez-finder.celox.io)
+[![Live](https://img.shields.io/badge/live-kiezfinder.celox.io-7da2ff?style=for-the-badge&logo=icloud&logoColor=white)](https://kiezfinder.celox.io)
 [![License: MIT](https://img.shields.io/badge/License-MIT-b69cff.svg?style=for-the-badge)](LICENSE)
-[![PWA](https://img.shields.io/badge/PWA-installierbar-5a3fd6?style=for-the-badge&logo=pwa&logoColor=white)](https://kiez-finder.celox.io)
+[![PWA](https://img.shields.io/badge/PWA-installierbar-5a3fd6?style=for-the-badge&logo=pwa&logoColor=white)](https://kiezfinder.celox.io)
 
 [![Vite](https://img.shields.io/badge/Vite-6-646CFF?logo=vite&logoColor=white)](https://vite.dev)
 [![MapLibre GL](https://img.shields.io/badge/MapLibre%20GL-4-396CB2?logo=maplibre&logoColor=white)](https://maplibre.org)
@@ -134,7 +134,7 @@ die Standortabfrage):
 
 ```bash
 npm run build
-rsync -avz --delete dist/ root@<vps>:/var/www/kiez-finder.celox.io/
+rsync -avz --delete dist/ root@<vps>:/var/www/kiezfinder.celox.io/
 ```
 
 ## Datenquellen

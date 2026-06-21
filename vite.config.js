@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
-// Kiez-Finder — deployed at the root of kiez-finder.celox.io
+// Kiez-Finder — deployed at the root of kiezfinder.celox.io
 export default defineConfig({
   base: '/',
   build: {

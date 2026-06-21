@@ -8,8 +8,8 @@ Kiez-Finder — a Berlin-specific PWA that uses browser geolocation to determine
 **Kiez** (LOR 2021 Planungsraum) the user is standing in, highlights its boundary on a map, and shows
 the full hierarchy (Kiez → Bezirksregion → Prognoseraum → Bezirk) plus address and coordinates.
 
-Live: **https://kiez-finder.celox.io** · deployed as a static build on the celox.io VPS (69.62.121.168),
-webroot `/var/www/kiez-finder.celox.io/`, nginx block `kiez-finder.celox.io`.
+Live: **https://kiezfinder.celox.io** · deployed as a static build on the celox.io VPS (69.62.121.168),
+webroot `/var/www/kiezfinder.celox.io/`, nginx block `kiezfinder.celox.io`.
 
 ## Commands
 
@@ -92,6 +92,6 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
 
 ```bash
 npm run build
-rsync -avz --delete dist/ root@69.62.121.168:/var/www/kiez-finder.celox.io/
+rsync -avz --delete dist/ root@69.62.121.168:/var/www/kiezfinder.celox.io/
 ```
-TLS via certbot (Let's Encrypt), auto-renewing. DNS A-record kiez-finder.celox.io → 69.62.121.168.
+TLS via certbot (Let's Encrypt), auto-renewing. DNS A-record kiezfinder.celox.io → 69.62.121.168.
