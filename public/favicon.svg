@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Kiez-Finder">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7da2ff"/>
+      <stop offset="1" stop-color="#b69cff"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="#0b0e14"/>
+  <!-- Kiez pin: a teardrop with an open ring (a place you belong to) -->
+  <path d="M32 13c-9.4 0-17 7.4-17 16.6 0 11.4 14.3 22.5 16.1 23.9a1.5 1.5 0 0 0 1.8 0C34.7 52.1 49 41 49 29.6 49 20.4 41.4 13 32 13Z" fill="url(#g)"/>
+  <circle cx="32" cy="29" r="7.5" fill="#0b0e14"/>
+  <circle cx="32" cy="29" r="3.2" fill="url(#g)"/>
+</svg>

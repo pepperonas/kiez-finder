@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="de" class="no-js" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+    <title>Kiez-Finder · In welchem Kiez stehst du gerade?</title>
+    <meta name="description" content="Dein Kiez-Pass für Berlin: Check an deinem Standort ein und erfahre sofort, in welchem Kiez, welcher Bezirksregion und welchem Bezirk du gerade stehst – mit lebendiger Karte und offiziellen Berliner Kiez-Grenzen." />
+
+    <meta name="theme-color" content="#0b0e14" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f4f5fb" media="(prefers-color-scheme: light)" />
+    <meta name="color-scheme" content="dark light" />
+
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Kiez-Finder" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Kiez-Finder" />
+    <meta property="og:title" content="Kiez-Finder · In welchem Kiez stehst du gerade?" />
+    <meta property="og:description" content="Dein Kiez-Pass für Berlin. Check ein und erfahre sofort deinen Kiez – mit offiziellen Berliner Kiez-Grenzen." />
+    <meta property="og:image" content="https://kiez-finder.celox.io/kiez-finder.jpg" />
+    <meta property="og:url" content="https://kiez-finder.celox.io/" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <link rel="preload" href="/fonts/space-grotesk-var.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preconnect" href="https://basemaps.cartocdn.com" crossorigin />
+    <link rel="dns-prefetch" href="https://nominatim.openstreetmap.org" />
+
+    <!-- Pre-paint: flag JS + restore theme before first paint (no FOUC, nothing can get stuck invisible) -->
+    <script>
+      (function () {
+        var d = document.documentElement;
+        d.classList.remove('no-js');
+        d.classList.add('js');
+        try {
+          var t = localStorage.getItem('kf-theme');
+          if (t === 'light' || t === 'dark') d.setAttribute('data-theme', t);
+          else d.setAttribute('data-theme', matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <noscript>
+      <div class="noscript">
+        <h1>Kiez-Finder</h1>
+        <p>Kiez-Finder braucht JavaScript, um deinen Standort zu bestimmen und die Karte deines Kiezes zu zeichnen. Bitte aktiviere JavaScript.</p>
+      </div>
+    </noscript>
+    <div id="app"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

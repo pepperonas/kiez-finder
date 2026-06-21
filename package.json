@@ -1,0 +1,19 @@
+{
+  "name": "kiez-finder",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Dein Kiez-Pass für Berlin — finde heraus, in welchem Kiez du gerade stehst.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "maplibre-gl": "^4.7.1"
+  },
+  "devDependencies": {
+    "vite": "^6.0.7",
+    "vite-plugin-pwa": "^0.21.1"
+  }
+}
