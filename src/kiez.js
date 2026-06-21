@@ -10,6 +10,7 @@ let _kieze = null // FeatureCollection
 let _bbox = null  // per-feature [minX,minY,maxX,maxY]
 let _outline = null
 let _levelMaps = null // { bez: Map<id,feature>, pgr: …, bzr: … }
+let _levelFC = null   // { bez: FC, pgr: FC, bzr: FC } — raw collections (for map overlays)
 let _levelsPromise = null
 
 async function loadJSON(url) {
@@ -47,10 +48,16 @@ export function loadLevels() {
       for (const f of fc.features) m.set(f.properties.id, f)
       return m
     }
+    _levelFC = { bez, pgr, bzr }
     _levelMaps = { bez: toMap(bez), pgr: toMap(pgr), bzr: toMap(bzr) }
     return _levelMaps
   })
   return _levelsPromise
+}
+
+/** Raw FeatureCollections per level (available after loadLevels resolves). */
+export function levelFC() {
+  return _levelFC
 }
 
 // id prefix length per level

@@ -21,6 +21,11 @@
 
 <img src="docs/screenshot-mobile.png" alt="Kiez-Finder — Pass-Karte über der Karte" width="300"/>
 
+<br/><br/>
+
+<img src="docs/screenshot-bezirke.png" alt="Bezirke-Overlay mit Labels" width="49%"/>
+<img src="docs/screenshot-regionen-dark.png" alt="Bezirksregionen-Overlay (Dark)" width="49%"/>
+
 </div>
 
 ---
@@ -49,6 +54,8 @@ gehorchen alle diesem einen Satz.
 - 📍 **Standort → Kiez** über die offiziellen LOR-2021-Planungsräume (542 Kieze), Point-in-Polygon im Browser
 - 🧅 **Vier wählbare LOR-Ebenen** — tippe in der Card auf **Kiez · Bezirk · Bezirksregion · Prognoseraum**, und die zugehörige Fläche wird auf der Karte hervorgehoben (Auto-Zoom auf ihre Ausdehnung)
 - 🖱️ **Karte ist anklickbar** — tippe irgendwohin in Berlin, und die Card springt auf den Kiez dieses Punkts (inkl. neuer Adresse)
+- 🗺️ **Sektoren-Overlay** (3-Stufen-Button) — *aus · Bezirke · Bezirksregionen*: färbt alle Bezirke/Regionen in einer kohärenten, kühlen Palette. Bezirksregionen erben den Farbton ihres Bezirks und variieren in der Helligkeit → gruppiert erkennbar **und** lokal unterscheidbar
+- 🏷️ **Eigene Label-Ebene** — Bezirke groß/hell (schon bei weitem Zoom), Bezirksregionen kleiner; MapLibre-Kollision zeigt immer die im Ausschnitt passenden Labels (Basemap-Ortsteil-Labels werden ausgeblendet, damit die offizielle Hierarchie dominiert)
 - 🗺️ **Lebendige Vektorkarte** (MapLibre GL) mit `flyTo`-Lock-on und sich selbst zeichnender Kiez-Grenze
 - 🎨 **Material 3 Expressive** — Feder-Physik statt Easing-Fades, tonale Flächen, XL-Shapes, Shape-Morph beim Tippen
 - 🌗 **Hell/Dunkel** mit kreisförmigem View-Transition-Reveal (dark-matter ↔ positron)

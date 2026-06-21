@@ -180,6 +180,34 @@ body {
 .icon-btn svg circle, .icon-btn svg path[fill] { fill: currentColor; stroke: none; }
 .install-btn { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, var(--outline)); }
 
+/* ── 3-state sector overlay toggle (icon morphs into a labelled pill) ── */
+.seg-btn {
+  width: auto; min-width: 46px; padding: 0 .7rem;
+  display: inline-flex; align-items: center; gap: 0;
+  transition: transform var(--dur-short) var(--ease-emphasized),
+              background-color var(--dur-med) var(--ease-standard),
+              border-color var(--dur-med) var(--ease-standard);
+}
+.seg-icon { display: inline-flex; }
+.seg-label {
+  max-width: 0; margin-left: 0; opacity: 0; overflow: hidden; white-space: nowrap;
+  font-size: .82rem; font-weight: 600; letter-spacing: .01em;
+  transition: max-width var(--dur-med) var(--ease-emphasized),
+              margin-left var(--dur-med) var(--ease-emphasized),
+              opacity var(--dur-short) var(--ease-standard);
+}
+.seg-btn:not([data-mode='off']) .seg-label { max-width: 8rem; margin-left: .45rem; opacity: 1; }
+.seg-btn[data-mode='bezirke'] {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--outline));
+  background: color-mix(in srgb, var(--accent) 16%, var(--sc-high));
+}
+.seg-btn[data-mode='bzr'] {
+  color: var(--accent-2);
+  border-color: color-mix(in srgb, var(--accent-2) 50%, var(--outline));
+  background: color-mix(in srgb, var(--accent-2) 16%, var(--sc-high));
+}
+
 :where(button, a, [tabindex]):focus-visible {
   outline: 3px solid color-mix(in srgb, var(--accent) 70%, transparent);
   outline-offset: 3px; border-radius: var(--r-m);

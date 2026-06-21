@@ -36,7 +36,13 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   `lockOn()` is the signature moment: `flyTo` the user, drop the beacon, then animate the Kiez
   fill/outline in with a spring. `highlight(feature,{fit})` highlights any LOR level (+`fitBounds`);
   `goTo()` handles a map-click pick; `onPick(cb)` fires on map clicks → main re-locates.
-  `setTheme()` re-adds custom layers after `setStyle()`.
+  **Sector overlay + labels:** `setOverlayData(bezFC,bzrFC)` adds choropleth fill/line layers (below
+  the blue selection) + always-on label symbol layers (Bezirk = big/bold/uppercase, Bezirksregion =
+  smaller). `setOverlayMode('off'|'bezirke'|'bzr')` toggles fill/line visibility. Per-feature colours
+  are precomputed in `augment()` from a cohesive cool HSL palette (`bezHue`/`bezColors`/`bzrColors`):
+  Bezirke get 12 distinct hues; Bezirksregionen inherit their Bezirk's hue and vary by lightness.
+  `_tuneBasemapLabels()` hides the basemap's own suburb/hamlet/village place labels to avoid
+  duplication. `setTheme()` re-adds custom layers AND recolours overlays after `setStyle()`.
 - `src/kiez.js` — loads `public/data/kieze.geojson`, hand-rolled ray-cast point-in-polygon
   (bbox-prefiltered, handles MultiPolygon + holes). `findKiez(lon,lat)` → feature or null.
   Also loads the 3 **aggregate LOR levels** (`bezirke`/`prognoseraeume`/`bezirksregionen.geojson`,

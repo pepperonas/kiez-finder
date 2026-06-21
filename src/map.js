@@ -6,7 +6,7 @@
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { spring, SPRINGS, reduceMotion } from './motion.js'
-import { BERLIN_CENTER, bboxOf } from './kiez.js'
+import { BERLIN_CENTER, bboxOf, bezirkName } from './kiez.js'
 
 const STYLES = {
   dark: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
@@ -16,12 +16,73 @@ const STYLES = {
 // brand accent per theme (the Kiez fill / outline colour)
 const ACCENT = { dark: '#7da2ff', light: '#3b5bdb' }
 
+// fonts that ship with the Carto glyph endpoint (bold + regular stacks)
+const FONT_BOLD = ['Montserrat Medium', 'Open Sans Bold']
+const FONT_REG = ['Montserrat Regular', 'Open Sans Regular']
+
+// ── theme-coherent categorical colours ───────────────────────────────────────
+// A cohesive cool palette (teal → cyan → blue → indigo → violet → magenta).
+// Bezirke get 12 distinct hues; Bezirksregionen inherit their Bezirk's hue and
+// vary by lightness → grouped by Bezirk, yet locally distinguishable.
+const bezHue = (idx) => 162 + (idx % 12) * 14 // 162…316°
+
+function hslHex(h, s, l) {
+  h = ((h % 360) + 360) % 360
+  s /= 100; l /= 100
+  const k = (n) => (n + h / 30) % 12
+  const a = s * Math.min(l, 1 - l)
+  const f = (n) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)))
+  const to = (x) => Math.round(255 * x).toString(16).padStart(2, '0')
+  return '#' + to(f(0)) + to(f(8)) + to(f(4))
+}
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v))
+
+function bezColors(idx, theme) {
+  const h = bezHue(idx)
+  return theme === 'dark'
+    ? { fill: hslHex(h, 52, 60), line: hslHex(h, 64, 74) }
+    : { fill: hslHex(h, 60, 50), line: hslHex(h, 66, 38) }
+}
+function bzrColors(idx, sub, theme) {
+  const h = bezHue(idx) + (sub % 2 ? 7 : -7)
+  const dl = ((sub % 5) - 2) * 7 // -14…+14 lightness spread within a Bezirk
+  return theme === 'dark'
+    ? { fill: hslHex(h, 50, clamp(60 + dl, 46, 75)), line: hslHex(h, 60, clamp(74 + dl / 2, 60, 84)) }
+    : { fill: hslHex(h, 58, clamp(50 + dl, 38, 62)), line: hslHex(h, 64, clamp(40 + dl / 2, 30, 52)) }
+}
+
+// build an overlay source FC: shares geometry, adds name + per-theme colours
+function augment(fc, level, theme) {
+  const subCount = {} // bezCode → running index (for Bezirksregion lightness)
+  return {
+    type: 'FeatureCollection',
+    features: fc.features.map((f) => {
+      const p = f.properties
+      let name, col, lin
+      if (level === 'bez') {
+        const idx = parseInt(p.id, 10) - 1
+        name = bezirkName(p.bez)
+        const c = bezColors(idx, theme); col = c.fill; lin = c.line
+      } else {
+        const bezCode = p.id.substring(0, 2)
+        const idx = parseInt(bezCode, 10) - 1
+        const sub = (subCount[bezCode] = (subCount[bezCode] || 0) + 1) - 1
+        name = p.bzr_name
+        const c = bzrColors(idx, sub, theme); col = c.fill; lin = c.line
+      }
+      return { type: 'Feature', geometry: f.geometry, properties: { name, col, lin } }
+    }),
+  }
+}
+
 export class KiezMap {
   constructor(container, theme, outline) {
     this.theme = theme
     this._outline = outline
     this._beacon = null
     this._cancelFill = null
+    this._overlayRaw = null     // { bez: FC, bzr: FC }
+    this._mode = 'off'          // off | bezirke | bzr
     this.map = new maplibregl.Map({
       container,
       style: STYLES[theme],
@@ -92,6 +153,19 @@ export class KiezMap {
         'line-blur': 0.3,
       },
     })
+
+    this._tuneBasemapLabels()
+    if (this._overlayRaw) this._addOverlayLayers()
+  }
+
+  // Hide the basemap's own neighbourhood labels (suburbs/hamlets) so our
+  // official Bezirk/Bezirksregion hierarchy reads cleanly without duplication.
+  _tuneBasemapLabels() {
+    for (const l of this.map.getStyle().layers) {
+      if (l.type === 'symbol' && /place_(suburb|hamlet|village|neighbourhood|quarter)/.test(l.id)) {
+        try { this.map.setLayoutProperty(l.id, 'visibility', 'none') } catch (e) {}
+      }
+    }
   }
 
   async setTheme(theme) {
@@ -100,9 +174,110 @@ export class KiezMap {
     // setStyle wipes custom layers → re-add them once the new style loads
     this.map.setStyle(STYLES[theme])
     await new Promise((res) => this.map.once('styledata', res))
-    this._onLoad()
+    this._onLoad() // re-adds selection layers, basemap tuning + overlays
     if (this._activeFeature) this._paint(this._activeFeature, true)
     if (this._lastPos) this._placeBeacon(this._lastPos)
+  }
+
+  // ── district / region overlay (choropleth + always-on labels) ──────────────
+  async setOverlayData(bezFC, bzrFC) {
+    await this._ready
+    this._overlayRaw = { bez: bezFC, bzr: bzrFC }
+    this._addOverlayLayers()
+  }
+
+  _addOverlayLayers() {
+    if (!this._overlayRaw) return
+    const dark = this.theme === 'dark'
+    const defs = [
+      { lvl: 'bez', src: 'ov-bez', data: augment(this._overlayRaw.bez, 'bez', this.theme) },
+      { lvl: 'bzr', src: 'ov-bzr', data: augment(this._overlayRaw.bzr, 'bzr', this.theme) },
+    ]
+    for (const d of defs) {
+      if (this.map.getSource(d.src)) this.map.getSource(d.src).setData(d.data)
+      else this.map.addSource(d.src, { type: 'geojson', data: d.data })
+    }
+
+    // fills + lines sit BELOW the blue selection so it stays prominent
+    const before = this.map.getLayer('kiez-fill') ? 'kiez-fill' : undefined
+    const addFill = (id, src, vis) => {
+      if (this.map.getLayer(id)) return
+      this.map.addLayer({
+        id, type: 'fill', source: src,
+        layout: { visibility: vis },
+        paint: { 'fill-color': ['get', 'col'], 'fill-opacity': dark ? 0.34 : 0.32 },
+      }, before)
+    }
+    const addLine = (id, src, vis) => {
+      if (this.map.getLayer(id)) return
+      this.map.addLayer({
+        id, type: 'line', source: src,
+        layout: { visibility: vis, 'line-join': 'round' },
+        paint: {
+          'line-color': ['get', 'lin'],
+          'line-opacity': 0.85,
+          'line-width': ['interpolate', ['linear'], ['zoom'], 9, 0.8, 12, 1.6, 15, 2.6],
+        },
+      }, before)
+    }
+    addFill('ov-bez-fill', 'ov-bez', this._mode === 'bezirke' ? 'visible' : 'none')
+    addLine('ov-bez-line', 'ov-bez', this._mode === 'bezirke' ? 'visible' : 'none')
+    addFill('ov-bzr-fill', 'ov-bzr', this._mode === 'bzr' ? 'visible' : 'none')
+    addLine('ov-bzr-line', 'ov-bzr', this._mode === 'bzr' ? 'visible' : 'none')
+
+    // labels render ON TOP of everything; always visible (collision-managed)
+    const haloDark = 'rgba(6,9,16,0.88)', haloLight = 'rgba(255,255,255,0.92)'
+    if (!this.map.getLayer('lbl-bzr')) {
+      this.map.addLayer({
+        id: 'lbl-bzr', type: 'symbol', source: 'ov-bzr', minzoom: 10.5,
+        layout: {
+          'text-field': ['get', 'name'], 'text-font': FONT_REG,
+          'text-size': ['interpolate', ['linear'], ['zoom'], 11, 9.5, 13, 11.5, 15, 13.5, 17, 15.5],
+          'text-max-width': 7, 'text-padding': 4, 'text-letter-spacing': 0.01,
+          'symbol-sort-key': 2,
+        },
+        paint: {
+          'text-color': dark ? '#c3cce2' : '#3a4159',
+          'text-halo-color': dark ? haloDark : haloLight,
+          'text-halo-width': 1.3, 'text-halo-blur': 0.3,
+        },
+      })
+    }
+    if (!this.map.getLayer('lbl-bez')) {
+      this.map.addLayer({
+        id: 'lbl-bez', type: 'symbol', source: 'ov-bez',
+        layout: {
+          'text-field': ['get', 'name'], 'text-font': FONT_BOLD,
+          'text-size': ['interpolate', ['linear'], ['zoom'], 8, 11, 10, 14.5, 12, 19, 14, 23, 16, 27],
+          'text-transform': 'uppercase', 'text-letter-spacing': 0.09,
+          'text-max-width': 8, 'text-padding': 8, 'symbol-sort-key': 0,
+        },
+        paint: {
+          'text-color': dark ? '#eef2ff' : '#10131c',
+          'text-halo-color': dark ? haloDark : haloLight,
+          'text-halo-width': 1.7, 'text-halo-blur': 0.4,
+          'text-opacity': ['interpolate', ['linear'], ['zoom'], 8, 0.92, 11, 1],
+        },
+      })
+    }
+    this._applyMode()
+  }
+
+  setOverlayMode(mode) {
+    this._mode = mode
+    this._applyMode()
+  }
+
+  _applyMode() {
+    const set = (id, on) => {
+      if (this.map.getLayer(id)) this.map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none')
+    }
+    set('ov-bez-fill', this._mode === 'bezirke')
+    set('ov-bez-line', this._mode === 'bezirke')
+    set('ov-bzr-fill', this._mode === 'bzr')
+    set('ov-bzr-line', this._mode === 'bzr')
+    // the dashed city outline is redundant once sectors are coloured
+    set('berlin-line', this._mode === 'off')
   }
 
   /** Signature moment: fly to the user, drop the beacon, draw the Kiez. */

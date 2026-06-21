@@ -9,7 +9,7 @@
 // ─────────────────────────────────────────────────────────────────────────
 import './style.css'
 import { KiezMap } from './map.js'
-import { loadKieze, loadOutline, loadLevels, findKiez, bezirkName, kmFromBerlin,
+import { loadKieze, loadOutline, loadLevels, levelFC, findKiez, bezirkName, kmFromBerlin,
   featureForLevel, levelName } from './kiez.js'
 import { getPosition, reverseGeocode } from './geo.js'
 import { revealStagger, tweenNumber, spring, SPRINGS, reduceMotion, finePointer, damdamper } from './motion.js'
@@ -49,6 +49,8 @@ const state = {
   plr: null,        // current Kiez feature
   pos: null,        // current position { lat, lon, accuracy }
   level: 'plr',     // active highlight level: plr | bez | bzr | pgr
+  overlay: 'off',   // map sector overlay: off | bezirke | bzr
+  overlayReady: false,
 }
 
 // ── shell ──────────────────────────────────────────────────────────────────
@@ -64,13 +66,20 @@ const themeBtn = h('button', {
   title: 'Hell/Dunkel umschalten', aria: { label: 'Hell- oder Dunkelmodus umschalten' },
   html: state.theme === 'dark' ? ICONS.sun : ICONS.moon,
 })
+// 3-state overlay toggle: aus → Bezirke → Bezirksregionen
+const overlayLabelEl = h('span', { class: 'seg-label' })
+const overlayBtn = h('button', {
+  class: 'icon-btn seg-btn', type: 'button', 'data-mode': 'off',
+  title: 'Bezirke einblenden', aria: { label: 'Flächen einblenden: aus' },
+},
+  h('span', { class: 'seg-icon', html: ICONS.layers }), overlayLabelEl)
 
 const topbar = h('header', { class: 'topbar' },
   h('a', { class: 'brand', href: '/', aria: { label: 'Kiez-Finder Startseite' } },
     h('span', { class: 'brand-mark', html: ICONS.pin }),
     h('span', { class: 'brand-name' },
       h('strong', { text: 'Kiez' }), h('span', { text: '-Finder' }))),
-  h('div', { class: 'topbar-actions' }, installBtn, themeBtn),
+  h('div', { class: 'topbar-actions' }, installBtn, overlayBtn, themeBtn),
 )
 
 const mapEl = h('div', { id: 'map', aria: { hidden: 'true' } })
@@ -336,6 +345,28 @@ themeBtn.addEventListener('click', (e) => {
   applyTheme(state.theme === 'dark' ? 'light' : 'dark', { x: r.left + r.width / 2, y: r.top + r.height / 2 })
 })
 
+// ── sector overlay toggle: aus → Bezirke → Bezirksregionen ───────────────────
+const OVERLAY_ORDER = ['off', 'bezirke', 'bzr']
+const OVERLAY_META = {
+  off:     { label: '',         aria: 'aus',                   next: 'Bezirke einblenden' },
+  bezirke: { label: 'Bezirke',  aria: 'Bezirke',               next: 'Bezirksregionen einblenden' },
+  bzr:     { label: 'Regionen', aria: 'Bezirksregionen',       next: 'Flächen ausblenden' },
+}
+function applyOverlay(mode) {
+  state.overlay = mode
+  try { localStorage.setItem('kf-overlay', mode) } catch (e) {}
+  const m = OVERLAY_META[mode]
+  overlayBtn.setAttribute('data-mode', mode)
+  overlayBtn.setAttribute('title', m.next)
+  overlayBtn.setAttribute('aria-label', `Flächen einblenden: ${m.aria}. Tippen für: ${m.next}`)
+  overlayLabelEl.textContent = m.label
+  if (state.map && state.overlayReady) state.map.setOverlayMode(mode)
+}
+overlayBtn.addEventListener('click', () => {
+  const i = OVERLAY_ORDER.indexOf(state.overlay)
+  applyOverlay(OVERLAY_ORDER[(i + 1) % OVERLAY_ORDER.length])
+})
+
 // ── install prompt (bespoke, not the browser default mini-infobar) ───────────
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault()
@@ -381,10 +412,24 @@ async function boot() {
   const outline = await loadOutline().catch(() => null)
   state.map = new KiezMap(mapEl, state.theme, outline)
   state.map.onPick((lon, lat) => pickAt(lon, lat))
+  // restore the persisted overlay mode in the button immediately (map applies once ready)
+  try {
+    const saved = localStorage.getItem('kf-overlay')
+    if (saved && OVERLAY_ORDER.includes(saved)) state.overlay = saved
+  } catch (e) {}
+  applyOverlay(state.overlay)
   // load polygons + map shell in parallel, then check in
   await Promise.all([loadKieze().catch(() => null), state.map.whenReady()])
-  // pull the aggregate levels in the background so level-switches are instant
-  loadLevels().catch(() => null)
+  // aggregate levels feed both the level-switch highlight and the sector overlay
+  loadLevels().then(() => {
+    const fc = levelFC()
+    if (fc && state.map) {
+      state.map.setOverlayData(fc.bez, fc.bzr).then(() => {
+        state.overlayReady = true
+        state.map.setOverlayMode(state.overlay)
+      })
+    }
+  }).catch(() => null)
   enableTilt()
   window.addEventListener('resize', () => state.map && state.map.resize())
   checkIn()
