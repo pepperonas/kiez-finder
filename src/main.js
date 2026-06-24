@@ -167,48 +167,84 @@ function sheetOnRender() {
     else snapTo('open')
   })
 }
+function toggleSheet() { if (sheetEnabled()) snapTo(sheet.state === 'open' ? 'peek' : 'open') }
+
+// shared drag core (used by touch gestures from the handle, the peeked sheet, or
+// a pull-down from the top of the scrolled content)
+let justDragged = false
+const drag = { active: false, startY: 0, startSheetY: 0, lastY: 0, lastT: 0, vel: 0, t: 0 }
+function beginDrag(startY, t) {
+  if (sheet.cancel) { sheet.cancel(); sheet.cancel = null }
+  drag.active = true; drag.startY = startY; drag.startSheetY = sheet.y; drag.lastY = startY; drag.lastT = t; drag.vel = 0
+  card.classList.add('dragging')
+}
+function moveDrag(y, t) {
+  const max = snapTarget('peek')
+  let ny = drag.startSheetY + (y - drag.startY)
+  if (ny < 0) ny *= 0.28          // rubber-band past fully open
+  else if (ny > max) ny = max + (ny - max) * 0.28
+  setSheetY(ny)
+  const dt = t - drag.lastT
+  if (dt > 0) drag.vel = (y - drag.lastY) / dt // px/ms
+  drag.lastY = y; drag.lastT = t
+}
+function endDrag() {
+  if (!drag.active) return
+  drag.active = false
+  card.classList.remove('dragging')
+  const max = snapTarget('peek')
+  let target
+  if (drag.vel > 0.35) target = 'peek'          // light downward flick → collapse
+  else if (drag.vel < -0.35) target = 'open'    // light upward flick → open
+  else target = sheet.y > max * 0.4 ? 'peek' : 'open' // else nearest (biased toward collapse)
+  snapTo(target)
+  justDragged = true
+  clearTimeout(drag.t); drag.t = setTimeout(() => { justDragged = false }, 400)
+}
+
 function initSheetDrag() {
-  let dragging = false, startY = 0, startSheetY = 0, lastY = 0, lastT = 0, vel = 0, moved = false
-  const toggle = () => { if (sheetEnabled()) snapTo(sheet.state === 'open' ? 'peek' : 'open') }
-  sheetHandle.addEventListener('pointerdown', (e) => {
-    if (!sheetEnabled()) return
-    dragging = true; moved = false
-    startY = lastY = e.clientY; startSheetY = sheet.y; lastT = e.timeStamp; vel = 0
-    if (sheet.cancel) { sheet.cancel(); sheet.cancel = null }
-    card.classList.add('dragging')
-    try { sheetHandle.setPointerCapture(e.pointerId) } catch (err) {}
-  })
-  sheetHandle.addEventListener('pointermove', (e) => {
-    if (!dragging) return
-    const dy = e.clientY - startY
-    if (Math.abs(dy) > 4) moved = true
-    const max = snapTarget('peek')
-    let y = startSheetY + dy
-    if (y < 0) y *= 0.3            // rubber-band past fully open
-    else if (y > max) y = max + (y - max) * 0.3
-    setSheetY(y)
-    const dt = e.timeStamp - lastT
-    if (dt > 0) vel = (e.clientY - lastY) / dt // px/ms
-    lastY = e.clientY; lastT = e.timeStamp
-  })
-  const end = (e) => {
-    if (!dragging) return
-    dragging = false
-    card.classList.remove('dragging')
-    try { sheetHandle.releasePointerCapture(e.pointerId) } catch (err) {}
-    if (!moved) { toggle(); return } // pointer tap → toggle here (no reliance on click)
-    const max = snapTarget('peek')
-    let target
-    if (vel > 0.45) target = 'peek'
-    else if (vel < -0.45) target = 'open'
-    else target = sheet.y > max * 0.5 ? 'peek' : 'open'
-    snapTo(target)
+  let downY = 0, downX = 0, startScroll = 0, fromHandle = false, pending = false
+
+  card.addEventListener('touchstart', (e) => {
+    if (!sheetEnabled() || e.touches.length !== 1) { pending = false; return }
+    const t = e.touches[0]
+    downY = t.clientY; downX = t.clientX
+    startScroll = passScroll.scrollTop
+    fromHandle = !!e.target.closest('.sheet-handle')
+    pending = true; drag.active = false
+  }, { passive: true })
+
+  card.addEventListener('touchmove', (e) => {
+    if (!pending && !drag.active) return
+    const t = e.touches[0]; if (!t) return
+    const dy = t.clientY - downY, dx = t.clientX - downX
+    if (!drag.active) {
+      if (Math.abs(dy) < 6) return
+      if (Math.abs(dx) > Math.abs(dy)) { pending = false; return } // horizontal → leave it
+      // start a sheet drag from: the handle (any dir) · the peeked sheet (any vert)
+      // · the content only when at the top and pulling down → else it's a scroll
+      const canStart = fromHandle || sheet.state === 'peek' || (dy > 0 && startScroll <= 0)
+      if (!canStart) { pending = false; return }
+      beginDrag(downY, e.timeStamp)
+    }
+    e.preventDefault() // we own the gesture → stop native scroll
+    moveDrag(t.clientY, e.timeStamp)
+  }, { passive: false })
+
+  const finish = (e) => {
+    if (drag.active) { endDrag(); pending = false; e.preventDefault(); return }
+    if (!pending) return
+    pending = false
+    const ct = e.changedTouches && e.changedTouches[0]
+    if (!ct || Math.abs(ct.clientY - downY) > 8 || Math.abs(ct.clientX - downX) > 8) return // not a tap
+    if (fromHandle) { toggleSheet(); e.preventDefault() }
+    else if (sheet.state === 'peek') { snapTo('open'); e.preventDefault() } // first tap opens
   }
-  sheetHandle.addEventListener('pointerup', end)
-  sheetHandle.addEventListener('pointercancel', end)
-  // keyboard activation only (Enter/Space → click with detail 0); pointer taps
-  // are handled in pointerup, so ignore pointer-generated clicks (detail > 0).
-  sheetHandle.addEventListener('click', (e) => { if (e.detail === 0) toggle() })
+  card.addEventListener('touchend', finish, { passive: false })
+  card.addEventListener('touchcancel', () => { if (drag.active) endDrag(); pending = false })
+
+  // mouse / keyboard fallback (touch taps preventDefault their synthetic click)
+  sheetHandle.addEventListener('click', () => { if (sheetEnabled() && !justDragged) toggleSheet() })
 }
 
 // Shrink the Kiez title only when it would overflow (a long single word like

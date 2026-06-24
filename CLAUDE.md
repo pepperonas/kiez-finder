@@ -33,9 +33,13 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   Kiez is one area, not the single Planungsraum. Title = precomputed colloquial `kiez` (instant),
   subline = the exact `plr_name`. A **map click** → `pickAt()` → `locateAt()` (shared with geolocation
   `checkIn()`, `_seq`-guarded), which highlights `kiezAreaFor(kiez)`. Address row patched async.
-  **Mobile bottom sheet** (`sheet`/`initSheetDrag`): on `≤839px` the card is a fixed bottom sheet with
-  a drag handle; pointer drag + velocity/position snap between `open`↔`peek` via the M3 spring,
-  `--sheet-y` transform, tap-to-toggle, keyboard-activatable. Non-modal (map stays usable).
+  **Mobile bottom sheet** (`sheet`/`initSheetDrag` + `beginDrag`/`moveDrag`/`endDrag`): on `≤839px`
+  the card is a fixed bottom sheet, `--sheet-y` transform, `open`↔`peek` snap via the M3 spring.
+  **Touch gestures** (touch events, `{passive:false}`): a drag starts from the 44px handle (any dir),
+  the peeked sheet (any vertical), or the content **only when scrolled to top & pulling down** — else
+  native scroll wins (`touch-action: pan-y` on `.pass-scroll`). Velocity+position snap (light flick).
+  Tap a peeked sheet → open (first tap opens, then controls work); synthetic clicks suppressed after a
+  drag (`justDragged`). Mouse/keyboard: handle click toggles, `aria-expanded`. Non-modal (map usable).
 - `src/map.js` — `KiezMap` class wrapping MapLibre GL. Keyless CARTO tiles (dark-matter/positron).
   `lockOn()` is the signature moment: `flyTo` the user, drop the beacon, then animate the Kiez
   fill/outline in with a spring. `highlight(feature,{fit})` highlights any LOR level (+`fitBounds`);
