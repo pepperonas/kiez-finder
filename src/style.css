@@ -538,12 +538,15 @@ body {
   }
 }
 
-/* give the search bar room on small screens: drop the brand wordmark */
+/* On phones the topbar gets crowded (brand + overlay label + theme/install) and
+   squeezes the search to a few px. Put the search on its own full-width row so it
+   stays a big, reliable tap target. */
 @media (max-width: 600px) {
-  .topbar { gap: .5rem; }
-  .brand { padding: .4rem; }
+  .topbar { gap: .5rem .5rem; flex-wrap: wrap; align-items: center; }
+  .brand { padding: .4rem; order: 1; }
   .brand-name { display: none; }
-  .search { height: 44px; }
+  .topbar-actions { order: 2; margin-left: auto; }
+  .search { order: 3; flex: 1 0 100%; max-width: none; min-width: 0; height: 46px; }
 }
 
 /* ── responsive: desktop = floating side panel ── */

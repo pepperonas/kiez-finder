@@ -651,6 +651,12 @@ searchClear.addEventListener('click', () => {
   searchInput.value = ''; searchClear.hidden = true
   renderSearchResults([]); searchInput.focus()
 })
+// the whole pill is tappable — clicking the icon or padding focuses the input too
+searchBox.addEventListener('pointerdown', (e) => {
+  if (e.target === searchInput || e.target.closest('.search-clear')) return
+  e.preventDefault()
+  searchInput.focus()
+})
 document.addEventListener('click', (e) => {
   if (!searchBox.contains(e.target)) { searchResults.hidden = true; searchInput.setAttribute('aria-expanded', 'false') }
 })
