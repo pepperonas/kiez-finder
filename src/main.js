@@ -501,26 +501,39 @@ async function locateAt(pos, { fly = false } = {}) {
 }
 
 // ── theme toggle with MD3-expressive circular reveal (View Transitions) ──────
+function updateThemeColor(theme) {
+  let m = document.querySelector('meta[name="theme-color"]:not([media])')
+  if (!m) { m = document.createElement('meta'); m.setAttribute('name', 'theme-color'); document.head.appendChild(m) }
+  m.setAttribute('content', theme === 'dark' ? '#0b0e14' : '#f3f4fb')
+}
 function applyTheme(next, origin) {
-  const run = () => {
-    document.documentElement.setAttribute('data-theme', next)
-    state.theme = next
-    try { localStorage.setItem('kf-theme', next) } catch (e) {}
-    themeBtn.innerHTML = next === 'dark' ? ICONS.sun : ICONS.moon
-    document.querySelector('meta[name="theme-color"]')
-    state.map && state.map.setTheme(next)
-  }
-  if (!document.startViewTransition || reduceMotion()) { run(); return }
+  // Update STATE synchronously so the next toggle always computes the right
+  // direction — the View Transition snapshots the full-screen WebGL map and can
+  // run its callback late/aborted, which previously lost every other toggle.
+  state.theme = next
+  try { localStorage.setItem('kf-theme', next) } catch (e) {}
+  themeBtn.innerHTML = next === 'dark' ? ICONS.sun : ICONS.moon
+  updateThemeColor(next)
+  // always target the *current* theme (not the captured `next`) so a late/stale
+  // transition callback from an overlapping toggle can't overwrite a newer flip
+  const swap = () => document.documentElement.setAttribute('data-theme', state.theme)
+  const restyle = () => { state.map && state.map.setTheme(state.theme) }
+  if (!document.startViewTransition || reduceMotion()) { swap(); restyle(); return }
   const x = origin ? origin.x : innerWidth - 40
   const y = origin ? origin.y : 40
   const end = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y))
-  const t = document.startViewTransition(run)
+  let swapped = false
+  const t = document.startViewTransition(() => { swap(); swapped = true })
   t.ready.then(() => {
     document.documentElement.animate(
       { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${end}px at ${x}px ${y}px)`] },
       { duration: 620, easing: 'cubic-bezier(0.2,0,0,1)', pseudoElement: '::view-transition-new(root)' }
     )
-  })
+  }).catch(() => {})
+  // never let a slow/stuck VT strand the palette: force the visual swap after 600ms
+  const fb = setTimeout(() => { if (!swapped) { swap(); swapped = true } }, 600)
+  // guarantee the swap + map restyle even if the VT is skipped/aborted
+  t.finished.catch(() => {}).finally(() => { clearTimeout(fb); if (!swapped) swap(); restyle() })
 }
 
 themeBtn.addEventListener('click', (e) => {
@@ -702,6 +715,7 @@ window.addEventListener('keydown', (e) => {
 
 // ── boot ───────────────────────────────────────────────────────────────────
 async function boot() {
+  updateThemeColor(state.theme) // match the browser chrome to the (possibly persisted) theme
   renderLocating()
   const outline = await loadOutline().catch(() => null)
   state.map = new KiezMap(mapEl, state.theme, outline)

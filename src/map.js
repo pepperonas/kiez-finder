@@ -238,10 +238,15 @@ export class KiezMap {
 
   _onLoad() {
     const accent = ACCENT[this.theme]
+    // Idempotent add helpers — a rapid theme re-style can re-enter before the old
+    // style is fully torn down; adding only what's absent avoids both "already
+    // exists" throws and the "can't remove source in use" pitfall.
+    const addSrc = (id, def) => { if (!this.map.getSource(id)) this.map.addSource(id, def) }
+    const addLyr = (def) => { if (!this.map.getLayer(def.id)) this.map.addLayer(def) }
     // Berlin outline — the "stage" in the locating state
     if (this._outline) {
-      this.map.addSource('berlin', { type: 'geojson', data: this._outline })
-      this.map.addLayer({
+      addSrc('berlin', { type: 'geojson', data: this._outline })
+      addLyr({
         id: 'berlin-line',
         type: 'line',
         source: 'berlin',
@@ -257,27 +262,31 @@ export class KiezMap {
     // bright crisp line makes the boundary pop on ANY background (dark map or the
     // dense colour overlay).
     const sel = SELECTION[this.theme]
-    this.map.addSource('kiez', { type: 'geojson', data: emptyFC() })
-    this.map.addLayer({
+    addSrc('kiez', { type: 'geojson', data: emptyFC() })
+    addLyr({
       id: 'kiez-fill',
       type: 'fill',
       source: 'kiez',
       paint: { 'fill-color': accent, 'fill-opacity': 0 },
     })
-    this.map.addLayer({
+    addLyr({
       id: 'kiez-casing',
       type: 'line',
       source: 'kiez',
       layout: { 'line-join': 'round', 'line-cap': 'round' },
       paint: { 'line-color': sel.casing, 'line-width': 0, 'line-opacity': 0, 'line-blur': 0.8 },
     })
-    this.map.addLayer({
+    addLyr({
       id: 'kiez-line',
       type: 'line',
       source: 'kiez',
       layout: { 'line-join': 'round', 'line-cap': 'round' },
       paint: { 'line-color': sel.line, 'line-width': 0, 'line-opacity': 0, 'line-blur': 0.2 },
     })
+    // selection colours are theme-dependent → refresh on every (re)load
+    if (this.map.getLayer('kiez-line')) this.map.setPaintProperty('kiez-line', 'line-color', sel.line)
+    if (this.map.getLayer('kiez-casing')) this.map.setPaintProperty('kiez-casing', 'line-color', sel.casing)
+    if (this.map.getLayer('kiez-fill')) this.map.setPaintProperty('kiez-fill', 'fill-color', accent)
 
     this._tuneBasemapLabels()
     if (this._overlayRaw) this._addOverlayLayers()
@@ -294,11 +303,18 @@ export class KiezMap {
   }
 
   async setTheme(theme) {
+    if (theme === this.theme && this._themedOnce) return
     this.theme = theme
+    this._themedOnce = true
+    const tok = (this._themeTok = (this._themeTok || 0) + 1) // guard overlapping rapid toggles
     await this._ready
-    // setStyle wipes custom layers → re-add them once the new style loads
+    // setStyle wipes custom layers → re-add them once the new style is fully loaded
     this.map.setStyle(STYLES[theme])
-    await new Promise((res) => this.map.once('styledata', res))
+    await new Promise((res) => {
+      const check = () => { if (this.map.isStyleLoaded()) { this.map.off('styledata', check); res() } }
+      this.map.on('styledata', check); check()
+    })
+    if (tok !== this._themeTok) return // a newer setTheme superseded this one
     this._onLoad() // re-adds selection layers, basemap tuning + overlays
     if (this._activeFeature) this._paint(this._activeFeature, true)
     if (this._lastPos) this._placeBeacon(this._lastPos)
@@ -536,7 +552,9 @@ export class KiezMap {
   }
 
   _paint(feature, instant = false) {
-    this.map.getSource('kiez').setData(fc(feature))
+    const src = this.map.getSource('kiez')
+    if (!src) return // mid-restyle: layers not re-added yet — skip (will repaint after)
+    src.setData(fc(feature))
     if (this._cancelFill) this._cancelFill()
     const targetFill = this.theme === 'dark' ? 0.16 : 0.12
     const LW = 3.8, CW = 8.5 // line + casing widths (strong, pops over the overlay)
@@ -554,7 +572,9 @@ export class KiezMap {
 
   clearHighlight() {
     this._activeFeature = null
-    this.map.getSource('kiez').setData(emptyFC())
+    const src = this.map.getSource('kiez')
+    if (!src) return
+    src.setData(emptyFC())
     this.map.setPaintProperty('kiez-fill', 'fill-opacity', 0)
     this.map.setPaintProperty('kiez-line', 'line-opacity', 0)
     this.map.setPaintProperty('kiez-casing', 'line-opacity', 0)

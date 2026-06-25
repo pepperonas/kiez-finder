@@ -113,6 +113,14 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   (incl. `Permissions-Policy: geolocation=(self)`) are repeated inside the `location = /index.html`
   block. Without it the browser blocks `getCurrentPosition`.
 - **Theme:** pre-paint inline script in `index.html` sets `data-theme` (no FOUC) and flags `html.js`.
+  The toggle (`applyTheme`) updates `state.theme` **synchronously** and swaps `data-theme` targeting the
+  *current* `state.theme` (never the captured value) so overlapping/slow View Transitions can't lose or
+  reorder a flip; a 600ms fallback + `t.finished.finally` guarantee the swap, and the heavy `map.setTheme`
+  runs **outside** the VT callback (putting it inside → "DOM update timeout" → lost toggles). `map.setTheme`
+  waits for `isStyleLoaded()`, is token-guarded against overlap, and `_onLoad` re-adds custom layers
+  **idempotently** (add-if-absent, never remove-then-add) so a restyle can't throw "source already exists";
+  `_paint`/`clearHighlight` no-op if the `kiez` source isn't back yet. `updateThemeColor` keeps the
+  `theme-color` meta matching the chosen theme.
 - **OG/preview image** `public/og.png` (1200×630) is generated from the real Bezirksregionen geometry:
   a Node script projects them to an SVG (cool-palette fills) + brand wordmark/tagline and renders to PNG
   via `@resvg/resvg-js` using the self-hosted woff2 fonts. (Playwright screenshots are unreliable in
