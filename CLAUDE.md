@@ -63,9 +63,15 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   **Colloquial Kiez labels:** `lbl-kiez` renders OSM `place=quarter/neighbourhood` names
   (`public/data/kiez-names.geojson`, 537 pts from Overpass) accent-tinted at z≥12.5 — the vernacular
   Kieze (Flughafenkiez, Reuterkiez …), distinct from the official labels.
-  **Label points:** Bezirk/Bezirksregion labels (`lbl-bez`/`lbl-bzr`) are driven by POINT sources
-  (`bezirke-pts`/`bezirksregionen-pts.geojson`, mapshaper `-points inner`), NOT the polygons —
-  otherwise a big polygon gets a duplicate label per vector tile it spans.
+  **Dynamic area labels:** every *visible* area of the active overlay is labelled, not just the one
+  whose centroid is on screen. At `setOverlayData` we precompute `_labelCands` (a 4×4 grid of interior
+  points per feature via even-odd point-in-polygon); on `moveend`/`zoomend` + mode change,
+  `_updateOverlayLabels()` picks, per feature whose bbox is in view, the interior point on screen nearest
+  its centre → one point per visible area into `pt-bez`/`pt-bzr`/`pt-kiez`, rendered by `lbl-bez`/`lbl-bzr`/
+  `lbl-kiezarea`. Inactive levels' sources are emptied; `lbl-kiez` (ambient OSM names) is hidden in Kieze
+  mode so it doesn't double the merged-area labels. This replaced the single static centroid point per
+  area (which vanished when you zoomed past it). `main.js` also keeps a floating **"current area" chip**
+  (`map.areaAtCenter` via `queryRenderedFeatures` on `ov-*-fill`) as a live centre readout while panning.
 - `src/kiez.js` — loads `public/data/kieze.geojson`, hand-rolled ray-cast point-in-polygon
   (bbox-prefiltered, handles MultiPolygon + holes). `findKiez(lon,lat)` → feature or null.
   Each Planungsraum carries `gid` + `kiez` (precomputed colloquial Kiez, see pipeline below).

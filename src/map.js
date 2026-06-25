@@ -194,6 +194,40 @@ function augment(fc, level, theme, slotMap) {
   }
 }
 
+// point-in-polygon (even-odd across all rings → handles holes + MultiPolygon)
+function ringHas([px, py], ring) {
+  let inside = false
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1]
+    if ((yi > py) !== (yj > py) && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi) inside = !inside
+  }
+  return inside
+}
+function pipEvenOdd(pt, geom) {
+  let inside = false
+  for (const ring of ringsOf(geom)) if (ringHas(pt, ring)) inside = !inside
+  return inside
+}
+// For each feature: a name + bbox + a small grid of interior points. At render
+// time we pick, per visible feature, the interior point on screen nearest its
+// centre → one label per visible area, at any zoom (centroid points fall off the
+// screen when you zoom in; these don't).
+function labelCandidates(featureColl, nameOf) {
+  const N = 4
+  return featureColl.features.map((f) => {
+    const bb = bboxOf(f) // [minLon, minLat, maxLon, maxLat]
+    const pts = []
+    for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+      const x = bb[0] + (bb[2] - bb[0]) * (i + 0.5) / N
+      const y = bb[1] + (bb[3] - bb[1]) * (j + 0.5) / N
+      if (pipEvenOdd([x, y], f.geometry)) pts.push([x, y])
+    }
+    const cx = (bb[0] + bb[2]) / 2, cy = (bb[1] + bb[3]) / 2
+    if (!pts.length) pts.push([cx, cy])
+    return { name: nameOf(f), c: [cx, cy], bb, pts }
+  })
+}
+
 export class KiezMap {
   constructor(container, theme, outline) {
     this.theme = theme
@@ -354,6 +388,13 @@ export class KiezMap {
       bzr: computeSlots(bzr, 'id'),
       kiez: areas ? computeSlots(areas, 'gid') : null,
     }
+    // interior label points per area → dynamic, viewport-aware labels (so every
+    // visible coloured area is labelled, not just the one whose centroid is on screen)
+    this._labelCands = {
+      bez: labelCandidates(bez, (f) => bezirkName(f.properties.bez)),
+      bzr: labelCandidates(bzr, (f) => f.properties.bzr_name),
+      kiez: areas ? labelCandidates(areas, (f) => f.properties.kiez) : null,
+    }
     this._addOverlayLayers()
   }
 
@@ -370,15 +411,16 @@ export class KiezMap {
       if (this.map.getSource(d.src)) this.map.getSource(d.src).setData(d.data)
       else this.map.addSource(d.src, { type: 'geojson', data: d.data })
     }
-    // label POINT sources (one point per area → no multi-tile duplicate labels)
-    const pts = [
-      { src: 'pt-bez', data: this._labelPts && this._labelPts.bez },
-      { src: 'pt-bzr', data: this._labelPts && this._labelPts.bzr },
-    ]
-    for (const p of pts) {
-      if (!p.data) continue
-      if (this.map.getSource(p.src)) this.map.getSource(p.src).setData(p.data)
-      else this.map.addSource(p.src, { type: 'geojson', data: p.data })
+    // label POINT sources — filled dynamically per viewport (_updateOverlayLabels)
+    for (const src of ['pt-bez', 'pt-bzr', 'pt-kiez']) {
+      if (!this.map.getSource(src)) this.map.addSource(src, { type: 'geojson', data: emptyFC() })
+    }
+    // recompute which interior point labels each area whenever the camera settles
+    if (!this._lblHook) {
+      this._lblHook = true
+      const u = () => this._updateOverlayLabels()
+      this.map.on('moveend', u)
+      this.map.on('zoomend', u)
     }
 
     // fills + lines sit BELOW the blue selection so it stays prominent
@@ -473,12 +515,58 @@ export class KiezMap {
         },
       })
     }
+    // merged colloquial Kiez labels for the Kieze overlay (accent-tinted)
+    if (this.map.getSource('pt-kiez') && !this.map.getLayer('lbl-kiezarea')) {
+      this.map.addLayer({
+        id: 'lbl-kiezarea', type: 'symbol', source: 'pt-kiez',
+        layout: {
+          'text-field': ['get', 'name'], 'text-font': FONT_REG,
+          'text-size': ['interpolate', ['linear'], ['zoom'], 11, 10.5, 13, 12.5, 15, 14.5, 17, 16],
+          'text-max-width': 8, 'text-padding': 4, 'text-letter-spacing': 0.01, 'symbol-sort-key': 1,
+        },
+        paint: {
+          'text-color': ACCENT[this.theme],
+          'text-halo-color': dark ? haloDark : haloLight,
+          'text-halo-width': 1.5, 'text-halo-blur': 0.3,
+        },
+      })
+    }
     this._applyMode()
   }
 
   setOverlayMode(mode) {
     this._mode = mode
     this._applyMode()
+  }
+
+  // Per visible area, choose the interior grid point nearest its centre that's on
+  // screen → one label inside each visible area, at any zoom/pan. Inactive levels
+  // get an empty source so only the active overlay is labelled.
+  _updateOverlayLabels() {
+    if (!this._labelCands) return
+    const lvl = this._mode === 'bezirke' ? 'bez' : this._mode === 'bzr' ? 'bzr' : this._mode === 'kiez' ? 'kiez' : null
+    const empty = emptyFC()
+    for (const k of ['bez', 'bzr', 'kiez']) {
+      const s = this.map.getSource('pt-' + k)
+      if (s && k !== lvl) s.setData(empty)
+    }
+    const cands = lvl && this._labelCands[lvl]
+    if (!cands) return
+    const b = this.map.getBounds()
+    const W = b.getWest(), E = b.getEast(), S = b.getSouth(), No = b.getNorth()
+    const feats = []
+    for (const c of cands) {
+      if (c.bb[2] < W || c.bb[0] > E || c.bb[3] < S || c.bb[1] > No) continue // off-screen
+      let best = null, bd = Infinity
+      for (const p of c.pts) {
+        if (p[0] < W || p[0] > E || p[1] < S || p[1] > No) continue
+        const dx = p[0] - c.c[0], dy = p[1] - c.c[1], d = dx * dx + dy * dy
+        if (d < bd) { bd = d; best = p }
+      }
+      if (best) feats.push({ type: 'Feature', geometry: { type: 'Point', coordinates: best }, properties: { name: c.name } })
+    }
+    const src = this.map.getSource('pt-' + lvl)
+    if (src) src.setData({ type: 'FeatureCollection', features: feats })
   }
 
   _applyMode() {
@@ -491,8 +579,12 @@ export class KiezMap {
     set('ov-bzr-line', this._mode === 'bzr')
     set('ov-kiez-fill', this._mode === 'kiez')
     set('ov-kiez-line', this._mode === 'kiez')
+    // in Kieze mode the merged-area labels replace the ambient OSM Kiez labels
+    set('lbl-kiez', this._mode !== 'kiez')
+    set('lbl-kiezarea', this._mode === 'kiez')
     // the dashed city outline is redundant once sectors are coloured
     set('berlin-line', this._mode === 'off')
+    this._updateOverlayLabels()
   }
 
   /** Signature moment: fly to the user, drop the beacon, draw the Kiez. */
