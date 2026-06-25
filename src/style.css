@@ -195,6 +195,24 @@ body {
   animation: md-pop var(--dur-med) var(--ease-emphasized) both;
 }
 @keyframes md-pop { from { opacity: 0; transform: translateY(-8px) scale(.98); } to { opacity: 1; transform: none; } }
+
+/* floating "current area" chip — which coloured region is under the map centre */
+.area-chip {
+  position: fixed; top: 5rem; left: 50%; transform: translateX(-50%); z-index: 5;
+  display: inline-flex; align-items: center; gap: .5rem; max-width: min(86vw, 30rem);
+  padding: .42rem .8rem; border-radius: 999px;
+  background: color-mix(in srgb, var(--sc-high) 90%, transparent);
+  border: 1px solid var(--outline-faint); box-shadow: var(--shadow-2);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  pointer-events: none; animation: md-pop var(--dur-med) var(--ease-emphasized) both;
+}
+.area-chip[hidden] { display: none; }
+.area-chip-dot { flex: 0 0 auto; width: 11px; height: 11px; border-radius: 50%;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--on-surface) 14%, transparent); }
+.area-chip-name { font-weight: 700; font-size: .92rem; color: var(--on-surface);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.area-chip-level { flex: 0 0 auto; font-size: .72rem; font-weight: 600; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--on-surface-var); opacity: .85; }
 .search-item {
   position: relative; width: 100%; display: flex; align-items: center; gap: .7rem;
   padding: .6rem .65rem; border: none; background: transparent; cursor: pointer;

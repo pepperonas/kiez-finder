@@ -44,6 +44,12 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   `lockOn()` is the signature moment: `flyTo` the user, drop the beacon, then animate the Kiez
   fill/outline in with a spring. `highlight(feature,{fit})` highlights any LOR level (+`fitBounds`);
   `goTo()` handles a map-click pick; `onPick(cb)` fires on map clicks → main re-locates.
+  **"Current area" chip:** in `main.js`, a floating pill names the coloured region under the map
+  **centre** (via `map.areaAtCenter(mode)` → `queryRenderedFeatures` on the active `ov-*-fill`, giving
+  name+colour). Driven by `map.onMove` (rAF-throttled `move` + `idle`); `refreshAreaChip` retries on rAF
+  up to 1.5s (a new viewport / freshly-shown layer needs a few frames to paint) and keeps the last label
+  during tile loads instead of flickering. Fixes labels vanishing when zoomed into a region whose centroid
+  label point is off-screen.
   **Sector overlay + labels:** `setOverlayData({bez,bzr,areas,…})` adds choropleth fill/line layers
   (below the blue selection) + always-on label symbol layers. **4 modes**
   `setOverlayMode('off'|'bezirke'|'bzr'|'kiez')` — the `kiez` mode colours the merged colloquial

@@ -104,6 +104,14 @@ const topbar = h('header', { class: 'topbar' },
   h('div', { class: 'topbar-actions' }, installBtn, overlayBtn, themeBtn),
 )
 
+// floating "current area" chip — names the coloured region under the map centre
+// whenever an overlay is active (so every colour always has a label, at any zoom)
+const areaChipDot = h('span', { class: 'area-chip-dot', 'aria-hidden': 'true' })
+const areaChipName = h('span', { class: 'area-chip-name' })
+const areaChipLevel = h('span', { class: 'area-chip-level' })
+const areaChip = h('div', { class: 'area-chip', hidden: true, aria: { live: 'polite' } },
+  areaChipDot, areaChipName, areaChipLevel)
+
 const mapEl = h('div', { id: 'map', aria: { hidden: 'true' } })
 const card = h('section', { class: 'pass', aria: { live: 'polite' } })
 // drag handle (mobile bottom-sheet grabber) + scrolling content region
@@ -115,7 +123,7 @@ const passScroll = h('div', { class: 'pass-scroll' })
 card.append(sheetHandle, passScroll)
 const stage = h('div', { class: 'stage' }, card)
 
-app.append(mapEl, stage, topbar)
+app.append(mapEl, stage, topbar, areaChip)
 
 // delegated: clicking a hierarchy level highlights it on the map (persists across renders)
 passScroll.addEventListener('click', (e) => {
@@ -550,6 +558,40 @@ const OVERLAY_META = {
   bzr:     { label: 'Regionen (M)', aria: 'Bezirksregionen', next: 'Kieze einblenden' },
   kiez:    { label: 'Kieze (S)',    aria: 'Kieze',           next: 'Flächen ausblenden' },
 }
+const OVERLAY_LEVEL_LABEL = { bezirke: 'Bezirk', bzr: 'Bezirksregion', kiez: 'Kiez' }
+function positionAreaChip() {
+  areaChip.style.top = (topbar.getBoundingClientRect().bottom + 8) + 'px'
+}
+// Update the chip from the area under the map centre. Returns false if nothing was
+// found (e.g. fill not painted yet, or no area there) WITHOUT hiding — the caller
+// decides, so panning over not-yet-loaded tiles keeps the last label (no flicker).
+function applyAreaChip() {
+  if (!state.map || !state.overlayReady) return false
+  const a = state.map.areaAtCenter(state.overlay)
+  if (!a || !a.name) return false
+  areaChipDot.style.background = a.col
+  areaChipName.textContent = a.name
+  areaChipLevel.textContent = OVERLAY_LEVEL_LABEL[state.overlay] || ''
+  positionAreaChip()
+  areaChip.hidden = false
+  return true
+}
+// Refresh on move/toggle: try now, then retry on rAF until the area lands (tiles
+// for a new viewport / a freshly-shown layer take a few frames). Only hide after
+// the deadline with still nothing (genuinely outside an area).
+let _chipRaf = 0
+function refreshAreaChip() {
+  if (_chipRaf) { cancelAnimationFrame(_chipRaf); _chipRaf = 0 }
+  if (state.overlay === 'off') { areaChip.hidden = true; return }
+  const deadline = performance.now() + 1500
+  const tick = () => {
+    _chipRaf = 0
+    if (applyAreaChip()) return
+    if (performance.now() < deadline) { _chipRaf = requestAnimationFrame(tick); return }
+    areaChip.hidden = true
+  }
+  tick()
+}
 function applyOverlay(mode) {
   state.overlay = mode
   try { localStorage.setItem('kf-overlay', mode) } catch (e) {}
@@ -559,6 +601,7 @@ function applyOverlay(mode) {
   overlayBtn.setAttribute('aria-label', `Flächen einblenden: ${m.aria}. Tippen für: ${m.next}`)
   overlayLabelEl.textContent = m.label
   if (state.map && state.overlayReady) state.map.setOverlayMode(mode)
+  refreshAreaChip()
 }
 overlayBtn.addEventListener('click', () => {
   const i = OVERLAY_ORDER.indexOf(state.overlay)
@@ -720,6 +763,7 @@ async function boot() {
   const outline = await loadOutline().catch(() => null)
   state.map = new KiezMap(mapEl, state.theme, outline)
   state.map.onPick((lon, lat) => pickAt(lon, lat))
+  state.map.onMove(refreshAreaChip)
   // restore the persisted overlay mode in the button immediately (map applies once ready)
   try {
     const saved = localStorage.getItem('kf-overlay')
@@ -751,6 +795,7 @@ async function boot() {
   window.addEventListener('resize', () => {
     state.map && state.map.resize()
     fitKiezName()
+    if (!areaChip.hidden) positionAreaChip()
     if (sheetEnabled()) { measureSheet(); snapTo(sheet.state, true) }
     else { card.style.removeProperty('--sheet-y'); card.removeAttribute('data-sheet') }
   })

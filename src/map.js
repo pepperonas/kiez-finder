@@ -236,6 +236,28 @@ export class KiezMap {
     this._pickCb = cb
   }
 
+  // Notify on camera movement (rAF-throttled) and once the map settles — drives
+  // the floating "current area" chip.
+  onMove(cb) {
+    let raf = 0
+    const fire = () => { raf = 0; cb() }
+    this.map.on('move', () => { if (!raf) raf = requestAnimationFrame(fire) })
+    this.map.on('idle', cb)
+  }
+
+  // The overlay area under the screen centre for the active mode → { name, col }.
+  // Uses the rendered fill so it always reflects what's actually on screen, at any
+  // zoom (unlike the centroid label points, which leave the viewport when zoomed in).
+  areaAtCenter(mode) {
+    const layer = mode === 'bezirke' ? 'ov-bez-fill'
+      : mode === 'bzr' ? 'ov-bzr-fill'
+      : mode === 'kiez' ? 'ov-kiez-fill' : null
+    if (!layer || !this.map.getLayer(layer)) return null
+    const pt = this.map.project(this.map.getCenter())
+    const f = this.map.queryRenderedFeatures(pt, { layers: [layer] })[0]
+    return f ? { name: f.properties.name, col: f.properties.col } : null
+  }
+
   _onLoad() {
     const accent = ACCENT[this.theme]
     // Idempotent add helpers — a rapid theme re-style can re-enter before the old
