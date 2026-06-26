@@ -43,6 +43,8 @@ const ICONS = {
   search: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5" stroke-linecap="round"/></svg>',
   x: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke-linecap="round"/></svg>',
   loc: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><circle cx="12" cy="12" r="7.5"/><path d="M12 1.6v3M12 19.4v3M1.6 12h3M19.4 12h3" stroke-linecap="round"/></svg>',
+  chevronL: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  chevronR: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
 }
 
 const state = {
@@ -120,10 +122,36 @@ const sheetHandle = h('button', {
   aria: { label: 'Karte ein- oder ausklappen', expanded: 'true' },
 })
 const passScroll = h('div', { class: 'pass-scroll' })
-card.append(sheetHandle, passScroll)
+// desktop collapse control (the bottom-sheet handle is mobile-only); collapses the
+// pass off-screen left, leaving a reopen tab
+const collapseBtn = h('button', {
+  class: 'pass-collapse', type: 'button', title: 'Info einklappen',
+  aria: { label: 'Info-Panel einklappen', expanded: 'true' }, html: ICONS.chevronL,
+})
+card.append(sheetHandle, passScroll, collapseBtn)
 const stage = h('div', { class: 'stage' }, card)
 
-app.append(mapEl, stage, topbar, areaChip)
+const reopenBtn = h('button', {
+  class: 'pass-reopen', type: 'button', title: 'Info einblenden',
+  aria: { label: 'Info-Panel einblenden', expanded: 'false' },
+},
+  h('span', { class: 'pr-icon', 'aria-hidden': 'true', html: ICONS.pin }),
+  h('span', { class: 'pr-label', text: 'Kiez-Pass' }),
+  h('span', { class: 'pr-chev', 'aria-hidden': 'true', html: ICONS.chevronR }))
+
+app.append(mapEl, stage, topbar, areaChip, reopenBtn)
+
+// ── desktop: collapse / expand the info panel ────────────────────────────────
+function setPanelCollapsed(collapsed, moveFocus = true) {
+  app.classList.toggle('panel-collapsed', collapsed)
+  collapseBtn.setAttribute('aria-expanded', String(!collapsed))
+  reopenBtn.setAttribute('aria-expanded', String(!collapsed))
+  try { localStorage.setItem('kf-panel', collapsed ? 'collapsed' : 'open') } catch (e) {}
+  if (moveFocus) (collapsed ? reopenBtn : collapseBtn).focus()
+}
+collapseBtn.addEventListener('click', () => setPanelCollapsed(true))
+reopenBtn.addEventListener('click', () => setPanelCollapsed(false))
+try { if (localStorage.getItem('kf-panel') === 'collapsed') setPanelCollapsed(true, false) } catch (e) {}
 
 // delegated: clicking a hierarchy level highlights it on the map (persists across renders)
 passScroll.addEventListener('click', (e) => {

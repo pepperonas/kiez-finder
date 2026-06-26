@@ -40,6 +40,12 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   native scroll wins (`touch-action: pan-y` on `.pass-scroll`). Velocity+position snap (light flick).
   Tap a peeked sheet → open (first tap opens, then controls work); synthetic clicks suppressed after a
   drag (`justDragged`). Mouse/keyboard: handle click toggles, `aria-expanded`. Non-modal (map usable).
+  **Desktop collapse:** on `≥840px` the card is a side panel with a `.pass-collapse` (◀) button;
+  `setPanelCollapsed` toggles `#app.panel-collapsed`, sliding the panel off-screen via **`margin-left`**
+  (not `transform` — the card's pointer-tilt owns `transform`, and the `pass-in` entrance animation's
+  `fill: both` would otherwise override an opacity/transform collapse). A fixed `.pass-reopen` tab brings
+  it back; state persists in `localStorage 'kf-panel'`. Both buttons are mobile-hidden; the collapse CSS
+  is scoped to the desktop media query so a persisted collapsed state is inert on phones.
 - `src/map.js` — `KiezMap` class wrapping MapLibre GL. Keyless CARTO tiles (dark-matter/positron).
   `lockOn()` is the signature moment: `flyTo` the user, drop the beacon, then animate the Kiez
   fill/outline in with a spring. `highlight(feature,{fit})` highlights any LOR level (+`fitBounds`);

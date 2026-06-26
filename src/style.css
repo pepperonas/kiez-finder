@@ -291,6 +291,7 @@ body {
   padding: 1rem; padding-bottom: max(1rem, env(safe-area-inset-bottom));
 }
 .pass {
+  position: relative;
   pointer-events: auto; width: 100%; max-width: 560px;
   background:
     radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 60%),
@@ -567,13 +568,48 @@ body {
   .search { order: 3; flex: 1 0 100%; max-width: none; min-width: 0; height: 46px; }
 }
 
+/* desktop collapse control (mobile uses the sheet handle instead) */
+.pass-collapse { display: none; }
+.pass-reopen { display: none; }
+
 /* ── responsive: desktop = floating side panel ── */
 @media (min-width: 840px) {
   .stage { align-items: stretch; justify-content: flex-start; padding: 1.25rem; }
   .pass {
     align-self: center; width: 400px; max-width: 400px;
-    margin-top: 4.6rem; max-height: min(82vh, 760px);
+    margin-top: 4.6rem; margin-left: 0; max-height: min(82vh, 760px);
+    /* margin-left drives the collapse slide (not transform → keeps the tilt snappy) */
+    transition: margin-left var(--dur-long) var(--ease-emphasized);
   }
+  .pass-collapse {
+    position: absolute; top: .55rem; right: .55rem; z-index: 3;
+    display: grid; place-items: center; width: 34px; height: 34px;
+    border-radius: 999px; border: 1px solid var(--outline-faint);
+    background: color-mix(in srgb, var(--sc-high) 82%, transparent);
+    color: var(--on-surface-var); cursor: pointer;
+    transition: color var(--dur-short) var(--ease-standard), background-color var(--dur-short) var(--ease-standard);
+  }
+  .pass-collapse:hover { color: var(--on-surface); background: var(--sc-high); }
+  .pass-collapse svg { width: 20px; height: 20px; }
+
+  #app.panel-collapsed .pass {
+    margin-left: calc(-1 * (440px + 6rem)); pointer-events: none;
+  }
+  #app.panel-collapsed .pass-reopen {
+    display: inline-flex; align-items: center; gap: .5rem;
+    position: fixed; left: 1.25rem; top: 5rem; z-index: 5;
+    padding: .55rem .95rem .55rem .7rem; border-radius: 999px;
+    border: 1px solid var(--outline-faint); background: var(--sc-high);
+    box-shadow: var(--shadow-2); color: var(--on-surface); cursor: pointer;
+    font: inherit; font-weight: 700; letter-spacing: .01em;
+    animation: md-pop var(--dur-med) var(--ease-emphasized) both;
+  }
+  #app.panel-collapsed .pass-reopen:hover { background: color-mix(in srgb, var(--accent) 12%, var(--sc-high)); }
+  .pass-reopen .pr-icon svg { width: 20px; height: 20px; fill: var(--accent); display: block; }
+  .pass-reopen .pr-chev svg { width: 18px; height: 18px; color: var(--on-surface-var); display: block; }
+}
+@media (min-width: 1280px) {
+  #app.panel-collapsed .pass { margin-left: calc(-1 * (480px + 6rem)); }
 }
 @media (min-width: 1280px) {
   .pass { width: 440px; max-width: 440px; }
