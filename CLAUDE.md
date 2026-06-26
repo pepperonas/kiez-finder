@@ -17,8 +17,16 @@ webroot `/var/www/kiezfinder.celox.io/`, nginx block `kiezfinder.celox.io`.
 npm run dev      # Vite dev server
 npm run build    # → dist/
 npm run preview  # serve dist/ locally
+npm test         # unit tests (Node's built-in runner, no deps) — tests/*.test.js
 ```
-No test suite, no linter configured. Geolocation needs a secure context (localhost or HTTPS).
+No linter configured. Geolocation needs a secure context (localhost or HTTPS).
+
+**Tests** (`tests/`, `node --test`, zero dependencies) cover the dependency-light pure
+logic: `search.js` (norm folding + the multi-tier scorer / type-priority / dedup) and
+`kiez.js` (point-in-polygon classification incl. holes + MultiPolygon, `bezirkName`,
+`kmFromBerlin`, `bboxOf`, `levelName`). `map.js` isn't covered — it pulls in MapLibre +
+CSS, so its pure helpers (graph-colouring, label candidates) would need extracting into a
+maplibre-free module first. Add tests alongside as `tests/<name>.test.js`.
 
 ## Architecture
 

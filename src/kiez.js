@@ -207,6 +207,12 @@ function inPolygonRings(pt, rings) {
   return true
 }
 
+/** Point-in-polygon for a GeoJSON geometry (outer ring minus holes; handles
+ *  MultiPolygon). Exposed for unit tests of the classification core. */
+export function pointInGeometry(geometry, lon, lat) {
+  return geometry ? inGeometry([lon, lat], geometry) : false
+}
+
 /** Find the Kiez feature containing [lon, lat], or null if outside Berlin. */
 export function findKiez(lon, lat) {
   if (!_kieze) return null
