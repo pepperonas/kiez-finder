@@ -160,10 +160,10 @@ passScroll.addEventListener('click', (e) => {
 })
 
 // ── state renderers ─────────────────────────────────────────────────────────
-function setCard(node, animate = true) {
+function setCard(node, animate = true, forceOpen = true) {
   passScroll.replaceChildren(node)
   requestAnimationFrame(fitKiezName)
-  sheetOnRender()
+  sheetOnRender(forceOpen)
   if (animate && !reduceMotion()) {
     const rows = node.querySelectorAll('[data-reveal]')
     if (rows.length) revealStagger([...rows])
@@ -195,12 +195,14 @@ function snapTo(state, instant = false) {
   if (instant || reduceMotion()) { setSheetY(target); return }
   sheet.cancel = spring(sheet.y, target, SPRINGS.spatialDefault, setSheetY)
 }
-function sheetOnRender() {
+function sheetOnRender(forceOpen = true) {
   if (!sheetEnabled()) { card.style.removeProperty('--sheet-y'); card.removeAttribute('data-sheet'); return }
   requestAnimationFrame(() => {
     measureSheet()
+    // first render always opens; afterwards a map-pick keeps the current state
+    // (so a peeked sheet stays out of the way of the map you're exploring)
     if (!sheet.entered) { sheet.entered = true; setSheetY(sheet.H); requestAnimationFrame(() => snapTo('open')) }
-    else snapTo('open')
+    else snapTo(forceOpen ? 'open' : sheet.state)
   })
 }
 function toggleSheet() { if (sheetEnabled()) snapTo(sheet.state === 'open' ? 'peek' : 'open') }
@@ -349,7 +351,7 @@ function patchAddress(line) {
   _addrValueEl.classList.remove('meta-value--pending')
 }
 
-function renderFound({ kiez, pos, address, kiezName }) {
+function renderFound({ kiez, pos, address, kiezName, openSheet = true }) {
   state.plr = kiez
   state.pos = pos
   const p = kiez.properties
@@ -397,7 +399,7 @@ function renderFound({ kiez, pos, address, kiezName }) {
     h('p', { class: 'source', 'data-reveal': '', html:
       'Kiez-Grenzen: LOR 2021 · Geoportal Berlin / Amt für Statistik Berlin-Brandenburg' }),
   )
-  setCard(body)
+  setCard(body, true, openSheet)
   tweenCoords(coordsEl, pos)
 }
 
@@ -446,7 +448,7 @@ function tweenCoords(el, pos) {
   requestAnimationFrame(tick)
 }
 
-function renderOutside({ pos }) {
+function renderOutside({ pos, openSheet = true }) {
   const km = Math.round(kmFromBerlin(pos.lon, pos.lat))
   const recheck = h('button', { class: 'btn btn-filled', type: 'button', 'data-reveal': '' },
     h('span', { class: 'btn-icon', html: ICONS.refresh }), 'Erneut einchecken')
@@ -460,7 +462,7 @@ function renderOutside({ pos }) {
       h('p', { class: 'muted', 'data-reveal': '', text:
         `Du bist rund ${km} km vom Berliner Zentrum entfernt. Der Kiez-Pass gilt nur innerhalb der Stadtgrenze.` }),
       h('div', { class: 'actions' }, recheck),
-    )
+    ), true, openSheet,
   )
 }
 
@@ -526,11 +528,13 @@ async function locateAt(pos, { fly = false } = {}) {
 
   if (!kiez) {
     state.plr = null
-    renderOutside({ pos })
+    renderOutside({ pos, openSheet: fly })
     return
   }
 
-  renderFound({ kiez, pos, kiezName, address: null }) // title precomputed → instant
+  // geolocation check-in (fly) opens the sheet for the lock-on; a map-pick keeps
+  // the current sheet state so the map you're exploring stays visible
+  renderFound({ kiez, pos, kiezName, address: null, openSheet: fly }) // title precomputed → instant
   const address = await reverseGeocode(pos.lat, pos.lon).catch(() => null)
   if (mine !== _seq || !address) return
   if (address.line) patchAddress(address.line)

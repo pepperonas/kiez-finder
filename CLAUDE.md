@@ -41,6 +41,11 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   Kiez is one area, not the single Planungsraum. Title = precomputed colloquial `kiez` (instant),
   subline = the exact `plr_name`. A **map click** → `pickAt()` → `locateAt()` (shared with geolocation
   `checkIn()`, `_seq`-guarded), which highlights `kiezAreaFor(kiez)`. Address row patched async.
+  **Sheet stays put on a map-pick:** `locateAt({fly})` passes `openSheet: fly` → `renderFound`/
+  `renderOutside` → `setCard(node, animate, forceOpen)` → `sheetOnRender(forceOpen)`. Only the geolocation
+  lock-on (`fly:true`) re-opens the bottom sheet; a casual map-pick keeps the current state (a peeked
+  sheet stays peeked) so the map + overlay you're exploring stay visible — otherwise every pick slammed
+  the sheet open over the map and overlay-mode switches looked like they did nothing.
   **Mobile bottom sheet** (`sheet`/`initSheetDrag` + `beginDrag`/`moveDrag`/`endDrag`): on `≤839px`
   the card is a fixed bottom sheet, `--sheet-y` transform, `open`↔`peek` snap via the M3 spring.
   **Touch gestures** (touch events, `{passive:false}`): a drag starts from the 44px handle (any dir),
