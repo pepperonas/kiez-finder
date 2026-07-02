@@ -151,7 +151,12 @@ function setPanelCollapsed(collapsed, moveFocus = true) {
 }
 collapseBtn.addEventListener('click', () => setPanelCollapsed(true))
 reopenBtn.addEventListener('click', () => setPanelCollapsed(false))
-try { if (localStorage.getItem('kf-panel') === 'collapsed') setPanelCollapsed(true, false) } catch (e) {}
+// desktop-only restore: on phones the bottom sheet owns the card — a persisted
+// collapsed state must not fight the sheet logic (the class is inert there, but
+// aria/focus state would still be wrong)
+try {
+  if (!sheetEnabled() && localStorage.getItem('kf-panel') === 'collapsed') setPanelCollapsed(true, false)
+} catch (e) {}
 
 // delegated: clicking a hierarchy level highlights it on the map (persists across renders)
 passScroll.addEventListener('click', (e) => {
@@ -172,7 +177,7 @@ function setCard(node, animate = true, forceOpen = true) {
 
 // ── mobile bottom sheet (MD3): drag handle, peek/open snap with spring ────────
 const sheet = { y: 0, H: 0, peek: 0, state: 'open', entered: false, cancel: null }
-function sheetEnabled() { return window.matchMedia('(max-width: 839px)').matches }
+function sheetEnabled() { return window.matchMedia('(max-width: 839.98px)').matches } // keep in sync with style.css
 function setSheetY(y) {
   sheet.y = y
   card.style.setProperty('--sheet-y', y.toFixed(1) + 'px')
@@ -293,9 +298,12 @@ function fitKiezName() {
   el.style.fontSize = '' // reset to the stylesheet clamp
   const base = parseFloat(getComputedStyle(el).fontSize) || 34
   const min = Math.max(18, base * 0.5)
+  // text width scales ~linearly with font size → jump straight to the fitting
+  // size in one write instead of a 1px-per-reflow loop, then nudge if rounding
+  // still overflows (bounded, ~O(1) reflows instead of up to 80)
   let size = base, guard = 0
-  while (el.scrollWidth > el.clientWidth + 1 && size > min && guard++ < 80) {
-    size -= 1
+  while (el.scrollWidth > el.clientWidth + 1 && size > min && guard++ < 4) {
+    size = Math.max(min, Math.floor(size * ((el.clientWidth + 1) / el.scrollWidth)))
     el.style.fontSize = size + 'px'
   }
 }
@@ -485,6 +493,30 @@ function renderError(err) {
   )
 }
 
+// Core boundary data failed to load (offline first visit, 404, malformed JSON).
+// Without this card a load failure would masquerade as "not in Berlin".
+function renderDataError() {
+  const retry = h('button', { class: 'btn btn-filled', type: 'button', 'data-reveal': '' },
+    h('span', { class: 'btn-icon', html: ICONS.refresh }), 'Erneut laden')
+  retry.addEventListener('click', async () => {
+    retry.disabled = true
+    const ok = await loadKieze().catch(() => null)
+    if (ok) checkIn()
+    else { retry.disabled = false }
+  })
+  setCard(
+    h('div', { class: 'pass-body pass-error' },
+      h('div', { class: 'stamp stamp--void', 'aria-hidden': 'true' },
+        h('span', { class: 'stamp-ring' }), h('span', { class: 'stamp-pin', html: ICONS.pin })),
+      h('p', { class: 'eyebrow', 'data-reveal': '', text: 'Kartendaten' }),
+      h('h1', { class: 'kiez-name', 'data-reveal': '', text: 'Daten nicht geladen' }),
+      h('p', { class: 'muted', 'data-reveal': '', text:
+        'Die Berliner Kiez-Grenzen konnten nicht geladen werden. Prüfe deine Verbindung und versuche es erneut.' }),
+      h('div', { class: 'actions' }, retry),
+    )
+  )
+}
+
 // ── core flow ────────────────────────────────────────────────────────────────
 let _seq = 0 // guards against out-of-order results when picks overlap
 
@@ -492,7 +524,8 @@ let _seq = 0 // guards against out-of-order results when picks overlap
 async function checkIn() {
   if (state.busy) return
   state.busy = true
-  renderLocating()
+  // boot already shows the locating card — don't re-render (double reveal-stagger)
+  if (!passScroll.querySelector('.pass-locating')) renderLocating()
   try {
     const pos = await getPosition()
     await locateAt(pos, { fly: true })
@@ -513,6 +546,7 @@ async function pickAt(lon, lat) {
 async function locateAt(pos, { fly = false } = {}) {
   const mine = ++_seq
   state.level = 'kiez'
+  if (!kiezeFC()) { state.plr = null; renderDataError(); return } // data never loaded ≠ outside Berlin
   const kiez = findKiez(pos.lon, pos.lat)
   // Prefer a precise OSM-defined Kiez (e.g. Scheunenviertel) when standing inside
   // one — finer than a Planungsraum; else the merged Planungsraum-group.
@@ -536,8 +570,9 @@ async function locateAt(pos, { fly = false } = {}) {
   // the current sheet state so the map you're exploring stays visible
   renderFound({ kiez, pos, kiezName, address: null, openSheet: fly }) // title precomputed → instant
   const address = await reverseGeocode(pos.lat, pos.lon).catch(() => null)
-  if (mine !== _seq || !address) return
-  if (address.line) patchAddress(address.line)
+  if (mine !== _seq) return
+  // always resolve the pending "wird ermittelt …" — even a null/empty geocode
+  patchAddress(address && address.line ? address.line : '—')
 }
 
 // ── theme toggle with MD3-expressive circular reveal (View Transitions) ──────
@@ -591,8 +626,12 @@ const OVERLAY_META = {
   kiez:    { label: 'Kieze (S)',    aria: 'Kieze',           next: 'Flächen ausblenden' },
 }
 const OVERLAY_LEVEL_LABEL = { bezirke: 'Bezirk', bzr: 'Bezirksregion', kiez: 'Kiez' }
+// the topbar only moves on resize — cache its bottom edge instead of forcing a
+// layout read inside the chip's per-frame retry loop
+let _topbarBottom = -1
 function positionAreaChip() {
-  areaChip.style.top = (topbar.getBoundingClientRect().bottom + 8) + 'px'
+  if (_topbarBottom < 0) _topbarBottom = topbar.getBoundingClientRect().bottom
+  areaChip.style.top = (_topbarBottom + 8) + 'px'
 }
 // Update the chip from the area under the map centre. Returns false if nothing was
 // found (e.g. fill not painted yet, or no area there) WITHOUT hiding — the caller
@@ -659,7 +698,10 @@ function highlightMatch(label, query) {
 function setActive(i) {
   _active = i
   const items = searchResults.querySelectorAll('.search-item')
-  items.forEach((el, k) => el.classList.toggle('is-active', k === i))
+  items.forEach((el, k) => {
+    el.classList.toggle('is-active', k === i)
+    el.setAttribute('aria-selected', String(k === i)) // listbox contract for screen readers
+  })
   if (i >= 0 && items[i]) {
     items[i].scrollIntoView({ block: 'nearest' })
     searchInput.setAttribute('aria-activedescendant', items[i].id)
@@ -721,10 +763,18 @@ function renderPlace(e) {
   )
 }
 
-searchInput.addEventListener('input', () => {
-  searchClear.hidden = !searchInput.value
+// debounce the fuzzy scan (~950 entries) while typing; clearing stays instant
+let _searchTimer = 0
+function runSearch() {
+  _searchTimer = 0
   if (!state.searchReady) return
   renderSearchResults(searchInput.value.trim() ? search(searchInput.value, 8) : [])
+}
+searchInput.addEventListener('input', () => {
+  searchClear.hidden = !searchInput.value
+  if (_searchTimer) clearTimeout(_searchTimer)
+  if (!searchInput.value.trim()) { runSearch(); return }
+  _searchTimer = setTimeout(runSearch, 120)
 })
 searchInput.addEventListener('focus', () => {
   if (searchInput.value.trim() && state.searchReady && _hits.length) { searchResults.hidden = false; searchInput.setAttribute('aria-expanded', 'true') }
@@ -732,7 +782,11 @@ searchInput.addEventListener('focus', () => {
 searchInput.addEventListener('keydown', (e) => {
   if (e.key === 'ArrowDown') { e.preventDefault(); if (_hits.length) setActive((_active + 1) % _hits.length) }
   else if (e.key === 'ArrowUp') { e.preventDefault(); if (_hits.length) setActive((_active - 1 + _hits.length) % _hits.length) }
-  else if (e.key === 'Enter') { const e2 = _hits[_active] || _hits[0]; if (e2) { e.preventDefault(); selectPlace(e2) } }
+  else if (e.key === 'Enter') {
+    // flush a pending debounce so Enter acts on the freshly typed query, not stale hits
+    if (_searchTimer) { clearTimeout(_searchTimer); runSearch() }
+    const e2 = _hits[_active] || _hits[0]; if (e2) { e.preventDefault(); selectPlace(e2) }
+  }
   else if (e.key === 'Escape') { e.preventDefault(); if (searchResults.hidden) { searchInput.value = ''; searchClear.hidden = true } else { searchResults.hidden = true; searchInput.setAttribute('aria-expanded', 'false') } }
 })
 searchClear.addEventListener('click', () => {
@@ -758,8 +812,10 @@ window.addEventListener('beforeinstallprompt', (e) => {
 installBtn.addEventListener('click', async () => {
   if (!state.deferredInstall) return
   state.deferredInstall.prompt()
-  const { outcome } = await state.deferredInstall.userChoice
-  if (outcome === 'accepted') installBtn.hidden = true
+  await state.deferredInstall.userChoice
+  // the event is single-use — hide the button either way (a dead button is worse;
+  // the browser re-fires beforeinstallprompt when install becomes possible again)
+  installBtn.hidden = true
   state.deferredInstall = null
 })
 window.addEventListener('appinstalled', () => { installBtn.hidden = true })
@@ -771,13 +827,17 @@ function enableTilt() {
     card.style.setProperty('--tilt-x', rx.toFixed(2) + 'deg')
     card.style.setProperty('--tilt-y', ry.toFixed(2) + 'deg')
   })
+  // measure once per hover — a per-move getBoundingClientRect forces layout and
+  // reads a rect the tilt transform itself is wobbling
+  let tiltRect = null
+  card.addEventListener('pointerenter', () => { tiltRect = card.getBoundingClientRect() })
   card.addEventListener('pointermove', (e) => {
-    const r = card.getBoundingClientRect()
+    const r = tiltRect || (tiltRect = card.getBoundingClientRect())
     const px = (e.clientX - r.left) / r.width - 0.5
     const py = (e.clientY - r.top) / r.height - 0.5
     state.tilt.set(-py * 4, px * 4) // max ~4°
   })
-  card.addEventListener('pointerleave', () => state.tilt.set(0, 0))
+  card.addEventListener('pointerleave', () => { tiltRect = null; state.tilt.set(0, 0) })
 }
 
 // ── keyboard: R rechecks ──────────────────────────────────────────────────────
@@ -814,6 +874,7 @@ async function boot() {
       }).then(() => {
         state.overlayReady = true
         state.map.setOverlayMode(state.overlay)
+        refreshAreaChip() // a restored overlay must name the area even before any pan
       })
     }
     // build the fuzzy search index across all levels + colloquial Kieze
@@ -824,12 +885,20 @@ async function boot() {
   }).catch(() => null)
   enableTilt()
   initSheetDrag()
+  // coalesce resize bursts (window-edge drag, mobile URL-bar) to one pass per frame —
+  // each pass does a WebGL resize + forced layout reads
+  let resizeRaf = 0
   window.addEventListener('resize', () => {
-    state.map && state.map.resize()
-    fitKiezName()
-    if (!areaChip.hidden) positionAreaChip()
-    if (sheetEnabled()) { measureSheet(); snapTo(sheet.state, true) }
-    else { card.style.removeProperty('--sheet-y'); card.removeAttribute('data-sheet') }
+    if (resizeRaf) return
+    resizeRaf = requestAnimationFrame(() => {
+      resizeRaf = 0
+      state.map && state.map.resize()
+      fitKiezName()
+      _topbarBottom = -1 // topbar may have rewrapped — re-measure lazily
+      if (!areaChip.hidden) positionAreaChip()
+      if (sheetEnabled()) { measureSheet(); snapTo(sheet.state, true) }
+      else { card.style.removeProperty('--sheet-y'); card.removeAttribute('data-sheet') }
+    })
   })
   checkIn()
 }

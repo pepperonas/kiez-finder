@@ -539,8 +539,10 @@ body {
 }
 .meta-row--btn { min-height: 48px; }
 
-/* ── responsive: mobile = MD3 bottom sheet (drag handle, peek/open snap) ── */
-@media (max-width: 839px) {
+/* ── responsive: mobile = MD3 bottom sheet (drag handle, peek/open snap) ──
+   839.98 keeps the range contiguous with the 840px desktop query — a fractional
+   viewport width (zoom/DPR) must never fall between sheet and panel layout. */
+@media (max-width: 839.98px) {
   .stage { padding: 0; align-items: stretch; justify-content: stretch; }
   .pass {
     position: fixed; left: 0; right: 0; bottom: 0; width: 100%; max-width: none; margin: 0;

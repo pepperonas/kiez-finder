@@ -138,6 +138,19 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   This is more precise than the Bezirksregion (which would over-include, e.g. Silbersteinstraße =
   Körnerkiez, not Schillerkiez). Coverage ≈78 % (OSM `quarter` isn't flächendeckend); the rest stays
   its own Planungsraum. One-time build (slow: 542 rate-limited Nominatim calls).
+- **PWA/offline:** all `public/data/*.geojson` (10 files, ~1.3 MB) are **precached** by the SW
+  (`geojson` is in `workbox.globPatterns`) — revisioned by content hash, so data edits bust the cache
+  on deploy and the app classifies fully offline after the first visit. Don't reintroduce a
+  runtime-caching route for them (the old `CacheFirst` route capped at 4 entries and silently broke
+  offline). If the core `kieze.geojson` fails on a *first* load (offline/404/SPA-fallback-HTML),
+  `locateAt` renders a dedicated **"Daten nicht geladen"** card with a retry (`renderDataError`) —
+  a data failure must never masquerade as the "nicht in Berlin" state.
+- **Selection paint races (map.js):** `lockOn` delays `_paint` by 1.5 s (camera flight). That timer
+  (`_paintTimer`) and the reveal spring (`_cancelFill`) are cancelled via `_cancelPendingPaint()` at
+  the top of `_paint`/`clearHighlight` (+ before scheduling in `lockOn`) — otherwise a rapid re-lock
+  painted the stale Kiez and a cleared boundary sprang back in.
+- **Breakpoint:** mobile sheet is `max-width: 839.98px`, desktop panel `min-width: 840px` — the .98
+  keeps the ranges contiguous at fractional widths (zoom/DPR); `sheetEnabled()` in main.js mirrors it.
 - **nginx Permissions-Policy gotcha:** geolocation must be allowed on the *HTML document*. Because
   `try_files … /index.html` internally redirects to `location = /index.html`, and that block defines
   its own `add_header`, nginx drops the server-level headers there — so the security headers

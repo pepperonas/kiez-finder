@@ -12,22 +12,14 @@ export default defineConfig({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
       includeAssets: ['icons/icon-192.png', 'icons/icon-512.png', 'favicon.svg', 'og.png'],
-      // The Kiez polygons are large + rarely change → precache them so the app
-      // works offline once visited.
+      // The Kiez polygons are large + rarely change → precache them (revisioned
+      // by content hash) so the app truly works offline and data updates bust
+      // the cache on deploy.
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        globPatterns: ['**/*.{js,css,html,svg,png,woff2,geojson}'],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         navigateFallback: '/index.html',
         runtimeCaching: [
-          {
-            urlPattern: /\/data\/.*\.geojson$/,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'kiez-geodata',
-              expiration: { maxEntries: 4, maxAgeSeconds: 60 * 60 * 24 * 90 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
           {
             urlPattern: /^https:\/\/[a-d]?\.?basemaps\.cartocdn\.com\/.*/i,
             handler: 'StaleWhileRevalidate',

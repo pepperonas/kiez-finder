@@ -7,8 +7,9 @@
     <title>Kiez-Finder · In welchem Kiez stehst du gerade?</title>
     <meta name="description" content="Dein Kiez-Pass für Berlin: Check an deinem Standort ein und erfahre sofort, in welchem Kiez, welcher Bezirksregion und welchem Bezirk du gerade stehst – mit lebendiger Karte und offiziellen Berliner Kiez-Grenzen." />
 
-    <meta name="theme-color" content="#0b0e14" media="(prefers-color-scheme: dark)" />
-    <meta name="theme-color" content="#f4f5fb" media="(prefers-color-scheme: light)" />
+    <!-- single non-media meta: JS owns it (updateThemeColor) so the browser chrome
+         follows the in-app theme, not the OS preference -->
+    <meta name="theme-color" content="#0b0e14" />
     <meta name="color-scheme" content="dark light" />
 
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -61,10 +62,13 @@
         var d = document.documentElement;
         d.classList.remove('no-js');
         d.classList.add('js');
+        var t = null;
+        try { t = localStorage.getItem('kf-theme'); } catch (e) {}
         try {
-          var t = localStorage.getItem('kf-theme');
-          if (t === 'light' || t === 'dark') d.setAttribute('data-theme', t);
-          else d.setAttribute('data-theme', matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+          // OS-preference fallback stays outside the storage try — a blocked
+          // localStorage (private mode) must not force dark on light-mode users
+          if (t !== 'light' && t !== 'dark') t = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+          d.setAttribute('data-theme', t);
         } catch (e) {}
       })();
     </script>

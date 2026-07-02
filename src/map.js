@@ -110,11 +110,18 @@ function computeSlots(fc, idKey) {
   }
   const order = ids.slice().sort((a, b) => (adj.get(b).size - adj.get(a).size) || (a < b ? -1 : 1))
   const slot = new Map()
+  // slot-usage histogram, maintained incrementally — rebuilding it per pick made
+  // the assignment O(n²·passes) (~2M ops for the 427 Kiez areas)
+  const used = new Array(PAL_N).fill(0)
+  const assign = (id, s) => {
+    const old = slot.get(id)
+    if (old != null) used[old]--
+    slot.set(id, s)
+    used[s]++
+  }
   const pick = (id) => {
     const nb1 = [...adj.get(id)].map((x) => slot.get(x)).filter((v) => v != null)
     const nb2 = [...adj2.get(id)].map((x) => slot.get(x)).filter((v) => v != null)
-    const used = new Array(PAL_N).fill(0)
-    for (const v of slot.values()) used[v]++
     let best = 0, bestScore = -Infinity
     for (let s = 0; s < PAL_N; s++) {
       let m1 = PAL_N; for (const v of nb1) { const d = Math.abs(s - v); if (d < m1) m1 = d }
@@ -124,8 +131,8 @@ function computeSlots(fc, idKey) {
     }
     return best
   }
-  for (const id of order) slot.set(id, pick(id))
-  for (let pass = 0; pass < 6; pass++) for (const id of order) slot.set(id, pick(id))
+  for (const id of order) assign(id, pick(id))
+  for (let pass = 0; pass < 6; pass++) for (const id of order) assign(id, pick(id))
   return slot
 }
 
@@ -415,10 +422,15 @@ export class KiezMap {
     for (const src of ['pt-bez', 'pt-bzr', 'pt-kiez']) {
       if (!this.map.getSource(src)) this.map.addSource(src, { type: 'geojson', data: emptyFC() })
     }
-    // recompute which interior point labels each area whenever the camera settles
+    // recompute which interior point labels each area whenever the camera settles;
+    // a zoom fires moveend AND zoomend → coalesce to one scan per frame
     if (!this._lblHook) {
       this._lblHook = true
-      const u = () => this._updateOverlayLabels()
+      let raf = 0
+      const u = () => {
+        if (raf) return
+        raf = requestAnimationFrame(() => { raf = 0; this._updateOverlayLabels() })
+      }
       this.map.on('moveend', u)
       this.map.on('zoomend', u)
     }
@@ -545,10 +557,15 @@ export class KiezMap {
   _updateOverlayLabels() {
     if (!this._labelCands) return
     const lvl = this._mode === 'bezirke' ? 'bez' : this._mode === 'bzr' ? 'bzr' : this._mode === 'kiez' ? 'kiez' : null
-    const empty = emptyFC()
-    for (const k of ['bez', 'bzr', 'kiez']) {
-      const s = this.map.getSource('pt-' + k)
-      if (s && k !== lvl) s.setData(empty)
+    // empty the now-inactive sources only when the level actually changes —
+    // re-feeding empty FCs on every camera settle is pointless worker churn
+    if (lvl !== this._lblLevel) {
+      this._lblLevel = lvl
+      const empty = emptyFC()
+      for (const k of ['bez', 'bzr', 'kiez']) {
+        const s = this.map.getSource('pt-' + k)
+        if (s && k !== lvl) s.setData(empty)
+      }
     }
     const cands = lvl && this._labelCands[lvl]
     if (!cands) return
@@ -608,8 +625,9 @@ export class KiezMap {
 
     if (feature) {
       // wait until the camera has mostly arrived, then draw the boundary in
+      this._cancelPendingPaint()
       const delay = reduceMotion() ? 0 : 1500
-      setTimeout(() => this._paint(feature), delay)
+      this._paintTimer = setTimeout(() => this._paint(feature), delay)
     } else {
       this.clearHighlight()
     }
@@ -665,11 +683,17 @@ export class KiezMap {
       : { top: 90, right: 40, bottom: Math.round(window.innerHeight * 0.5), left: 40 }
   }
 
+  // a newer paint/clear supersedes any boundary still waiting on the lock-on delay
+  _cancelPendingPaint() {
+    if (this._paintTimer) { clearTimeout(this._paintTimer); this._paintTimer = null }
+    if (this._cancelFill) { this._cancelFill(); this._cancelFill = null }
+  }
+
   _paint(feature, instant = false) {
+    this._cancelPendingPaint()
     const src = this.map.getSource('kiez')
     if (!src) return // mid-restyle: layers not re-added yet — skip (will repaint after)
     src.setData(fc(feature))
-    if (this._cancelFill) this._cancelFill()
     const targetFill = this.theme === 'dark' ? 0.16 : 0.12
     const LW = 3.8, CW = 8.5 // line + casing widths (strong, pops over the overlay)
     const set = (p) => {
@@ -686,6 +710,7 @@ export class KiezMap {
 
   clearHighlight() {
     this._activeFeature = null
+    this._cancelPendingPaint()
     const src = this.map.getSource('kiez')
     if (!src) return
     src.setData(emptyFC())
