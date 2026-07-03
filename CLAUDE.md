@@ -138,7 +138,28 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   This is more precise than the Bezirksregion (which would over-include, e.g. Silbersteinstraße =
   Körnerkiez, not Schillerkiez). Coverage ≈78 % (OSM `quarter` isn't flächendeckend); the rest stays
   its own Planungsraum. One-time build (slow: 542 rate-limited Nominatim calls).
-- **PWA/offline:** all `public/data/*.geojson` (10 files, ~1.3 MB) are **precached** by the SW
+- **Berliner-Mauer-Modus (🧱 topbar toggle):** retro B&W view. Data: official WFS
+  `gdi.berlin.de/services/wfs/berlinermauer` ("Verlauf der Berliner Mauer, 1989" — layers
+  a_grenzmauer/b_hinterlandmauer/c_politischegrenze/d_grenzstreifen) → `public/data/mauer.geojson`
+  (one FC, `{typ: mauer|hinterland|streifen}`, DP-simplified) + `west-berlin.geojson`
+  (THE West-Berlin polygon, 480 km², polygonized from grenzmauer+politischegrenze via
+  `mapshaper -polygons gap-tolerance=0.002`; rebuild script pattern in the repo history).
+  `loadWall()` in kiez.js is lazy (first toggle). map.js `setWallData`/`setWallMode` add
+  5 layers (west tint theme-aware, strip fill, dashed hinterland, white casing + black core)
+  idempotently in `_addWallLayers`, re-added by `_onLoad` after restyles. The B&W look is a
+  CSS filter on `#map` (`#app.wall-mode`) + grain/vignette pseudo-elements — wall layers are
+  deliberately grayscale (lightness contrast, not hue). Wall mode and the colour overlay are
+  mutually exclusive (`applyWall`/`applyOverlay` switch each other off; previous overlay is
+  restored on exit). The area chip becomes an Ost/West readout (`applyWallChip`,
+  pointInGeometry against the west polygon). Persisted as `localStorage 'kf-wall'`.
+  Tests: `tests/wall-data.test.js` (dataset shape, ~480 km² area, known-place side checks).
+- **setTheme restyle wait (map.js):** after `setStyle`, do NOT trust an immediate
+  `isStyleLoaded()` — it can report a stale `true` for the DYING style, `_onLoad` then paints
+  into it and the swap silently wipes ALL custom layers (selection, overlays, wall). MapLibre
+  v4 also never fires `style.load` on setStyle. The reliable sequence (measured): wait for a
+  `styledata` (swap begun) and only then accept `isStyleLoaded()===true` (checked on
+  styledata/idle), with a 4 s hard-timeout + an `once('idle')` rebuild fallback.
+- **PWA/offline:** all `public/data/*.geojson` (12 files, ~1.5 MB) are **precached** by the SW
   (`geojson` is in `workbox.globPatterns`) — revisioned by content hash, so data edits bust the cache
   on deploy and the app classifies fully offline after the first visit. Don't reintroduce a
   runtime-caching route for them (the old `CacheFirst` route capped at 4 entries and silently broke

@@ -153,6 +153,22 @@ export async function loadOutline() {
   return _outline
 }
 
+// Berlin Wall 1989 (Geoportal "Verlauf der Berliner Mauer"): Grenzmauer/
+// Hinterlandmauer lines + Grenzstreifen polygons in one FC (each with {typ}),
+// plus the stitched West-Berlin polygon (for the Ost/West side readout).
+// Lazy — only fetched the first time the Mauer mode is switched on.
+let _wallPromise = null
+export function loadWall() {
+  if (!_wallPromise) {
+    _wallPromise = Promise.all([
+      loadJSON('/data/mauer.geojson'),
+      loadJSON('/data/west-berlin.geojson').catch(() => null),
+    ]).then(([wall, west]) => ({ wall, west: west ? west.features[0] : null }))
+      .catch((e) => { _wallPromise = null; throw e }) // allow retry after a failure
+  }
+  return _wallPromise
+}
+
 // colloquial Kiez names from OSM (place=quarter/neighbourhood) — point labels
 let _kiezNames = null
 export async function loadKiezNames() {

@@ -284,6 +284,32 @@ body {
   outline-offset: 3px; border-radius: var(--r-m);
 }
 
+/* ── Berliner-Mauer-Modus: Retro-Schwarz-Weiß (Kalter-Krieg-Archivbild) ── */
+.wall-btn.is-active {
+  color: var(--on-surface);
+  border-color: color-mix(in srgb, var(--on-surface) 55%, var(--outline));
+  background: color-mix(in srgb, var(--on-surface) 14%, var(--sc-high));
+}
+/* the whole map desaturates to a lightly aged archival print; the wall layers
+   are drawn in pure black/white so they survive the filter with full contrast */
+#app.wall-mode #map {
+  filter: grayscale(1) sepia(0.16) contrast(1.07) brightness(1.02);
+}
+#app.wall-mode #map::before { /* vignette — old-lens falloff */
+  content: ''; position: absolute; inset: 0; z-index: 5; pointer-events: none;
+  background: radial-gradient(ellipse 75% 70% at 50% 46%, transparent 55%, rgba(10, 8, 4, 0.42) 100%);
+}
+#app.wall-mode #map::after { /* film grain (static — no flicker animation) */
+  content: ''; position: absolute; inset: 0; z-index: 5; pointer-events: none;
+  opacity: .08; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+/* the side readout chip goes archival too: paper tint, typewriter tracking */
+#app.wall-mode .area-chip {
+  filter: grayscale(1) sepia(0.25);
+  letter-spacing: .04em;
+}
+
 /* ── stage + pass card ── */
 .stage {
   position: absolute; inset: 0; z-index: 4; pointer-events: none;

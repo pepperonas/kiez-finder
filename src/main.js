@@ -9,9 +9,9 @@
 // ─────────────────────────────────────────────────────────────────────────
 import './style.css'
 import { KiezMap } from './map.js'
-import { loadKieze, loadOutline, loadLevels, levelFC, loadKiezNames, findKiez, bezirkName,
-  kmFromBerlin, featureForLevel, levelName, kiezAreaFor, kiezeFC, kiezAreasFC,
-  osmKiezeFC, findOsmKiez } from './kiez.js'
+import { loadKieze, loadOutline, loadLevels, levelFC, loadKiezNames, loadWall, findKiez,
+  bezirkName, kmFromBerlin, featureForLevel, levelName, kiezAreaFor, kiezeFC, kiezAreasFC,
+  osmKiezeFC, findOsmKiez, pointInGeometry } from './kiez.js'
 import { buildSearchIndex, search } from './search.js'
 import { getPosition, reverseGeocode } from './geo.js'
 import { revealStagger, tweenNumber, spring, SPRINGS, reduceMotion, finePointer, damdamper } from './motion.js'
@@ -40,6 +40,7 @@ const ICONS = {
   target: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.6"/><path d="M12 1.8v3M12 19.2v3M1.8 12h3M19.2 12h3" stroke-linecap="round"/></svg>',
   pin: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-6.4 7-11.3A7 7 0 0 0 5 9.7C5 14.6 12 21 12 21Z"/><circle cx="12" cy="9.6" r="2.4" fill="var(--surface)"/></svg>',
   layers: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 3.5 8 12 12.5 20.5 8 12 3.5Z" stroke-linejoin="round"/><path d="M4 12.2 12 16.5l8-4.3M4 15.9 12 20.2l8-4.3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  wall: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="13" rx="1" stroke-linejoin="round"/><path d="M3.5 9.83h17M3.5 14.17h17M9.17 5.5v4.33M14.83 5.5v4.33M6.33 9.83v4.34M12 9.83v4.34M17.67 9.83v4.34M9.17 14.17v4.33M14.83 14.17v4.33" stroke-linecap="round"/></svg>',
   search: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5" stroke-linecap="round"/></svg>',
   x: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke-linecap="round"/></svg>',
   loc: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><circle cx="12" cy="12" r="7.5"/><path d="M12 1.6v3M12 19.4v3M1.6 12h3M19.4 12h3" stroke-linecap="round"/></svg>',
@@ -61,6 +62,9 @@ const state = {
   searchReady: false,
   selectedPlace: null,
   kiezArea: null,   // resolved highlight area for the active Kiez (OSM or merged group)
+  wall: false,      // Berliner-Mauer retro mode active
+  wallData: null,   // { wall: FC, west: Feature } once loaded
+  overlayBeforeWall: null, // overlay mode to restore when leaving wall mode
 }
 
 // ── shell ──────────────────────────────────────────────────────────────────
@@ -83,6 +87,13 @@ const overlayBtn = h('button', {
   title: 'Bezirke einblenden', aria: { label: 'Flächen einblenden: aus' },
 },
   h('span', { class: 'seg-icon', html: ICONS.layers }), overlayLabelEl)
+// Berliner Mauer 1989 — retro B&W view with the historical wall course
+const wallBtn = h('button', {
+  class: 'icon-btn wall-btn', type: 'button',
+  title: 'Berliner Mauer 1989 (Retro-Ansicht)',
+  aria: { label: 'Berliner Mauer 1989: Retro-Schwarz-Weiß-Ansicht umschalten', pressed: 'false' },
+  html: ICONS.wall,
+})
 
 // ── fuzzy search (Bezirke / Bezirksregionen / Prognoseräume / Kieze / Planungsräume) ──
 const searchInput = h('input', {
@@ -103,7 +114,7 @@ const topbar = h('header', { class: 'topbar' },
     h('span', { class: 'brand-name' },
       h('strong', { text: 'Kiez' }), h('span', { text: '-Finder' }))),
   searchBox,
-  h('div', { class: 'topbar-actions' }, installBtn, overlayBtn, themeBtn),
+  h('div', { class: 'topbar-actions' }, installBtn, overlayBtn, wallBtn, themeBtn),
 )
 
 // floating "current area" chip — names the coloured region under the map centre
@@ -650,9 +661,25 @@ function applyAreaChip() {
 // Refresh on move/toggle: try now, then retry on rAF until the area lands (tiles
 // for a new viewport / a freshly-shown layer take a few frames). Only hide after
 // the deadline with still nothing (genuinely outside an area).
+// Wall mode repurposes the chip as an Ost/West side readout for the map centre —
+// pure point-in-polygon against the stitched West-Berlin ring (no rendered-tile
+// timing involved, so no retry loop needed).
+function applyWallChip() {
+  if (!state.map || !state.wallData || !state.wallData.west) { areaChip.hidden = true; return }
+  const [lon, lat] = state.map.centerLngLat()
+  const west = pointInGeometry(state.wallData.west.geometry, lon, lat)
+  if (!west && !findKiez(lon, lat)) { areaChip.hidden = true; return } // outside Berlin
+  areaChipDot.style.background = west ? '#f2efe4' : '#2b2b2b'
+  areaChipName.textContent = west ? 'West-Berlin' : 'Ost-Berlin'
+  areaChipLevel.textContent = '1989'
+  positionAreaChip()
+  areaChip.hidden = false
+}
+
 let _chipRaf = 0
 function refreshAreaChip() {
   if (_chipRaf) { cancelAnimationFrame(_chipRaf); _chipRaf = 0 }
+  if (state.wall) { applyWallChip(); return }
   if (state.overlay === 'off') { areaChip.hidden = true; return }
   const deadline = performance.now() + 1500
   const tick = () => {
@@ -664,6 +691,9 @@ function refreshAreaChip() {
   tick()
 }
 function applyOverlay(mode) {
+  // the colour choropleth is meaningless under the B&W wall filter → the two
+  // modes are mutually exclusive; turning an overlay on leaves wall mode
+  if (mode !== 'off' && state.wall) { state.overlayBeforeWall = null; applyWall(false) }
   state.overlay = mode
   try { localStorage.setItem('kf-overlay', mode) } catch (e) {}
   const m = OVERLAY_META[mode]
@@ -678,6 +708,40 @@ overlayBtn.addEventListener('click', () => {
   const i = OVERLAY_ORDER.indexOf(state.overlay)
   applyOverlay(OVERLAY_ORDER[(i + 1) % OVERLAY_ORDER.length])
 })
+
+// ── Berliner Mauer 1989: retro B&W view mode ─────────────────────────────────
+async function applyWall(on) {
+  state.wall = on
+  try { localStorage.setItem('kf-wall', on ? '1' : '0') } catch (e) {}
+  wallBtn.setAttribute('aria-pressed', String(on))
+  wallBtn.classList.toggle('is-active', on)
+  app.classList.toggle('wall-mode', on)
+  if (on && state.overlay !== 'off') {
+    state.overlayBeforeWall = state.overlay // restore when leaving wall mode
+    applyOverlay('off')
+  } else if (!on && state.overlayBeforeWall) {
+    const prev = state.overlayBeforeWall
+    state.overlayBeforeWall = null
+    if (state.overlay === 'off') applyOverlay(prev)
+  }
+  if (on && !state.wallData) {
+    try {
+      state.wallData = await loadWall()
+    } catch (e) {
+      // data unavailable (offline first use) — back out cleanly, retry on next tap
+      state.wall = false
+      wallBtn.setAttribute('aria-pressed', 'false')
+      wallBtn.classList.remove('is-active')
+      app.classList.remove('wall-mode')
+      return
+    }
+    if (!state.wall) return // toggled off again while the data was loading
+    await state.map.setWallData(state.wallData)
+  }
+  if (state.map) state.map.setWallMode(state.wall)
+  refreshAreaChip()
+}
+wallBtn.addEventListener('click', () => applyWall(!state.wall))
 
 // ── search controller ────────────────────────────────────────────────────────
 const TYPE_ICON = { bez: ICONS.layers, bzr: ICONS.layers, pgr: ICONS.layers, kiez: ICONS.pin, plr: ICONS.pin }
@@ -862,6 +926,8 @@ async function boot() {
     if (saved && OVERLAY_ORDER.includes(saved)) state.overlay = saved
   } catch (e) {}
   applyOverlay(state.overlay)
+  // restore the persisted wall mode (lazy-loads its data on first activation)
+  try { if (localStorage.getItem('kf-wall') === '1') applyWall(true) } catch (e) {}
   // load polygons + map shell in parallel, then check in
   await Promise.all([loadKieze().catch(() => null), state.map.whenReady()])
   // aggregate levels feed the level-switch highlight + sector overlay;

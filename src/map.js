@@ -353,6 +353,7 @@ export class KiezMap {
 
     this._tuneBasemapLabels()
     if (this._overlayRaw) this._addOverlayLayers()
+    if (this._wallRaw) this._addWallLayers()
   }
 
   // Hide the basemap's own neighbourhood labels (suburbs/hamlets) so our
@@ -371,16 +372,38 @@ export class KiezMap {
     this._themedOnce = true
     const tok = (this._themeTok = (this._themeTok || 0) + 1) // guard overlapping rapid toggles
     await this._ready
-    // setStyle wipes custom layers → re-add them once the new style is fully loaded
+    // setStyle wipes custom layers → re-add them once the NEW style is loaded.
+    // Sequencing matters (measured, MapLibre v4): 'style.load' never fires on
+    // setStyle; polling isStyleLoaded() immediately can report a stale `true`
+    // for the DYING style (then _onLoad paints into it and the swap silently
+    // wipes every custom layer). Reliable order: wait for a 'styledata' (the
+    // swap has begun, loaded=false) and only then accept isStyleLoaded()=true
+    // (checked on 'styledata'/'idle'). Hard timeout so the toggle never hangs.
     this.map.setStyle(STYLES[theme])
     await new Promise((res) => {
-      const check = () => { if (this.map.isStyleLoaded()) { this.map.off('styledata', check); res() } }
-      this.map.on('styledata', check); check()
+      let swapped = false
+      const fin = () => {
+        clearTimeout(tmr)
+        this.map.off('styledata', onData); this.map.off('idle', check)
+        res()
+      }
+      const tmr = setTimeout(fin, 4000)
+      const check = () => { if (swapped && this.map.isStyleLoaded()) fin() }
+      const onData = () => { swapped = true; check() }
+      this.map.on('styledata', onData)
+      this.map.on('idle', check)
     })
     if (tok !== this._themeTok) return // a newer setTheme superseded this one
-    this._onLoad() // re-adds selection layers, basemap tuning + overlays
+    this._onLoad() // re-adds selection layers, basemap tuning + overlays + wall
     if (this._activeFeature) this._paint(this._activeFeature, true)
     if (this._lastPos) this._placeBeacon(this._lastPos)
+    // belt & braces: if the timing still landed wrong, the custom layers are
+    // gone once the map settles — detect and rebuild (idempotent)
+    this.map.once('idle', () => {
+      if (tok !== this._themeTok || this.map.getSource('kiez')) return
+      this._onLoad()
+      if (this._activeFeature) this._paint(this._activeFeature, true)
+    })
   }
 
   // ── district / region overlay (choropleth + always-on labels) ──────────────
@@ -549,6 +572,101 @@ export class KiezMap {
   setOverlayMode(mode) {
     this._mode = mode
     this._applyMode()
+  }
+
+  // ── Berliner Mauer 1989 (retro B&W mode) ────────────────────────────────────
+  // wall = FC of grenzmauer/hinterland lines + grenzstreifen polygons ({typ}),
+  // west = the stitched West-Berlin polygon feature (side tint + side readout).
+  async setWallData({ wall, west } = {}) {
+    await this._ready
+    this._wallRaw = { wall, west }
+    this._addWallLayers()
+  }
+
+  // All colours are grayscale by design: the whole map runs through the retro
+  // B&W CSS filter in wall mode, so the wall must pop via lightness contrast
+  // (white casing + near-black core), not hue.
+  _addWallLayers() {
+    if (!this._wallRaw) return
+    const { wall, west } = this._wallRaw
+    const vis = this._wallOn ? 'visible' : 'none'
+    const addSrc = (id, data) => {
+      const s = this.map.getSource(id)
+      if (s) s.setData(data)
+      else this.map.addSource(id, { type: 'geojson', data })
+    }
+    addSrc('wall', wall)
+    if (west) addSrc('wall-west', { type: 'FeatureCollection', features: [west] })
+    const before = this.map.getLayer('kiez-fill') ? 'kiez-fill' : undefined
+    const addLyr = (def) => { if (!this.map.getLayer(def.id)) this.map.addLayer(def, before) }
+    // West side reads slightly set apart from the eastern half: lifted/bright on
+    // the dark basemap, a faint sepia shade on the light one (white would vanish)
+    const westPaint = this.theme === 'dark'
+      ? { color: '#ffffff', op: 0.12 }
+      : { color: '#8a7c5e', op: 0.09 }
+    if (west) addLyr({
+      id: 'wall-west-fill', type: 'fill', source: 'wall-west',
+      layout: { visibility: vis },
+      paint: { 'fill-color': westPaint.color, 'fill-opacity': westPaint.op },
+    })
+    // theme-dependent → refresh on every (re)load, like the selection colours
+    if (this.map.getLayer('wall-west-fill')) {
+      this.map.setPaintProperty('wall-west-fill', 'fill-color', westPaint.color)
+      this.map.setPaintProperty('wall-west-fill', 'fill-opacity', westPaint.op)
+    }
+    // Grenzstreifen (death strip) — the pale cleared band along the wall
+    addLyr({
+      id: 'wall-strip', type: 'fill', source: 'wall',
+      filter: ['==', ['get', 'typ'], 'streifen'],
+      layout: { visibility: vis },
+      paint: { 'fill-color': '#f2efe4', 'fill-opacity': 0.55 },
+    })
+    // Hinterlandsicherungsmauer/-zaun — thin dashed inner line
+    addLyr({
+      id: 'wall-hinterland', type: 'line', source: 'wall',
+      filter: ['==', ['get', 'typ'], 'hinterland'],
+      layout: { visibility: vis, 'line-join': 'round' },
+      paint: {
+        'line-color': '#141414',
+        'line-width': ['interpolate', ['linear'], ['zoom'], 10, 0.6, 14, 1.8],
+        'line-dasharray': [2, 2],
+        'line-opacity': 0.75,
+      },
+    })
+    // the Grenzmauer itself: wide white casing + near-black core
+    addLyr({
+      id: 'wall-casing', type: 'line', source: 'wall',
+      filter: ['==', ['get', 'typ'], 'mauer'],
+      layout: { visibility: vis, 'line-join': 'round', 'line-cap': 'round' },
+      paint: {
+        'line-color': '#ffffff',
+        'line-width': ['interpolate', ['linear'], ['zoom'], 8, 3.5, 12, 7, 15, 12],
+        'line-opacity': 0.9,
+      },
+    })
+    addLyr({
+      id: 'wall-line', type: 'line', source: 'wall',
+      filter: ['==', ['get', 'typ'], 'mauer'],
+      layout: { visibility: vis, 'line-join': 'round', 'line-cap': 'round' },
+      paint: {
+        'line-color': '#0d0d0d',
+        'line-width': ['interpolate', ['linear'], ['zoom'], 8, 1.6, 12, 3.2, 15, 5.5],
+        'line-opacity': 0.95,
+      },
+    })
+  }
+
+  setWallMode(on) {
+    this._wallOn = !!on
+    for (const id of ['wall-west-fill', 'wall-strip', 'wall-hinterland', 'wall-casing', 'wall-line']) {
+      if (this.map.getLayer(id)) this.map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none')
+    }
+  }
+
+  /** Current camera centre as [lon, lat] — feeds the Ost/West side readout. */
+  centerLngLat() {
+    const c = this.map.getCenter()
+    return [c.lng, c.lat]
   }
 
   // Per visible area, choose the interior grid point nearest its centre that's on
