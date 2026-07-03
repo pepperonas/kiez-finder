@@ -577,9 +577,9 @@ export class KiezMap {
   // ── Berliner Mauer 1989 (retro B&W mode) ────────────────────────────────────
   // wall = FC of grenzmauer/hinterland lines + grenzstreifen polygons ({typ}),
   // west = the stitched West-Berlin polygon feature (side tint + side readout).
-  async setWallData({ wall, west } = {}) {
+  async setWallData({ wall, west, ost } = {}) {
     await this._ready
-    this._wallRaw = { wall, west }
+    this._wallRaw = { wall, west, ost }
     this._addWallLayers()
   }
 
@@ -588,7 +588,7 @@ export class KiezMap {
   // (white casing + near-black core), not hue.
   _addWallLayers() {
     if (!this._wallRaw) return
-    const { wall, west } = this._wallRaw
+    const { wall, west, ost } = this._wallRaw
     const vis = this._wallOn ? 'visible' : 'none'
     const addSrc = (id, data) => {
       const s = this.map.getSource(id)
@@ -597,22 +597,38 @@ export class KiezMap {
     }
     addSrc('wall', wall)
     if (west) addSrc('wall-west', { type: 'FeatureCollection', features: [west] })
+    if (ost) addSrc('wall-ost', { type: 'FeatureCollection', features: [ost] })
+    // sector name labels — two fixed interior points, styled like an archival map
+    addSrc('wall-lbl', { type: 'FeatureCollection', features: [
+      { type: 'Feature', properties: { name: 'WEST-BERLIN' },
+        geometry: { type: 'Point', coordinates: [13.22, 52.5] } },
+      { type: 'Feature', properties: { name: 'OST-BERLIN' },
+        geometry: { type: 'Point', coordinates: [13.55, 52.53] } },
+    ] })
     const before = this.map.getLayer('kiez-fill') ? 'kiez-fill' : undefined
-    const addLyr = (def) => { if (!this.map.getLayer(def.id)) this.map.addLayer(def, before) }
-    // West side reads slightly set apart from the eastern half: lifted/bright on
-    // the dark basemap, a faint sepia shade on the light one (white would vanish)
-    const westPaint = this.theme === 'dark'
-      ? { color: '#ffffff', op: 0.12 }
-      : { color: '#8a7c5e', op: 0.09 }
+    const addLyr = (def, top) => { if (!this.map.getLayer(def.id)) this.map.addLayer(def, top ? undefined : before) }
+    // Both halves get a lift against surrounding Brandenburg, West clearly
+    // stronger than Ost: bright on the dark basemap, sepia shade on the light
+    // one (white would vanish there)
+    const paints = this.theme === 'dark'
+      ? { west: { color: '#ffffff', op: 0.12 }, ost: { color: '#ffffff', op: 0.05 } }
+      : { west: { color: '#8a7c5e', op: 0.09 }, ost: { color: '#8a7c5e', op: 0.04 } }
     if (west) addLyr({
       id: 'wall-west-fill', type: 'fill', source: 'wall-west',
       layout: { visibility: vis },
-      paint: { 'fill-color': westPaint.color, 'fill-opacity': westPaint.op },
+      paint: { 'fill-color': paints.west.color, 'fill-opacity': paints.west.op },
+    })
+    if (ost) addLyr({
+      id: 'wall-ost-fill', type: 'fill', source: 'wall-ost',
+      layout: { visibility: vis },
+      paint: { 'fill-color': paints.ost.color, 'fill-opacity': paints.ost.op },
     })
     // theme-dependent → refresh on every (re)load, like the selection colours
-    if (this.map.getLayer('wall-west-fill')) {
-      this.map.setPaintProperty('wall-west-fill', 'fill-color', westPaint.color)
-      this.map.setPaintProperty('wall-west-fill', 'fill-opacity', westPaint.op)
+    for (const [id, p] of [['wall-west-fill', paints.west], ['wall-ost-fill', paints.ost]]) {
+      if (this.map.getLayer(id)) {
+        this.map.setPaintProperty(id, 'fill-color', p.color)
+        this.map.setPaintProperty(id, 'fill-opacity', p.op)
+      }
     }
     // Grenzstreifen (death strip) — the pale cleared band along the wall
     addLyr({
@@ -654,11 +670,35 @@ export class KiezMap {
         'line-opacity': 0.95,
       },
     })
+    // WEST-BERLIN / OST-BERLIN wordmarks on top of everything (archival plate style)
+    const lblPaint = this.theme === 'dark'
+      ? { color: '#f0ede4', halo: 'rgba(6,9,16,0.9)' }
+      : { color: '#241f14', halo: 'rgba(255,253,246,0.92)' }
+    addLyr({
+      id: 'lbl-wall', type: 'symbol', source: 'wall-lbl', maxzoom: 13,
+      layout: {
+        visibility: vis,
+        'text-field': ['get', 'name'], 'text-font': FONT_BOLD,
+        'text-size': ['interpolate', ['linear'], ['zoom'], 8, 14, 10, 20, 12, 26],
+        'text-letter-spacing': 0.28, 'text-padding': 10,
+        'symbol-sort-key': 0, 'text-allow-overlap': false,
+      },
+      paint: {
+        'text-color': lblPaint.color,
+        'text-halo-color': lblPaint.halo,
+        'text-halo-width': 1.8, 'text-halo-blur': 0.4,
+        'text-opacity': ['interpolate', ['linear'], ['zoom'], 12, 0.95, 13, 0],
+      },
+    }, true)
+    if (this.map.getLayer('lbl-wall')) {
+      this.map.setPaintProperty('lbl-wall', 'text-color', lblPaint.color)
+      this.map.setPaintProperty('lbl-wall', 'text-halo-color', lblPaint.halo)
+    }
   }
 
   setWallMode(on) {
     this._wallOn = !!on
-    for (const id of ['wall-west-fill', 'wall-strip', 'wall-hinterland', 'wall-casing', 'wall-line']) {
+    for (const id of ['wall-west-fill', 'wall-ost-fill', 'wall-strip', 'wall-hinterland', 'wall-casing', 'wall-line', 'lbl-wall']) {
       if (this.map.getLayer(id)) this.map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none')
     }
   }

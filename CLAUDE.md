@@ -143,10 +143,14 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   a_grenzmauer/b_hinterlandmauer/c_politischegrenze/d_grenzstreifen) → `public/data/mauer.geojson`
   (one FC, `{typ: mauer|hinterland|streifen}`, DP-simplified) + `west-berlin.geojson`
   (THE West-Berlin polygon, 480 km², polygonized from grenzmauer+politischegrenze via
-  `mapshaper -polygons gap-tolerance=0.002`; rebuild script pattern in the repo history).
+  `mapshaper -polygons gap-tolerance=0.002`; rebuild script pattern in the repo history)
+  + `ost-berlin.geojson` (berlin-outline `-erase` west ring, sliver parts <0.2 km² dropped →
+  404.6 km² main + 5.4 km² West-Staaken, which really was DDR territory).
   `loadWall()` in kiez.js is lazy (first toggle). map.js `setWallData`/`setWallMode` add
-  5 layers (west tint theme-aware, strip fill, dashed hinterland, white casing + black core)
-  idempotently in `_addWallLayers`, re-added by `_onLoad` after restyles. The B&W look is a
+  7 layers (west+ost tints theme-aware — west stronger, both lifted vs Brandenburg; strip
+  fill, dashed hinterland, white casing + black core, `lbl-wall` WEST-/OST-BERLIN wordmarks
+  at two fixed points, maxzoom 13) idempotently in `_addWallLayers`, re-added by `_onLoad`
+  after restyles. The B&W look is a
   CSS filter on `#map` (`#app.wall-mode`) + grain/vignette pseudo-elements — wall layers are
   deliberately grayscale (lightness contrast, not hue). Wall mode and the colour overlay are
   mutually exclusive (`applyWall`/`applyOverlay` switch each other off; previous overlay is
@@ -159,7 +163,7 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   v4 also never fires `style.load` on setStyle. The reliable sequence (measured): wait for a
   `styledata` (swap begun) and only then accept `isStyleLoaded()===true` (checked on
   styledata/idle), with a 4 s hard-timeout + an `once('idle')` rebuild fallback.
-- **PWA/offline:** all `public/data/*.geojson` (12 files, ~1.5 MB) are **precached** by the SW
+- **PWA/offline:** all `public/data/*.geojson` (13 files, ~1.5 MB) are **precached** by the SW
   (`geojson` is in `workbox.globPatterns`) — revisioned by content hash, so data edits bust the cache
   on deploy and the app classifies fully offline after the first visit. Don't reintroduce a
   runtime-caching route for them (the old `CacheFirst` route capped at 4 entries and silently broke

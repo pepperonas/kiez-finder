@@ -163,7 +163,12 @@ export function loadWall() {
     _wallPromise = Promise.all([
       loadJSON('/data/mauer.geojson'),
       loadJSON('/data/west-berlin.geojson').catch(() => null),
-    ]).then(([wall, west]) => ({ wall, west: west ? west.features[0] : null }))
+      loadJSON('/data/ost-berlin.geojson').catch(() => null),
+    ]).then(([wall, west, ost]) => ({
+      wall,
+      west: west ? west.features[0] : null,
+      ost: ost ? ost.features[0] : null,
+    }))
       .catch((e) => { _wallPromise = null; throw e }) // allow retry after a failure
   }
   return _wallPromise

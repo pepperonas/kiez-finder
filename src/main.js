@@ -668,7 +668,12 @@ function applyWallChip() {
   if (!state.map || !state.wallData || !state.wallData.west) { areaChip.hidden = true; return }
   const [lon, lat] = state.map.centerLngLat()
   const west = pointInGeometry(state.wallData.west.geometry, lon, lat)
-  if (!west && !findKiez(lon, lat)) { areaChip.hidden = true; return } // outside Berlin
+  // precise Ost polygon (Berlin minus wall ring — correctly puts the DDR-run
+  // West-Staaken exclave in the East); fallback: any Kiez hit = within Berlin
+  const ost = !west && (state.wallData.ost
+    ? pointInGeometry(state.wallData.ost.geometry, lon, lat)
+    : !!findKiez(lon, lat))
+  if (!west && !ost) { areaChip.hidden = true; return } // outside Berlin
   areaChipDot.style.background = west ? '#f2efe4' : '#2b2b2b'
   areaChipName.textContent = west ? 'West-Berlin' : 'Ost-Berlin'
   areaChipLevel.textContent = '1989'
