@@ -310,6 +310,83 @@ body {
   letter-spacing: .04em;
 }
 
+/* ── wall mode: the WHOLE page goes archival ──────────────────────────────────
+   Token overrides only — every component (card, topbar, search, buttons, chip)
+   reads its colour + type from these vars, so the entire UI flips to a
+   typewriter dossier and flips back on exit without touching markup. */
+#app.wall-mode {
+  /* system typewriter stack — 0 KB, authentic Aktenvermerk. The font-family
+     here re-roots inheritance: body (outside #app) keeps Inter, but every
+     UI element inside the app inherits the typewriter unless it reads the
+     display/body var itself. */
+  font-family: var(--font-body);
+  --font-display: 'Courier New', Courier, 'Nimbus Mono PS', 'Cutive Mono', monospace;
+  --font-body: 'Courier New', Courier, 'Nimbus Mono PS', 'Cutive Mono', monospace;
+  /* ink-on-charcoal (dark default) */
+  --accent: #beb69f;
+  --accent-2: #a29a83;
+  --on-accent: #17140c;
+  --accent-container: #3a362a;
+  --on-accent-container: #e8e1cb;
+  --surface: #12110d;
+  --surface-dim: #0d0c09;
+  --sc-lowest: #14130e;
+  --sc-low: #191712;
+  --sc: #1e1c15;
+  --sc-high: #24211a;
+  --sc-highest: #2c2920;
+  --on-surface: #e9e4d3;
+  --on-surface-var: #a8a18c;
+  --outline: #3a362a;
+  --outline-faint: #26231a;
+  --glow: 0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent),
+          0 14px 50px -18px rgba(0, 0, 0, .6);
+}
+[data-theme='light'] #app.wall-mode {
+  /* ink-on-paper */
+  --accent: #57503b;
+  --accent-2: #6e6650;
+  --on-accent: #f7f2e0;
+  --accent-container: #e7dfc6;
+  --on-accent-container: #332e1e;
+  --surface: #f2ecdb;
+  --surface-dim: #e7e0cc;
+  --sc-lowest: #fbf7e9;
+  --sc-low: #f6f1e0;
+  --sc: #efe9d6;
+  --sc-high: #e8e1cc;
+  --sc-highest: #ded6be;
+  --on-surface: #262217;
+  --on-surface-var: #5d564a;
+  --outline: #c9c0a7;
+  --outline-faint: #dcd4bc;
+  --glow: 0 0 0 1px color-mix(in srgb, var(--accent) 16%, transparent),
+          0 16px 54px -20px rgba(60, 50, 20, .3);
+}
+/* typewriter tracking for display copy (Courier has no weight axis drama) */
+#app.wall-mode .eyebrow { letter-spacing: .22em; }
+#app.wall-mode .kiez-name { letter-spacing: -.02em; }
+#app.wall-mode .brand-name { letter-spacing: .02em; }
+
+/* ── sector stamp (dialog): "would you have been East or West" ── */
+.sector-slot:empty { display: none; }
+.sector-stamp { display: none; }
+#app.wall-mode .sector-stamp {
+  display: grid; gap: .18rem; justify-items: start;
+  margin: .85rem 0 .15rem; padding: .6rem .9rem .65rem;
+  border: 2px solid color-mix(in srgb, var(--on-surface) 60%, transparent);
+  outline: 1px solid color-mix(in srgb, var(--on-surface) 28%, transparent);
+  outline-offset: 3px;
+  border-radius: 4px; /* a rubber stamp, not an M3 pill */
+  transform: rotate(-1.6deg);
+  text-transform: uppercase;
+  color: var(--on-surface);
+  width: fit-content;
+}
+.sector-kicker { font-size: .66rem; letter-spacing: .3em; opacity: .72; }
+.sector-name { font-weight: 700; font-size: 1.18rem; letter-spacing: .14em; line-height: 1.1; }
+.sector-sub { font-size: .64rem; letter-spacing: .12em; opacity: .6; }
+
 /* ── stage + pass card ── */
 .stage {
   position: absolute; inset: 0; z-index: 4; pointer-events: none;

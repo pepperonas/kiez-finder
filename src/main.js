@@ -370,6 +370,36 @@ function patchAddress(line) {
   _addrValueEl.classList.remove('meta-value--pending')
 }
 
+// ── wall mode: which side of the wall a position falls on (1989) ─────────────
+function sectorFor(pos) {
+  const wd = state.wallData
+  if (!wd || !wd.west || !pos) return null
+  if (pointInGeometry(wd.west.geometry, pos.lon, pos.lat)) return 'west'
+  const ost = wd.ost ? pointInGeometry(wd.ost.geometry, pos.lon, pos.lat) : !!findKiez(pos.lon, pos.lat)
+  return ost ? 'ost' : null
+}
+// Fill the card's sector slot with the archival stamp. Rendered whenever the
+// wall data is available; visibility is CSS-gated on #app.wall-mode so toggling
+// the mode needs no re-render.
+function fillSectorSlot(slot, pos) {
+  slot.replaceChildren()
+  const s = sectorFor(pos)
+  if (!s) return
+  const west = s === 'west'
+  slot.append(h('div', { class: 'sector-stamp', 'data-reveal': '' },
+    h('span', { class: 'sector-kicker', text: 'Sektor · 1989' }),
+    h('span', { class: 'sector-name', text: west ? 'West-Berlin' : 'Ost-Berlin' }),
+    h('span', { class: 'sector-sub', text: west
+      ? 'Amerikanischer · Britischer · Französischer Sektor'
+      : 'Sowjetischer Sektor' }),
+  ))
+}
+// patch the live card once the wall data lands (first mode activation)
+function updateSectorStamp() {
+  const slot = passScroll.querySelector('.sector-slot')
+  if (slot) fillSectorSlot(slot, state.pos)
+}
+
 function renderFound({ kiez, pos, address, kiezName, openSheet = true }) {
   state.plr = kiez
   state.pos = pos
@@ -390,6 +420,9 @@ function renderFound({ kiez, pos, address, kiezName, openSheet = true }) {
     h('span', { class: 'btn-icon', html: ICONS.target }), 'Auf Karte zentrieren')
   showMap.addEventListener('click', () => fitActive())
 
+  const sectorSlot = h('div', { class: 'sector-slot' })
+  fillSectorSlot(sectorSlot, pos)
+
   const body = h('div', { class: 'pass-body pass-found' },
     h('div', { class: 'stamp', 'aria-hidden': 'true' },
       h('span', { class: 'stamp-ring' }), h('span', { class: 'stamp-pin', html: ICONS.pin })),
@@ -401,6 +434,7 @@ function renderFound({ kiez, pos, address, kiezName, openSheet = true }) {
     },
       h('h1', { class: 'kiez-name', text: titleText }),
       colloquial ? h('p', { class: 'kiez-official', text: `amtl. Planungsraum · ${p.plr_name}` }) : null),
+    sectorSlot,
     // ordered by ascending area size (Kiez = title above; then bigger → biggest).
     // The Prognoseraum is hidden when it only duplicates the Bezirk name.
     h('div', { class: 'meta' },
@@ -742,6 +776,7 @@ async function applyWall(on) {
     }
     if (!state.wall) return // toggled off again while the data was loading
     await state.map.setWallData(state.wallData)
+    updateSectorStamp() // the visible card rendered before the data existed
   }
   if (state.map) state.map.setWallMode(state.wall)
   refreshAreaChip()

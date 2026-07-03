@@ -156,6 +156,15 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   mutually exclusive (`applyWall`/`applyOverlay` switch each other off; previous overlay is
   restored on exit). The area chip becomes an Ost/West readout (`applyWallChip`,
   pointInGeometry against the west polygon). Persisted as `localStorage 'kf-wall'`.
+  **Full-page restyle:** `#app.wall-mode` overrides the design tokens (accent/surface/outline
+  per theme → ink-on-charcoal / ink-on-paper) plus `--font-display`/`--font-body` → system
+  Courier stack; `font-family: var(--font-body)` on `#app.wall-mode` re-roots inheritance
+  (body sits OUTSIDE #app, so inherited Inter would leak through otherwise). Every component
+  flips via tokens — no markup changes, instant on/off. **Sector stamp in the card:**
+  `sectorFor(pos)` (west/ost polygons) → `fillSectorSlot` renders an archival rubber-stamp
+  (`.sector-stamp`: SEKTOR · 1989 / OST-BERLIN / Sowjetischer Sektor) into a `.sector-slot`
+  in `renderFound`; CSS-gated on `#app.wall-mode` (no re-render on toggle) and patched via
+  `updateSectorStamp()` when the wall data first loads with a card already on screen.
   Tests: `tests/wall-data.test.js` (dataset shape, ~480 km² area, known-place side checks).
 - **setTheme restyle wait (map.js):** after `setStyle`, do NOT trust an immediate
   `isStyleLoaded()` — it can report a stale `true` for the DYING style, `_onLoad` then paints
