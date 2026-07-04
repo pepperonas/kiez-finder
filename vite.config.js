@@ -11,7 +11,7 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
-      includeAssets: ['icons/icon-192.png', 'icons/icon-512.png', 'favicon.svg', 'og.png'],
+      includeAssets: ['icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-512-maskable.png', 'favicon.svg', 'og.png'],
       // The Kiez polygons are large + rarely change → precache them (revisioned
       // by content hash) so the app truly works offline and data updates bust
       // the cache on deploy.
@@ -56,7 +56,9 @@ export default defineConfig({
         icons: [
           { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
           { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
-          { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          // dedicated maskable: full-bleed bg + pin inside the 80% safe zone,
+          // so Android's circle/squircle mask never clips the artwork
+          { src: 'icons/icon-512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
     }),
