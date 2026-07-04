@@ -147,10 +147,13 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   + `ost-berlin.geojson` (berlin-outline `-erase` west ring, sliver parts <0.2 km² dropped →
   404.6 km² main + 5.4 km² West-Staaken, which really was DDR territory).
   `loadWall()` in kiez.js is lazy (first toggle). map.js `setWallData`/`setWallMode` add
-  7 layers (west+ost tints theme-aware — west stronger, both lifted vs Brandenburg; strip
-  fill, dashed hinterland, white casing + black core, `lbl-wall` WEST-/OST-BERLIN wordmarks
-  at two fixed points, maxzoom 13) idempotently in `_addWallLayers`, re-added by `_onLoad`
-  after restyles. The B&W look is a
+  8 layers (west = solid bright lift; ost = lift + diagonal-HATCH `fill-pattern` — the
+  archival "other sector" signature, since grayscale leaves only lightness/texture to
+  distinguish the halves; strip fill, dashed hinterland, white casing + black core,
+  `lbl-wall` WEST-/OST-BERLIN wordmarks at two fixed points, maxzoom 13) idempotently in
+  `_addWallLayers`, re-added by `_onLoad` after restyles. The hatch tile is a canvas-drawn
+  16px image (`wall-hatch`, ink follows the theme) — style images are WIPED by setStyle,
+  so it's re-created on every (re)load (remove-then-add, never just hasImage-skip). The B&W look is a
   CSS filter on `#map` (`#app.wall-mode`) + grain/vignette pseudo-elements — wall layers are
   deliberately grayscale (lightness contrast, not hue). Wall mode and the colour overlay are
   mutually exclusive (`applyWall`/`applyOverlay` switch each other off; previous overlay is

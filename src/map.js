@@ -607,22 +607,45 @@ export class KiezMap {
     ] })
     const before = this.map.getLayer('kiez-fill') ? 'kiez-fill' : undefined
     const addLyr = (def, top) => { if (!this.map.getLayer(def.id)) this.map.addLayer(def, top ? undefined : before) }
-    // Both halves get a lift against surrounding Brandenburg, West clearly
-    // stronger than Ost: bright on the dark basemap, sepia shade on the light
-    // one (white would vanish there)
+    // Both halves must read as clearly highlighted against Brandenburg, yet
+    // stay distinguishable from EACH OTHER with lightness/texture only (the
+    // whole map is grayscaled): West = solid bright lift, Ost = comparable
+    // lift + a diagonal HATCH — the classic archival "other sector" signature.
     const paints = this.theme === 'dark'
-      ? { west: { color: '#ffffff', op: 0.12 }, ost: { color: '#ffffff', op: 0.05 } }
-      : { west: { color: '#8a7c5e', op: 0.09 }, ost: { color: '#8a7c5e', op: 0.04 } }
+      ? { west: { color: '#ffffff', op: 0.12 }, ost: { color: '#ffffff', op: 0.08 }, hatchInk: 'rgba(236,231,216,0.5)', hatchOp: 0.5 }
+      : { west: { color: '#8a7c5e', op: 0.09 }, ost: { color: '#8a7c5e', op: 0.06 }, hatchInk: 'rgba(58,52,36,0.42)', hatchOp: 0.5 }
+    // seamless 45° hatch tile, ink colour follows the theme; setStyle wipes
+    // style images → re-created on every (re)load
+    const N = 16
+    const pc = document.createElement('canvas')
+    pc.width = pc.height = N
+    const px = pc.getContext('2d')
+    px.strokeStyle = paints.hatchInk
+    px.lineWidth = 2.4
+    px.beginPath()
+    px.moveTo(0, N); px.lineTo(N, 0)       // main diagonal
+    px.moveTo(-4, 4); px.lineTo(4, -4)     // corner wrap (top-left)
+    px.moveTo(N - 4, N + 4); px.lineTo(N + 4, N - 4) // corner wrap (bottom-right)
+    px.stroke()
+    if (this.map.hasImage('wall-hatch')) this.map.removeImage('wall-hatch')
+    this.map.addImage('wall-hatch', px.getImageData(0, 0, N, N), { pixelRatio: 2 })
     if (west) addLyr({
       id: 'wall-west-fill', type: 'fill', source: 'wall-west',
       layout: { visibility: vis },
       paint: { 'fill-color': paints.west.color, 'fill-opacity': paints.west.op },
     })
-    if (ost) addLyr({
-      id: 'wall-ost-fill', type: 'fill', source: 'wall-ost',
-      layout: { visibility: vis },
-      paint: { 'fill-color': paints.ost.color, 'fill-opacity': paints.ost.op },
-    })
+    if (ost) {
+      addLyr({
+        id: 'wall-ost-fill', type: 'fill', source: 'wall-ost',
+        layout: { visibility: vis },
+        paint: { 'fill-color': paints.ost.color, 'fill-opacity': paints.ost.op },
+      })
+      addLyr({
+        id: 'wall-ost-hatch', type: 'fill', source: 'wall-ost',
+        layout: { visibility: vis },
+        paint: { 'fill-pattern': 'wall-hatch', 'fill-opacity': paints.hatchOp },
+      })
+    }
     // theme-dependent → refresh on every (re)load, like the selection colours
     for (const [id, p] of [['wall-west-fill', paints.west], ['wall-ost-fill', paints.ost]]) {
       if (this.map.getLayer(id)) {
@@ -630,6 +653,7 @@ export class KiezMap {
         this.map.setPaintProperty(id, 'fill-opacity', p.op)
       }
     }
+    if (this.map.getLayer('wall-ost-hatch')) this.map.setPaintProperty('wall-ost-hatch', 'fill-opacity', paints.hatchOp)
     // Grenzstreifen (death strip) — the pale cleared band along the wall
     addLyr({
       id: 'wall-strip', type: 'fill', source: 'wall',
@@ -698,7 +722,7 @@ export class KiezMap {
 
   setWallMode(on) {
     this._wallOn = !!on
-    for (const id of ['wall-west-fill', 'wall-ost-fill', 'wall-strip', 'wall-hinterland', 'wall-casing', 'wall-line', 'lbl-wall']) {
+    for (const id of ['wall-west-fill', 'wall-ost-fill', 'wall-ost-hatch', 'wall-strip', 'wall-hinterland', 'wall-casing', 'wall-line', 'lbl-wall']) {
       if (this.map.getLayer(id)) this.map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none')
     }
   }
