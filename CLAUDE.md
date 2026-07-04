@@ -91,6 +91,19 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   mode so it doesn't double the merged-area labels. This replaced the single static centroid point per
   area (which vanished when you zoomed past it). `main.js` also keeps a floating **"current area" chip**
   (`map.areaAtCenter` via `queryRenderedFeatures` on `ov-*-fill`) as a live centre readout while panning.
+  **Label UX rules (cartographic hierarchy):** each candidate carries `sort` (area rank →
+  `symbol-sort-key`: big areas beat slivers in collisions) and `szf` (data-driven text-size factor:
+  top-20% areas ×1.14, bottom-40% ×0.88 → visual size hierarchy). All area/ambient labels use
+  `text-variable-anchor` (center/top/bottom/left/right + radial offset) so crowded labels slide aside
+  instead of vanishing. **Anti-jitter hysteresis:** `_lblKeep` keeps a feature's chosen interior point
+  while it stays on screen (verified: 11/11 points stable across a pan; cache dropped when
+  `_labelCands` rebuild or level changes). **Selection label `lbl-sel`:** `_paint` writes the
+  highlighted area's name to `sel-pt` (interior point via `interiorPoint()`, name from
+  kiez/name/plr_name/bzr_name/pgr_name/bez), accent-tinted, `symbol-sort-key: -1` (always wins);
+  the same-named overlay label is suppressed in `_updateOverlayLabels` (`_selName`) so it isn't
+  written twice; cleared in `clearHighlight`. `lbl-bez` sizes are capped ~21px and fade to 0.75
+  past z15 so the Bezirk name stops shouting once you're deep in a Kiez; ambient `lbl-kiez` has
+  `symbol-sort-key: 10000` (must yield — the overlay `sort` ranks can reach ~400).
 - `src/kiez.js` — loads `public/data/kieze.geojson`, hand-rolled ray-cast point-in-polygon
   (bbox-prefiltered, handles MultiPolygon + holes). `findKiez(lon,lat)` → feature or null.
   Each Planungsraum carries `gid` + `kiez` (precomputed colloquial Kiez, see pipeline below).

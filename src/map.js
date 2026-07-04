@@ -215,13 +215,48 @@ function pipEvenOdd(pt, geom) {
   for (const ring of ringsOf(geom)) if (ringHas(pt, ring)) inside = !inside
   return inside
 }
+// interior point for a single feature (bbox centre if inside, else the interior
+// grid point nearest it) — anchors the selection label
+function interiorPoint(feature) {
+  const bb = bboxOf(feature)
+  const cx = (bb[0] + bb[2]) / 2, cy = (bb[1] + bb[3]) / 2
+  if (pipEvenOdd([cx, cy], feature.geometry)) return [cx, cy]
+  const N = 5
+  let best = null, bd = Infinity
+  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+    const x = bb[0] + (bb[2] - bb[0]) * (i + 0.5) / N
+    const y = bb[1] + (bb[3] - bb[1]) * (j + 0.5) / N
+    if (!pipEvenOdd([x, y], feature.geometry)) continue
+    const d = (x - cx) ** 2 + (y - cy) ** 2
+    if (d < bd) { bd = d; best = [x, y] }
+  }
+  return best || [cx, cy]
+}
+
+// planar shoelace area (relative units are enough — only used for RANKING)
+function approxArea(geom) {
+  let tot = 0
+  const polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.type === 'MultiPolygon' ? geom.coordinates : []
+  for (const poly of polys) {
+    poly.forEach((ring, ri) => {
+      let s = 0
+      for (let i = 0; i < ring.length - 1; i++) s += ring[i][0] * ring[i + 1][1] - ring[i + 1][0] * ring[i][1]
+      tot += (ri === 0 ? 1 : -1) * Math.abs(s) / 2
+    })
+  }
+  return tot
+}
+
 // For each feature: a name + bbox + a small grid of interior points. At render
 // time we pick, per visible feature, the interior point on screen nearest its
 // centre → one label per visible area, at any zoom (centroid points fall off the
 // screen when you zoom in; these don't).
+// Cartographic hierarchy: every candidate carries a collision priority (`sort`,
+// area rank — big areas beat slivers when space is tight) and a size tier
+// (`szf`, data-driven text-size factor) so important areas read bigger.
 function labelCandidates(featureColl, nameOf) {
   const N = 4
-  return featureColl.features.map((f) => {
+  const cands = featureColl.features.map((f, i) => {
     const bb = bboxOf(f) // [minLon, minLat, maxLon, maxLat]
     const pts = []
     for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
@@ -231,8 +266,16 @@ function labelCandidates(featureColl, nameOf) {
     }
     const cx = (bb[0] + bb[2]) / 2, cy = (bb[1] + bb[3]) / 2
     if (!pts.length) pts.push([cx, cy])
-    return { name: nameOf(f), c: [cx, cy], bb, pts }
+    return { id: i, name: nameOf(f), c: [cx, cy], bb, pts, area: approxArea(f.geometry) }
   })
+  // area rank → collision priority (0 = biggest wins first) + size tier
+  const byArea = cands.slice().sort((a, b) => b.area - a.area)
+  byArea.forEach((c, rank) => {
+    c.sort = rank
+    const q = rank / Math.max(1, byArea.length - 1) // 0 = biggest … 1 = smallest
+    c.szf = q < 0.2 ? 1.14 : q < 0.6 ? 1 : 0.88
+  })
+  return cands
 }
 
 export class KiezMap {
@@ -425,6 +468,7 @@ export class KiezMap {
       bzr: labelCandidates(bzr, (f) => f.properties.bzr_name),
       kiez: areas ? labelCandidates(areas, (f) => f.properties.kiez) : null,
     }
+    this._lblKeepLvl = undefined // candidate ids changed → drop the hysteresis cache
     this._addOverlayLayers()
   }
 
@@ -505,7 +549,10 @@ export class KiezMap {
             'text-field': ['get', 'name'], 'text-font': FONT_REG,
             'text-size': ['interpolate', ['linear'], ['zoom'], 12.5, 10, 14, 12.5, 16, 15],
             'text-max-width': 8, 'text-padding': 3, 'text-letter-spacing': 0.01,
-            'symbol-sort-key': 3,
+            'symbol-sort-key': 10000, // ambient names always yield to the active hierarchy
+            // shift instead of vanish when colliding
+            'text-variable-anchor': ['center', 'top', 'bottom', 'left', 'right'],
+            'text-radial-offset': 0.3,
           },
           paint: {
             'text-color': ACCENT[this.theme],
@@ -517,14 +564,21 @@ export class KiezMap {
       }
     }
 
+    // Overlay area labels. Shared cartographic rules:
+    //  · collision priority = area rank (['get','sort'] — big areas beat slivers)
+    //  · size hierarchy = per-feature factor (['get','szf'] — big areas read bigger)
+    //  · variable anchors — a crowded label slides aside before it disappears
+    const szf = (base) => ['*', base, ['coalesce', ['get', 'szf'], 1]]
     if (this.map.getSource('pt-bzr') && !this.map.getLayer('lbl-bzr')) {
       this.map.addLayer({
         id: 'lbl-bzr', type: 'symbol', source: 'pt-bzr', minzoom: 10.5,
         layout: {
           'text-field': ['get', 'name'], 'text-font': FONT_REG,
-          'text-size': ['interpolate', ['linear'], ['zoom'], 11, 9.5, 13, 11.5, 15, 13.5, 17, 15.5],
+          'text-size': ['interpolate', ['linear'], ['zoom'], 11, szf(9.5), 13, szf(11.5), 15, szf(13.5), 17, szf(15.5)],
           'text-max-width': 7, 'text-padding': 4, 'text-letter-spacing': 0.01,
-          'symbol-sort-key': 2,
+          'symbol-sort-key': ['coalesce', ['get', 'sort'], 0],
+          'text-variable-anchor': ['center', 'top', 'bottom', 'left', 'right'],
+          'text-radial-offset': 0.3,
         },
         paint: {
           'text-color': dark ? '#c3cce2' : '#3a4159',
@@ -538,15 +592,20 @@ export class KiezMap {
         id: 'lbl-bez', type: 'symbol', source: 'pt-bez',
         layout: {
           'text-field': ['get', 'name'], 'text-font': FONT_BOLD,
-          'text-size': ['interpolate', ['linear'], ['zoom'], 8, 11, 10, 14.5, 12, 19, 14, 23, 16, 27],
+          // capped at ~21px and eased back at deep zoom — the Bezirk name must
+          // not shout over the fine-grained context you zoomed in for
+          'text-size': ['interpolate', ['linear'], ['zoom'], 8, 11, 10, 14.5, 12, 18, 14, 20, 16, 21],
           'text-transform': 'uppercase', 'text-letter-spacing': 0.09,
-          'text-max-width': 8, 'text-padding': 8, 'symbol-sort-key': 0,
+          'text-max-width': 8, 'text-padding': 8,
+          'symbol-sort-key': ['coalesce', ['get', 'sort'], 0],
+          'text-variable-anchor': ['center', 'top', 'bottom', 'left', 'right'],
+          'text-radial-offset': 0.3,
         },
         paint: {
           'text-color': dark ? '#eef2ff' : '#10131c',
           'text-halo-color': dark ? haloDark : haloLight,
           'text-halo-width': 1.7, 'text-halo-blur': 0.4,
-          'text-opacity': ['interpolate', ['linear'], ['zoom'], 8, 0.92, 11, 1],
+          'text-opacity': ['interpolate', ['linear'], ['zoom'], 8, 0.92, 11, 1, 14, 1, 15.5, 0.75],
         },
       })
     }
@@ -556,8 +615,11 @@ export class KiezMap {
         id: 'lbl-kiezarea', type: 'symbol', source: 'pt-kiez',
         layout: {
           'text-field': ['get', 'name'], 'text-font': FONT_REG,
-          'text-size': ['interpolate', ['linear'], ['zoom'], 11, 10.5, 13, 12.5, 15, 14.5, 17, 16],
-          'text-max-width': 8, 'text-padding': 4, 'text-letter-spacing': 0.01, 'symbol-sort-key': 1,
+          'text-size': ['interpolate', ['linear'], ['zoom'], 11, szf(10.5), 13, szf(12.5), 15, szf(14.5), 17, szf(16)],
+          'text-max-width': 8, 'text-padding': 4, 'text-letter-spacing': 0.01,
+          'symbol-sort-key': ['coalesce', ['get', 'sort'], 0],
+          'text-variable-anchor': ['center', 'top', 'bottom', 'left', 'right'],
+          'text-radial-offset': 0.3,
         },
         paint: {
           'text-color': ACCENT[this.theme],
@@ -566,6 +628,29 @@ export class KiezMap {
         },
       })
     }
+    // the SELECTED area's own label — top collision priority, never lost in the
+    // crowd (the highlight is the map's most important object; on mobile the
+    // card is often peeked, so the map itself must name it)
+    if (!this.map.getSource('sel-pt')) this.map.addSource('sel-pt', { type: 'geojson', data: emptyFC() })
+    if (!this.map.getLayer('lbl-sel')) {
+      this.map.addLayer({
+        id: 'lbl-sel', type: 'symbol', source: 'sel-pt',
+        layout: {
+          'text-field': ['get', 'name'], 'text-font': FONT_BOLD,
+          'text-size': ['interpolate', ['linear'], ['zoom'], 9, 12, 12, 15, 15, 18],
+          'text-max-width': 8, 'text-padding': 6, 'text-letter-spacing': 0.02,
+          'symbol-sort-key': -1,
+          'text-variable-anchor': ['center', 'top', 'bottom', 'left', 'right'],
+          'text-radial-offset': 0.4,
+        },
+        paint: {
+          'text-color': ACCENT[this.theme],
+          'text-halo-color': dark ? haloDark : haloLight,
+          'text-halo-width': 2, 'text-halo-blur': 0.4,
+        },
+      })
+    }
+    if (this.map.getLayer('lbl-sel')) this.map.setPaintProperty('lbl-sel', 'text-color', ACCENT[this.theme])
     this._applyMode()
   }
 
@@ -753,16 +838,32 @@ export class KiezMap {
     if (!cands) return
     const b = this.map.getBounds()
     const W = b.getWest(), E = b.getEast(), S = b.getSouth(), No = b.getNorth()
+    const inView = (p) => p[0] >= W && p[0] <= E && p[1] >= S && p[1] <= No
+    // anti-jitter hysteresis: keep a feature's previously chosen point while it
+    // is still on screen — labels must not hop around during a pan
+    if (this._lblKeepLvl !== lvl) { this._lblKeepLvl = lvl; this._lblKeep = new Map() }
+    const keep = this._lblKeep
+    const selName = this._selName || null
     const feats = []
     for (const c of cands) {
-      if (c.bb[2] < W || c.bb[0] > E || c.bb[3] < S || c.bb[1] > No) continue // off-screen
-      let best = null, bd = Infinity
-      for (const p of c.pts) {
-        if (p[0] < W || p[0] > E || p[1] < S || p[1] > No) continue
-        const dx = p[0] - c.c[0], dy = p[1] - c.c[1], d = dx * dx + dy * dy
-        if (d < bd) { bd = d; best = p }
+      if (c.bb[2] < W || c.bb[0] > E || c.bb[3] < S || c.bb[1] > No) { keep.delete(c.id); continue } // off-screen
+      if (selName && c.name === selName) { keep.delete(c.id); continue } // the selection carries its own label
+      let best = keep.get(c.id)
+      if (!best || !inView(best)) {
+        best = null
+        let bd = Infinity
+        for (const p of c.pts) {
+          if (!inView(p)) continue
+          const dx = p[0] - c.c[0], dy = p[1] - c.c[1], d = dx * dx + dy * dy
+          if (d < bd) { bd = d; best = p }
+        }
+        if (best) keep.set(c.id, best)
+        else keep.delete(c.id)
       }
-      if (best) feats.push({ type: 'Feature', geometry: { type: 'Point', coordinates: best }, properties: { name: c.name } })
+      if (best) feats.push({
+        type: 'Feature', geometry: { type: 'Point', coordinates: best },
+        properties: { name: c.name, sort: c.sort, szf: c.szf },
+      })
     }
     const src = this.map.getSource('pt-' + lvl)
     if (src) src.setData({ type: 'FeatureCollection', features: feats })
@@ -876,6 +977,16 @@ export class KiezMap {
     const src = this.map.getSource('kiez')
     if (!src) return // mid-restyle: layers not re-added yet — skip (will repaint after)
     src.setData(fc(feature))
+    // the selection names itself on the map (top collision priority) — and the
+    // overlay label of the same area is suppressed so it isn't written twice
+    const p = feature.properties || {}
+    const name = p.kiez || p.name || p.plr_name || p.bzr_name || p.pgr_name || (p.bez ? bezirkName(p.bez) : '')
+    this._selName = name || null
+    const selSrc = this.map.getSource('sel-pt')
+    if (selSrc) selSrc.setData(name
+      ? { type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: interiorPoint(feature) }, properties: { name } }] }
+      : emptyFC())
+    this._updateOverlayLabels()
     const targetFill = this.theme === 'dark' ? 0.16 : 0.12
     const LW = 3.8, CW = 8.5 // line + casing widths (strong, pops over the overlay)
     const set = (p) => {
@@ -893,6 +1004,10 @@ export class KiezMap {
   clearHighlight() {
     this._activeFeature = null
     this._cancelPendingPaint()
+    this._selName = null
+    const selSrc = this.map.getSource('sel-pt')
+    if (selSrc) selSrc.setData(emptyFC())
+    this._updateOverlayLabels() // un-suppress the area's regular overlay label
     const src = this.map.getSource('kiez')
     if (!src) return
     src.setData(emptyFC())
