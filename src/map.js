@@ -872,18 +872,19 @@ export class KiezMap {
         }
       } catch (e) {}
     }
-    // water: rivers/lakes (fills) + canals (waterway lines) in deep ink blue
-    spot('water', 'fill-color', dark ? '#1c4a85' : '#7fa9dd')
-    spot('water_shadow', 'fill-color', dark ? '#153761' : '#6d99d2')
-    spot('waterway', 'line-color', dark ? '#2456a0' : '#6d99d2')
+    // water: rivers/lakes (fills) + canals (waterway lines) in deep ink blue —
+    // saturated hard so it clearly survives the (halved) desaturation
+    spot('water', 'fill-color', dark ? '#2563b8' : '#5b8ecf')
+    spot('water_shadow', 'fill-color', dark ? '#1c4a8f' : '#4d80c4')
+    spot('waterway', 'line-color', dark ? '#2e6cc4' : '#4d80c4')
     for (const id of ['watername_lake', 'watername_lake_line', 'waterway_label', 'watername_sea', 'watername_ocean']) {
-      spot(id, 'text-color', dark ? '#6b93cf' : '#3f66a6')
+      spot(id, 'text-color', dark ? '#7ea8e6' : '#2f5695')
     }
-    // parks: a firmer green than the normal-mode wash
-    const green = dark ? '#2f8a4d' : '#4f9a58'
+    // parks: firm, clearly-green wash
+    const green = dark ? '#3aa75c' : '#43a352'
     const greenOp = dark
-      ? ['interpolate', ['linear'], ['zoom'], 10, 0.14, 13, 0.2, 15, 0.26]
-      : ['interpolate', ['linear'], ['zoom'], 10, 0.28, 13, 0.38, 15, 0.46]
+      ? ['interpolate', ['linear'], ['zoom'], 10, 0.2, 13, 0.28, 15, 0.36]
+      : ['interpolate', ['linear'], ['zoom'], 10, 0.36, 13, 0.46, 15, 0.55]
     for (const id of ['landcover', 'park_national_park', 'park_nature_reserve']) {
       spot(id, 'fill-color', green)
       spot(id, 'fill-opacity', greenOp)
@@ -1037,7 +1038,8 @@ export class KiezMap {
       padding: this._fitPadding(),
       duration: reduceMotion() ? 0 : 900,
       essential: true,
-      maxZoom: 15,
+      // keep surrounding context: small Kieze must not slam the camera in
+      maxZoom: 13.7,
     })
   }
 

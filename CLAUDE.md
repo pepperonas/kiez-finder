@@ -182,7 +182,7 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   so it's re-created on every (re)load (remove-then-add, never just hasImage-skip). The B&W look is a
   CSS filter on `#map` (`#app.wall-mode`) + grain/vignette pseudo-elements — wall layers are
   deliberately grayscale (lightness contrast, not hue). **Spot colours:** the filter is
-  `grayscale(0.65)` (NOT 1) so `_applyWallSpotColors(on)` can paint water (fills + waterway
+  `grayscale(0.5)` (NOT 1) so `_applyWallSpotColors(on)` can paint water (fills + waterway
   lines + water names) in OVERSATURATED ink blue and parks in firm green — after the filter
   they read as the muted two-spot-colour tints of an old printed map. Originals are stashed
   per layer|prop and restored on exit; `_addWallLayers` resets the stash after restyles and

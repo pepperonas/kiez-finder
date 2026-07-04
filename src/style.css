@@ -293,10 +293,10 @@ body {
 /* the whole map desaturates to a lightly aged archival print; the wall layers
    are drawn in pure black/white so they survive the filter with full contrast */
 #app.wall-mode #map {
-  /* partial desaturation: the basemap is near-neutral anyway, but ~35% chroma
+  /* partial desaturation: the basemap is near-neutral anyway, but ~50% chroma
      survives — enough for the archival SPOT COLOURS (oversaturated ink-blue
-     water + green parks painted in-canvas read as aged, muted tints) */
-  filter: grayscale(0.65) sepia(0.16) contrast(1.07) brightness(1.02);
+     water + green parks painted in-canvas read as aged, punchy tints) */
+  filter: grayscale(0.5) sepia(0.16) contrast(1.07) brightness(1.02);
 }
 #app.wall-mode #map::before { /* vignette — old-lens falloff */
   content: ''; position: absolute; inset: 0; z-index: 5; pointer-events: none;
