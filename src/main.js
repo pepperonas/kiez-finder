@@ -196,10 +196,25 @@ function setSheetY(y) {
 function measureSheet() {
   sheet.H = card.offsetHeight
   const cardTop = card.getBoundingClientRect().top
-  const titleEl = card.querySelector('.level-title, .kiez-name, .locating-title') || passScroll.firstElementChild
+  // the peeked strip is just grabber + title — stamp/radar/eyebrow/subline
+  // collapse via CSS ([data-sheet='peek']). Measure the title's real position
+  // and subtract exactly what will collapse ABOVE it (works measured in either
+  // state: collapsed elements simply contribute 0).
+  const nameEl = card.querySelector('.kiez-name, .locating-title')
   let peek = 176
-  if (titleEl) peek = (titleEl.getBoundingClientRect().bottom - cardTop) + 20
-  sheet.peek = Math.max(120, Math.min(sheet.H - 48, peek))
+  if (nameEl) {
+    const outerH = (el) => {
+      if (!el) return 0
+      const cs = getComputedStyle(el)
+      return el.offsetHeight + (parseFloat(cs.marginTop) || 0) + (parseFloat(cs.marginBottom) || 0)
+    }
+    const deco = outerH(card.querySelector('.stamp, .radar')) + outerH(card.querySelector('.eyebrow'))
+    peek = (nameEl.getBoundingClientRect().bottom - cardTop) - deco + 10
+  } else {
+    const titleEl = card.querySelector('.level-title') || passScroll.firstElementChild
+    if (titleEl) peek = (titleEl.getBoundingClientRect().bottom - cardTop) + 20
+  }
+  sheet.peek = Math.max(76, Math.min(sheet.H - 48, peek))
 }
 function snapTarget(state) { return state === 'peek' ? Math.max(0, sheet.H - sheet.peek) : 0 }
 function snapTo(state, instant = false) {

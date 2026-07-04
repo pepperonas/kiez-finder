@@ -572,6 +572,19 @@ body {
   display: grid; place-items: center;
   animation: stamp-in 700ms var(--ease-emphasized) both;
 }
+/* Peeked bottom sheet: everything decorative/secondary above+below the title
+   collapses, so the strip is just grabber + Kiez name — the sheet claims as
+   little of the map as possible. data-sheet only exists on mobile. */
+.pass[data-sheet] :is(.stamp, .radar, .eyebrow, .kiez-official) {
+  overflow: hidden;
+  transition: max-height var(--dur-med) var(--ease-emphasized),
+              opacity var(--dur-short) var(--ease-standard),
+              margin var(--dur-med) var(--ease-emphasized);
+  max-height: 110px;
+}
+.pass[data-sheet='peek'] :is(.stamp, .radar, .eyebrow, .kiez-official) {
+  max-height: 0; opacity: 0; margin: 0;
+}
 @keyframes stamp-in {
   0% { opacity: 0; transform: scale(.4) rotate(-12deg); }
   55% { opacity: 1; transform: scale(1.12) rotate(3deg); }

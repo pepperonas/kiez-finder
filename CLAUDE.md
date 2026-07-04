@@ -48,6 +48,12 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   the sheet open over the map and overlay-mode switches looked like they did nothing.
   **Mobile bottom sheet** (`sheet`/`initSheetDrag` + `beginDrag`/`moveDrag`/`endDrag`): on `≤839px`
   the card is a fixed bottom sheet, `--sheet-y` transform, `open`↔`peek` snap via the M3 spring.
+  **Compact peek (~113px):** in peek the decorative/secondary elements collapse via CSS
+  (`.pass[data-sheet='peek'] :is(.stamp,.radar,.eyebrow,.kiez-official)` → max-height 0) so the
+  strip is just grabber + Kiez title. `measureSheet` measures the title's real bottom and
+  subtracts the outer heights of exactly what collapses ABOVE it (stamp/radar + eyebrow) — this
+  works measured in either state (collapsed elements contribute 0), so resize-while-peeked stays
+  correct. Don't hard-code the peek height; paddings/margins between handle and title vary.
   **Touch gestures** (touch events, `{passive:false}`): a drag starts from the 44px handle (any dir),
   the peeked sheet (any vertical), or the content **only when scrolled to top & pulling down** — else
   native scroll wins (`touch-action: pan-y` on `.pass-scroll`). Velocity+position snap (light flick).
