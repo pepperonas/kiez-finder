@@ -181,7 +181,14 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   16px image (`wall-hatch`, ink follows the theme) — style images are WIPED by setStyle,
   so it's re-created on every (re)load (remove-then-add, never just hasImage-skip). The B&W look is a
   CSS filter on `#map` (`#app.wall-mode`) + grain/vignette pseudo-elements — wall layers are
-  deliberately grayscale (lightness contrast, not hue). Wall mode and the colour overlay are
+  deliberately grayscale (lightness contrast, not hue). **Spot colours:** the filter is
+  `grayscale(0.65)` (NOT 1) so `_applyWallSpotColors(on)` can paint water (fills + waterway
+  lines + water names) in OVERSATURATED ink blue and parks in firm green — after the filter
+  they read as the muted two-spot-colour tints of an old printed map. Originals are stashed
+  per layer|prop and restored on exit; `_addWallLayers` resets the stash after restyles and
+  re-applies when `_wallOn`. The weakened filter would leak our accent blue → `lbl-kiez`,
+  `lbl-sel`, `kiez-fill` are re-inked in wall mode via the same stash mechanism.
+  Wall mode and the colour overlay are
   mutually exclusive (`applyWall`/`applyOverlay` switch each other off; previous overlay is
   restored on exit). The area chip becomes an Ost/West readout (`applyWallChip`,
   pointInGeometry against the west polygon). Persisted as `localStorage 'kf-wall'`.

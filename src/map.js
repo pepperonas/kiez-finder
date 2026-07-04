@@ -837,6 +837,10 @@ export class KiezMap {
       this.map.setPaintProperty('lbl-wall', 'text-color', lblPaint.color)
       this.map.setPaintProperty('lbl-wall', 'text-halo-color', lblPaint.halo)
     }
+    // a restyle carries fresh original paints → drop the stale stash and
+    // re-apply the spot colours if the mode is active
+    this._spotOrig = {}
+    if (this._wallOn) this._applyWallSpotColors(true)
   }
 
   setWallMode(on) {
@@ -844,6 +848,51 @@ export class KiezMap {
     for (const id of ['wall-west-fill', 'wall-ost-fill', 'wall-ost-hatch', 'wall-strip', 'wall-hinterland', 'wall-casing', 'wall-line', 'lbl-wall']) {
       if (this.map.getLayer(id)) this.map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none')
     }
+    this._applyWallSpotColors(on)
+  }
+
+  // Archival spot colours for wall mode: water in ink blue, parks in green —
+  // painted OVERSATURATED because the retro CSS filter still removes ~65% of
+  // the chroma; what survives is the muted, aged tint of an old printed map.
+  // Originals are stashed and restored on exit; after a restyle the stash is
+  // reset (the fresh style carries originals again).
+  _applyWallSpotColors(on) {
+    const dark = this.theme === 'dark'
+    if (!this._spotOrig) this._spotOrig = {}
+    const spot = (id, prop, v) => {
+      if (!this.map.getLayer(id)) return
+      const key = id + '|' + prop
+      try {
+        if (on) {
+          if (!(key in this._spotOrig)) this._spotOrig[key] = this.map.getPaintProperty(id, prop)
+          this.map.setPaintProperty(id, prop, v)
+        } else if (key in this._spotOrig) {
+          this.map.setPaintProperty(id, prop, this._spotOrig[key])
+          delete this._spotOrig[key]
+        }
+      } catch (e) {}
+    }
+    // water: rivers/lakes (fills) + canals (waterway lines) in deep ink blue
+    spot('water', 'fill-color', dark ? '#1c4a85' : '#7fa9dd')
+    spot('water_shadow', 'fill-color', dark ? '#153761' : '#6d99d2')
+    spot('waterway', 'line-color', dark ? '#2456a0' : '#6d99d2')
+    for (const id of ['watername_lake', 'watername_lake_line', 'waterway_label', 'watername_sea', 'watername_ocean']) {
+      spot(id, 'text-color', dark ? '#6b93cf' : '#3f66a6')
+    }
+    // parks: a firmer green than the normal-mode wash
+    const green = dark ? '#2f8a4d' : '#4f9a58'
+    const greenOp = dark
+      ? ['interpolate', ['linear'], ['zoom'], 10, 0.14, 13, 0.2, 15, 0.26]
+      : ['interpolate', ['linear'], ['zoom'], 10, 0.28, 13, 0.38, 15, 0.46]
+    for (const id of ['landcover', 'park_national_park', 'park_nature_reserve']) {
+      spot(id, 'fill-color', green)
+      spot(id, 'fill-opacity', greenOp)
+    }
+    spot('poi_park', 'text-color', dark ? '#63a877' : '#3c7a48')
+    // our own accent layers would leak blue through the weakened filter → ink
+    spot('lbl-kiez', 'text-color', dark ? '#c9c2ac' : '#4a4536')
+    spot('lbl-sel', 'text-color', dark ? '#efe9d5' : '#241f14')
+    spot('kiez-fill', 'fill-color', dark ? '#cfc7ae' : '#57503b')
   }
 
   /** Current camera centre as [lon, lat] — feeds the Ost/West side readout. */
