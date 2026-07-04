@@ -78,7 +78,14 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   14-hue cool ramp (greedy by degree + local passes, deterministic) so adjacent areas get far-apart
   hues; `colorAt(slot)` maps slot→colour. Bezirke keep `computeBezSlots()` (12 unique slots).
   `_tuneBasemapLabels()` hides the basemap's own suburb/hamlet/village place labels to avoid
-  duplication. `setTheme()` re-adds custom layers AND recolours overlays after `setStyle()`.
+  duplication. `_tuneBasemapDetails()` surfaces streets + parks gently: dark-matter paints green
+  spaces `#0e0e0e` (invisible) and shows minor street names only at z16 — we retint
+  `landcover`/`park_*` fills (quiet theme-matched green, opacity grows with zoom), pull street
+  names one zoom step earlier (`setLayerZoomRange`: minor 16→15, sec 15→14, pri 14→13.5) in muted
+  tones that sit under the accent Kiez labels, and bring `poi_park` names to z14 (green-tinted).
+  The selection also filters its own name out of the ambient `lbl-kiez` layer (setFilter in
+  `_paint`/`clearHighlight`) so it isn't written twice. `setTheme()` re-adds custom layers AND
+  recolours overlays after `setStyle()` (tunings re-run in `_onLoad`).
   **Colloquial Kiez labels:** `lbl-kiez` renders OSM `place=quarter/neighbourhood` names
   (`public/data/kiez-names.geojson`, 537 pts from Overpass) accent-tinted at z≥12.5 — the vernacular
   Kieze (Flughafenkiez, Reuterkiez …), distinct from the official labels.

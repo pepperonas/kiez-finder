@@ -395,8 +395,42 @@ export class KiezMap {
     if (this.map.getLayer('kiez-fill')) this.map.setPaintProperty('kiez-fill', 'fill-color', accent)
 
     this._tuneBasemapLabels()
+    this._tuneBasemapDetails()
     if (this._overlayRaw) this._addOverlayLayers()
     if (this._wallRaw) this._addWallLayers()
+  }
+
+  // Streets + parks, gently. The basemap ships them but hides/dims them too
+  // hard for a neighbourhood app: dark-matter paints green spaces #0e0e0e
+  // (invisible) and minor street names only appear at z16. Surface both a step
+  // earlier, in muted theme-matched tones that sit UNDER the Kiez hierarchy.
+  _tuneBasemapDetails() {
+    const dark = this.theme === 'dark'
+    const set = (id, prop, v) => { try { if (this.map.getLayer(id)) this.map.setPaintProperty(id, prop, v) } catch (e) {} }
+    const zoom = (id, z) => { try { if (this.map.getLayer(id)) this.map.setLayerZoomRange(id, z, 24) } catch (e) {} }
+    // green spaces: a quiet wash that grows slightly as you approach
+    const parkFill = dark ? '#6fae7f' : '#aecfa6'
+    const parkOp = dark
+      ? ['interpolate', ['linear'], ['zoom'], 10, 0.05, 13, 0.09, 15, 0.12]
+      : ['interpolate', ['linear'], ['zoom'], 10, 0.18, 13, 0.28, 15, 0.34]
+    for (const id of ['landcover', 'park_national_park', 'park_nature_reserve']) {
+      set(id, 'fill-color', parkFill)
+      set(id, 'fill-opacity', parkOp)
+    }
+    // park names: one step earlier + green-tinted, quiet
+    zoom('poi_park', 14)
+    set('poi_park', 'text-color', dark ? '#93b89c' : '#4f7a55')
+    set('poi_park', 'text-halo-color', dark ? 'rgba(6,9,16,0.85)' : 'rgba(255,255,255,0.9)')
+    // street names: one zoom step earlier, muted so they never compete with
+    // the accent-tinted Kiez labels
+    zoom('roadname_minor', 15)
+    zoom('roadname_sec', 14)
+    zoom('roadname_pri', 13.5)
+    const road = dark ? '#8d95ab' : '#8a8f9e'
+    for (const id of ['roadname_minor', 'roadname_sec', 'roadname_pri', 'roadname_major']) {
+      set(id, 'text-color', road)
+      set(id, 'text-halo-color', dark ? 'rgba(6,9,16,0.8)' : 'rgba(255,255,255,0.85)')
+    }
   }
 
   // Hide the basemap's own neighbourhood labels (suburbs/hamlets) so our
@@ -986,6 +1020,8 @@ export class KiezMap {
     if (selSrc) selSrc.setData(name
       ? { type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: interiorPoint(feature) }, properties: { name } }] }
       : emptyFC())
+    // the ambient OSM name point of the same Kiez would double the selection label
+    if (this.map.getLayer('lbl-kiez')) this.map.setFilter('lbl-kiez', name ? ['!=', ['get', 'name'], name] : null)
     this._updateOverlayLabels()
     const targetFill = this.theme === 'dark' ? 0.16 : 0.12
     const LW = 3.8, CW = 8.5 // line + casing widths (strong, pops over the overlay)
@@ -1007,6 +1043,7 @@ export class KiezMap {
     this._selName = null
     const selSrc = this.map.getSource('sel-pt')
     if (selSrc) selSrc.setData(emptyFC())
+    if (this.map.getLayer('lbl-kiez')) this.map.setFilter('lbl-kiez', null)
     this._updateOverlayLabels() // un-suppress the area's regular overlay label
     const src = this.map.getSource('kiez')
     if (!src) return
