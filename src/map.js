@@ -18,8 +18,8 @@ const ACCENT = { dark: '#7da2ff', light: '#3b5bdb' }
 // strong selection outline: a bright crisp line over a dark/light casing halo so
 // the active boundary stands out on any background (incl. the dense colour overlay)
 const SELECTION = {
-  dark: { line: '#ffffff', casing: 'rgba(5,9,17,0.85)' },
-  light: { line: '#0b1c52', casing: 'rgba(255,255,255,0.9)' },
+  dark: { line: '#ffffff', casing: 'rgba(5,9,17,0.7)', glow: '#dfe8ff', glowOp: 0.5 },
+  light: { line: '#0b1c52', casing: 'rgba(255,255,255,0.8)', glow: '#3050b4', glowOp: 0.3 },
 }
 
 // fonts that ship with the Carto glyph endpoint (bold + regular stacks)
@@ -375,12 +375,22 @@ export class KiezMap {
       source: 'kiez',
       paint: { 'fill-color': accent, 'fill-opacity': 0 },
     })
+    // Feathered light straddling the boundary — a heavily blurred wide line
+    // reads as outer glow AND inner vignette at once (winding-independent,
+    // unlike line-offset tricks). Replaces the old hard white slab look.
+    addLyr({
+      id: 'kiez-glow',
+      type: 'line',
+      source: 'kiez',
+      layout: { 'line-join': 'round', 'line-cap': 'round' },
+      paint: { 'line-color': sel.glow, 'line-width': 0, 'line-opacity': 0, 'line-blur': 14 },
+    })
     addLyr({
       id: 'kiez-casing',
       type: 'line',
       source: 'kiez',
       layout: { 'line-join': 'round', 'line-cap': 'round' },
-      paint: { 'line-color': sel.casing, 'line-width': 0, 'line-opacity': 0, 'line-blur': 0.8 },
+      paint: { 'line-color': sel.casing, 'line-width': 0, 'line-opacity': 0, 'line-blur': 1.4 },
     })
     addLyr({
       id: 'kiez-line',
@@ -392,6 +402,7 @@ export class KiezMap {
     // selection colours are theme-dependent → refresh on every (re)load
     if (this.map.getLayer('kiez-line')) this.map.setPaintProperty('kiez-line', 'line-color', sel.line)
     if (this.map.getLayer('kiez-casing')) this.map.setPaintProperty('kiez-casing', 'line-color', sel.casing)
+    if (this.map.getLayer('kiez-glow')) this.map.setPaintProperty('kiez-glow', 'line-color', sel.glow)
     if (this.map.getLayer('kiez-fill')) this.map.setPaintProperty('kiez-fill', 'fill-color', accent)
 
     this._tuneBasemapLabels()
@@ -672,7 +683,7 @@ export class KiezMap {
         layout: {
           'text-field': ['get', 'name'], 'text-font': FONT_BOLD,
           'text-size': ['interpolate', ['linear'], ['zoom'], 9, 12, 12, 15, 15, 18],
-          'text-max-width': 8, 'text-padding': 6, 'text-letter-spacing': 0.02,
+          'text-max-width': 8, 'text-padding': 6, 'text-letter-spacing': 0.06,
           'symbol-sort-key': -1,
           'text-variable-anchor': ['center', 'top', 'bottom', 'left', 'right'],
           'text-radial-offset': 0.4,
@@ -680,7 +691,7 @@ export class KiezMap {
         paint: {
           'text-color': ACCENT[this.theme],
           'text-halo-color': dark ? haloDark : haloLight,
-          'text-halo-width': 2, 'text-halo-blur': 0.4,
+          'text-halo-width': 2.4, 'text-halo-blur': 0.8,
         },
       })
     }
@@ -731,16 +742,19 @@ export class KiezMap {
     // whole map is grayscaled): West = solid bright lift, Ost = comparable
     // lift + a diagonal HATCH — the classic archival "other sector" signature.
     const paints = this.theme === 'dark'
-      ? { west: { color: '#ffffff', op: 0.12 }, ost: { color: '#ffffff', op: 0.08 }, hatchInk: 'rgba(236,231,216,0.5)', hatchOp: 0.5 }
-      : { west: { color: '#8a7c5e', op: 0.09 }, ost: { color: '#8a7c5e', op: 0.06 }, hatchInk: 'rgba(58,52,36,0.42)', hatchOp: 0.5 }
+      ? { west: { color: '#ffffff', op: 0.12 }, ost: { color: '#ffffff', op: 0.08 }, hatchInk: 'rgba(236,231,216,0.78)', hatchOp: 0.6 }
+      : { west: { color: '#8a7c5e', op: 0.09 }, ost: { color: '#8a7c5e', op: 0.06 }, hatchInk: 'rgba(58,52,36,0.62)', hatchOp: 0.6 }
     // seamless 45° hatch tile, ink colour follows the theme; setStyle wipes
     // style images → re-created on every (re)load
-    const N = 16
+    const N = 20
     const pc = document.createElement('canvas')
     pc.width = pc.height = N
     const px = pc.getContext('2d')
     px.strokeStyle = paints.hatchInk
-    px.lineWidth = 2.4
+    // Fine engraving-like strokes — the old 2.4px ink read as coarse zebra
+    // stripes; thinner lines at slightly lower opacity read as archival
+    // texture while the sector stays clearly marked.
+    px.lineWidth = 1.5
     px.beginPath()
     px.moveTo(0, N); px.lineTo(N, 0)       // main diagonal
     px.moveTo(-4, 4); px.lineTo(4, -4)     // corner wrap (top-left)
@@ -790,6 +804,19 @@ export class KiezMap {
         'line-width': ['interpolate', ['linear'], ['zoom'], 10, 0.6, 14, 1.8],
         'line-dasharray': [2, 2],
         'line-opacity': 0.75,
+      },
+    })
+    // A soft light along the wall course — heavy blur under the casing gives
+    // the border a gentle presence-glow instead of a hard cut-out edge.
+    addLyr({
+      id: 'wall-glow', type: 'line', source: 'wall',
+      filter: ['==', ['get', 'typ'], 'mauer'],
+      layout: { visibility: vis, 'line-join': 'round', 'line-cap': 'round' },
+      paint: {
+        'line-color': this.theme === 'dark' ? '#f5f1e2' : '#5a503a',
+        'line-width': ['interpolate', ['linear'], ['zoom'], 8, 9, 12, 18, 15, 30],
+        'line-blur': ['interpolate', ['linear'], ['zoom'], 8, 9, 12, 18, 15, 30],
+        'line-opacity': this.theme === 'dark' ? 0.3 : 0.18,
       },
     })
     // the Grenzmauer itself: wide white casing + near-black core
@@ -845,7 +872,7 @@ export class KiezMap {
 
   setWallMode(on) {
     this._wallOn = !!on
-    for (const id of ['wall-west-fill', 'wall-ost-fill', 'wall-ost-hatch', 'wall-strip', 'wall-hinterland', 'wall-casing', 'wall-line', 'lbl-wall']) {
+    for (const id of ['wall-west-fill', 'wall-ost-fill', 'wall-ost-hatch', 'wall-strip', 'wall-hinterland', 'wall-glow', 'wall-casing', 'wall-line', 'lbl-wall']) {
       if (this.map.getLayer(id)) this.map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none')
     }
     this._applyWallSpotColors(on)
@@ -1074,13 +1101,19 @@ export class KiezMap {
     // the ambient OSM name point of the same Kiez would double the selection label
     if (this.map.getLayer('lbl-kiez')) this.map.setFilter('lbl-kiez', name ? ['!=', ['get', 'name'], name] : null)
     this._updateOverlayLabels()
-    const targetFill = this.theme === 'dark' ? 0.16 : 0.12
-    const LW = 3.8, CW = 8.5 // line + casing widths (strong, pops over the overlay)
+    const targetFill = this.theme === 'dark' ? 0.13 : 0.1
+    // Slimmer, layered boundary: soft feathered glow (GW, heavy blur) under a
+    // thin dark seat (CW) under a crisp hairline (LW) — depth instead of the
+    // old 8.5px white slab.
+    const LW = 2.2, CW = 4.6, GW = 17
+    const glowOp = SELECTION[this.theme].glowOp
     const set = (p) => {
       this.map.setPaintProperty('kiez-fill', 'fill-opacity', targetFill * p)
+      this.map.setPaintProperty('kiez-glow', 'line-opacity', glowOp * p)
+      this.map.setPaintProperty('kiez-glow', 'line-width', GW * p)
       this.map.setPaintProperty('kiez-line', 'line-opacity', Math.min(1, p))
       this.map.setPaintProperty('kiez-line', 'line-width', LW * p)
-      this.map.setPaintProperty('kiez-casing', 'line-opacity', Math.min(1, p) * 0.9)
+      this.map.setPaintProperty('kiez-casing', 'line-opacity', Math.min(1, p) * 0.75)
       this.map.setPaintProperty('kiez-casing', 'line-width', CW * p)
     }
     if (instant || reduceMotion()) { set(1); return }
@@ -1100,6 +1133,7 @@ export class KiezMap {
     if (!src) return
     src.setData(emptyFC())
     this.map.setPaintProperty('kiez-fill', 'fill-opacity', 0)
+    this.map.setPaintProperty('kiez-glow', 'line-opacity', 0)
     this.map.setPaintProperty('kiez-line', 'line-opacity', 0)
     this.map.setPaintProperty('kiez-casing', 'line-opacity', 0)
   }
