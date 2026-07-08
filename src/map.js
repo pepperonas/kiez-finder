@@ -1070,6 +1070,22 @@ export class KiezMap {
     })
   }
 
+  /** Street pick from search: beacon on the street, paint its Kiez, frame the
+   *  street's own bbox (closer than an area fit — a street must be readable). */
+  async frameStreet(lon, lat, feature, bbox) {
+    await this._ready
+    this._lastPos = [lon, lat]
+    this._placeBeacon([lon, lat])
+    if (feature) this._paint(feature)
+    else this.clearHighlight()
+    if (bbox) this.map.fitBounds([[bbox[0], bbox[1]], [bbox[2], bbox[3]]], {
+      padding: this._fitPadding(),
+      duration: reduceMotion() ? 0 : 900,
+      essential: true,
+      maxZoom: 15.5, // short streets: close enough to read the name, still with context
+    })
+  }
+
   // leave room for the pass card (bottom sheet on mobile, side panel on desktop)
   _fitPadding() {
     const wide = window.matchMedia('(min-width: 840px)').matches

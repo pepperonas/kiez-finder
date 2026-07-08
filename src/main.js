@@ -9,9 +9,9 @@
 // ─────────────────────────────────────────────────────────────────────────
 import './style.css'
 import { KiezMap } from './map.js'
-import { loadKieze, loadOutline, loadLevels, levelFC, loadKiezNames, loadWall, findKiez,
-  bezirkName, kmFromBerlin, featureForLevel, levelName, kiezAreaFor, kiezeFC, kiezAreasFC,
-  osmKiezeFC, findOsmKiez, pointInGeometry } from './kiez.js'
+import { loadKieze, loadOutline, loadLevels, levelFC, loadKiezNames, loadWall, loadStreets,
+  findKiez, bezirkName, kmFromBerlin, featureForLevel, levelName, kiezAreaFor, kiezeFC,
+  kiezAreasFC, osmKiezeFC, findOsmKiez, pointInGeometry } from './kiez.js'
 import { buildSearchIndex, search } from './search.js'
 import { getPosition, reverseGeocode } from './geo.js'
 import { revealStagger, tweenNumber, spring, SPRINGS, reduceMotion, finePointer, damdamper } from './motion.js'
@@ -46,6 +46,7 @@ const ICONS = {
   loc: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><circle cx="12" cy="12" r="7.5"/><path d="M12 1.6v3M12 19.4v3M1.6 12h3M19.4 12h3" stroke-linecap="round"/></svg>',
   chevronL: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   chevronR: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  road: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4 5.5 20M16 4l2.5 16" stroke-linecap="round"/><path d="M12 4.6v3M12 10.7v3M12 16.8v3" stroke-linecap="round"/></svg>',
 }
 
 const state = {
@@ -799,7 +800,7 @@ async function applyWall(on) {
 wallBtn.addEventListener('click', () => applyWall(!state.wall))
 
 // ── search controller ────────────────────────────────────────────────────────
-const TYPE_ICON = { bez: ICONS.layers, bzr: ICONS.layers, pgr: ICONS.layers, kiez: ICONS.pin, plr: ICONS.pin }
+const TYPE_ICON = { bez: ICONS.layers, bzr: ICONS.layers, pgr: ICONS.layers, kiez: ICONS.pin, plr: ICONS.pin, str: ICONS.road }
 let _hits = [], _active = -1
 
 function highlightMatch(label, query) {
@@ -857,27 +858,48 @@ function selectPlace(e) {
   searchClear.hidden = false
   searchInput.blur()
   state.selectedPlace = e
+  if (e.type === 'str') { selectStreet(e); return }
   if (state.map) state.map.highlight(e.feature, { fit: true })
   renderPlace(e)
 }
 
-function renderPlace(e) {
+// A street has no LOR polygon — resolve its Kiez from the on-street point,
+// highlight that, and frame the camera on the street's own extent.
+function selectStreet(e) {
+  state.plr = null
+  const [lon, lat] = e.pt
+  const kiez = kiezeFC() ? findKiez(lon, lat) : null
+  const osm = kiez ? findOsmKiez(lon, lat) : null
+  const area = osm || (kiez ? kiezAreaFor(kiez) : null)
+  state.kiezArea = area
+  const kiezLabel = osm ? osm.properties.name
+    : kiez ? (kiez.properties.kiez || kiez.properties.plr_name) : null
+  const frame = () => state.map && state.map.frameStreet(lon, lat, area, e.bbox)
+  frame()
+  renderPlace(e, { sub: 'in ' + [kiezLabel, e.sub].filter(Boolean).join(' · '), onCenter: frame })
+}
+
+function renderPlace(e, opts = {}) {
   state.plr = null
   const back = h('button', { class: 'btn btn-filled', type: 'button', 'data-reveal': '' },
     h('span', { class: 'btn-icon', html: ICONS.loc }), 'Mein Standort')
   back.addEventListener('click', () => { searchInput.value = ''; searchClear.hidden = true; checkIn() })
   const center = h('button', { class: 'btn btn-tonal', type: 'button', 'data-reveal': '' },
     h('span', { class: 'btn-icon', html: ICONS.target }), 'Auf Karte zentrieren')
-  center.addEventListener('click', () => state.map && state.map.fitTo(e.feature))
+  center.addEventListener('click', () => { if (!state.map) return; opts.onCenter ? opts.onCenter() : state.map.fitTo(e.feature) })
+  const subText = opts.sub != null ? opts.sub
+    : e.sub ? (e.sub === 'Berlin' ? 'Berliner Bezirk' : `in ${e.sub}`) : null
   setCard(
     h('div', { class: 'pass-body pass-found' },
       h('div', { class: 'stamp', 'aria-hidden': 'true' },
         h('span', { class: 'stamp-ring' }), h('span', { class: 'stamp-pin', html: ICONS.pin })),
       h('p', { class: 'eyebrow', 'data-reveal': '', text: 'Ausgewählt · ' + e.typeLabel }),
       h('h1', { class: 'kiez-name', 'data-reveal': '', text: e.label }),
-      e.sub ? h('p', { class: 'muted', 'data-reveal': '', text: e.sub === 'Berlin' ? 'Berliner Bezirk' : `in ${e.sub}` }) : null,
+      subText ? h('p', { class: 'muted', 'data-reveal': '', text: subText }) : null,
       h('div', { class: 'actions' }, back, center),
-      h('p', { class: 'source', 'data-reveal': '', html: 'Grenzen: LOR 2021 · Geoportal Berlin / Amt für Statistik Berlin-Brandenburg' }),
+      h('p', { class: 'source', 'data-reveal': '', html: e.type === 'str'
+        ? 'Straßen: © OpenStreetMap-Mitwirkende (ODbL) · Grenzen: LOR 2021 · Geoportal Berlin'
+        : 'Grenzen: LOR 2021 · Geoportal Berlin / Amt für Statistik Berlin-Brandenburg' }),
     )
   )
 }
@@ -987,7 +1009,7 @@ async function boot() {
   await Promise.all([loadKieze().catch(() => null), state.map.whenReady()])
   // aggregate levels feed the level-switch highlight + sector overlay;
   // colloquial OSM Kiez names feed the accent map labels
-  Promise.all([loadLevels(), loadKiezNames().catch(() => null)]).then(([, kiezNames]) => {
+  Promise.all([loadLevels(), loadKiezNames().catch(() => null), loadStreets().catch(() => null)]).then(([, kiezNames, streets]) => {
     const fc = levelFC()
     if (fc && state.map) {
       state.map.setOverlayData({
@@ -998,9 +1020,9 @@ async function boot() {
         refreshAreaChip() // a restored overlay must name the area even before any pan
       })
     }
-    // build the fuzzy search index across all levels + colloquial Kieze
+    // build the fuzzy search index across all levels + colloquial Kieze + streets
     if (fc) {
-      buildSearchIndex({ kieze: kiezeFC(), areas: kiezAreasFC(), osmKieze: osmKiezeFC(), bez: fc.bez, bzr: fc.bzr, pgr: fc.pgr })
+      buildSearchIndex({ kieze: kiezeFC(), areas: kiezAreasFC(), osmKieze: osmKiezeFC(), bez: fc.bez, bzr: fc.bzr, pgr: fc.pgr, streets })
       state.searchReady = true
     }
   }).catch(() => null)

@@ -1,8 +1,8 @@
 // ─────────────────────────────────────────────────────────────────────────
-// Fuzzy place search across all Berlin LOR levels + colloquial Kieze.
-// Dependency-free, Berlin-tuned: diacritic/ß folding, "straße"→"str", and a
-// multi-tier scorer (exact → prefix → word-prefix → substring → subsequence →
-// bounded typo). Instant over ~1100 entries.
+// Fuzzy place search across all Berlin LOR levels + colloquial Kieze + every
+// named street. Dependency-free, Berlin-tuned: diacritic/ß folding,
+// "straße"→"str", and a multi-tier scorer (exact → prefix → word-prefix →
+// substring → subsequence → bounded typo). ~2 ms over ~12,500 entries.
 // ─────────────────────────────────────────────────────────────────────────
 import { bezirkName } from './kiez.js'
 
@@ -12,6 +12,7 @@ const TYPE = {
   bzr:  { label: 'Bezirksregion', prio: 4 },
   plr:  { label: 'Planungsraum',  prio: 3 },
   pgr:  { label: 'Prognoseraum',  prio: 2 },
+  str:  { label: 'Straße',        prio: 1 },
 }
 
 // fold to a comparable form: lowercase, strip diacritics, ß→ss, straße→str
@@ -28,7 +29,7 @@ export function norm(s) {
 
 let _index = []
 
-export function buildSearchIndex({ kieze, areas, osmKieze, bez, bzr, pgr }) {
+export function buildSearchIndex({ kieze, areas, osmKieze, bez, bzr, pgr, streets }) {
   const out = []
   const seen = new Set() // dedup by norm|type
   const add = (label, type, sub, feature) => {
@@ -62,6 +63,14 @@ export function buildSearchIndex({ kieze, areas, osmKieze, bez, bzr, pgr }) {
     const p = f.properties
     if (p.kiez && p.kiez === p.plr_name) continue // already covered by the Kiez entry
     add(p.plr_name, 'plr', [p.bzr_name, bezirkName(p.bez)].filter(Boolean).join(' · '), f)
+  }
+  // named streets — no polygon feature, but a representative point + bbox for the
+  // camera; same-named streets in different corners of the city stay separate
+  // entries (distinguished by their Bezirk sub-line), so no norm|type dedup here
+  if (streets) for (const s of streets) {
+    const n = norm(s.name)
+    if (!n) continue
+    out.push({ label: s.name, norm: n, words: n.split(' '), type: 'str', typeLabel: TYPE.str.label, prio: TYPE.str.prio, sub: s.bez || 'Berlin', feature: null, pt: s.pt, bbox: s.bbox })
   }
   _index = out
   return out

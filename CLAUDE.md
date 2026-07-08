@@ -129,12 +129,30 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   lazy via `loadLevels()`) and exposes `featureForLevel(level, plrFeature)` — `kiez` → `kiezAreaFor`,
   else derives the level's id from the `plr_id` prefix (Bezirk=2, Prognoseraum=4, Bezirksregion=6) and
   looks it up. `bboxOf()` feeds `fitBounds`.
-- `src/search.js` — dependency-free fuzzy place search. `buildSearchIndex({kieze,areas,bez,bzr,pgr})`
-  builds ~950 entries (Bezirk/Kiez/Bezirksregion/Planungsraum/Prognoseraum, deduped by norm|type,
-  redundant pgr/plr skipped). `norm()` folds diacritics + ß→ss + „straße"→„str". `search(q,limit)`
-  scores per multi-tier (exact→prefix→word-prefix→substring→subsequence→bounded Levenshtein typo) +
-  type priority; ~0.2 ms/query. `main.js` wires the topbar search box → `selectPlace()` →
-  `map.highlight(feature,{fit})` + a `renderPlace()` card ("Ausgewählt", "Mein Standort" back to geo).
+- `src/search.js` — dependency-free fuzzy place search. `buildSearchIndex({kieze,areas,bez,bzr,pgr,streets})`
+  builds ~12,500 entries (Bezirk/Kiez/Bezirksregion/Planungsraum/Prognoseraum deduped by norm|type,
+  redundant pgr/plr skipped, plus ~11,400 street entries — NOT deduped, so same-named streets in
+  different corners of the city stay separate hits distinguished by their Bezirk sub-line).
+  `norm()` folds diacritics + ß→ss + „straße"→„str". `search(q,limit)` scores per multi-tier
+  (exact→prefix→word-prefix→substring→subsequence→bounded Levenshtein typo) + type priority
+  (streets = lowest prio → a Kiez outranks a same-named street); ~2 ms/query, input debounced 120 ms.
+  `main.js` wires the topbar search box → `selectPlace()` → `map.highlight(feature,{fit})` + a
+  `renderPlace()` card ("Ausgewählt", "Mein Standort" back to geo).
+  **Street search:** street entries carry `pt` (on-street point) + `bbox` and `feature: null` —
+  anything consuming `e.feature` must handle that. `selectPlace` branches to `selectStreet()`:
+  resolves the street's Kiez from `pt` (same `findKiez` → `findOsmKiez`/`kiezAreaFor` preference as
+  `locateAt`), sub-line "in <Kiez> · <Bezirk>", and calls `map.frameStreet(lon,lat,area,bbox)` —
+  beacon ON the street, Kiez painted, camera fits the street's OWN bbox with `maxZoom: 15.5`
+  (closer than the area fit's 13.7 — a street must be readable; the 5-km Sonnenallee still fits
+  fully). Data: `public/data/strassen.json` (~833 KB, compact `[name, bezIdx, cx, cy, bbox×4]` +
+  12-entry Bezirk table), loaded via `loadStreets()` in kiez.js inside boot's non-blocking
+  Promise.all (`.catch(()=>null)` — search still works without streets if the file fails).
+  Built one-time by `tools/build-streets.js` from an Overpass dump (all named highway ways incl.
+  service, with per-way bounds via "out tags bb;" — query in the script header): 93,831 ways →
+  10,119 names → union-find clustering of same-named segments within ~300 m → 11,446 clusters
+  (the 10 Hauptstraßen stay separate). Representative point = member-way centre nearest the
+  cluster centre (guaranteed on-street — a raw bbox centre of an L-shaped street is off-road);
+  Bezirk via own point-in-polygon (46 boundary streets → bezIdx −1 → sub "Berlin").
 - `src/geo.js` — `getPosition()` (geolocation, mapped errors) + `reverseGeocode()` (Nominatim,
   best-effort, cached in sessionStorage). Returns `{ line, kiez, raw }`: `line` = address,
   `kiez` = OSM `quarter`/`neighbourhood` (the colloquial Kiez name, e.g. "Flughafenkiez").
@@ -208,9 +226,12 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   v4 also never fires `style.load` on setStyle. The reliable sequence (measured): wait for a
   `styledata` (swap begun) and only then accept `isStyleLoaded()===true` (checked on
   styledata/idle), with a 4 s hard-timeout + an `once('idle')` rebuild fallback.
-- **PWA/offline:** all `public/data/*.geojson` (13 files, ~1.5 MB) are **precached** by the SW
-  (`geojson` is in `workbox.globPatterns`) — revisioned by content hash, so data edits bust the cache
-  on deploy and the app classifies fully offline after the first visit. Don't reintroduce a
+- **PWA/offline:** all `public/data/*` (13 geojson + `strassen.json`, ~2.3 MB) are **precached** by
+  the SW (`geojson,json` in `workbox.globPatterns`) — revisioned by content hash, so data edits bust
+  the cache on deploy; the app classifies fully offline after the first visit and the **street
+  search works fully offline** too (verified: preview server killed → reload → search + Kiez
+  resolution intact). Only the basemap tiles are runtime-cached (StaleWhileRevalidate, 400 entries) —
+  offline the map shows just previously visited areas. Don't reintroduce a
   runtime-caching route for them (the old `CacheFirst` route capped at 4 entries and silently broke
   offline). If the core `kieze.geojson` fails on a *first* load (offline/404/SPA-fallback-HTML),
   `locateAt` renders a dedicated **"Daten nicht geladen"** card with a retry (`renderDataError`) —

@@ -12,11 +12,11 @@ export default defineConfig({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
       includeAssets: ['icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-512-maskable.png', 'favicon.svg', 'og.png'],
-      // The Kiez polygons are large + rarely change → precache them (revisioned
-      // by content hash) so the app truly works offline and data updates bust
-      // the cache on deploy.
+      // The Kiez polygons + street index are large + rarely change → precache
+      // them (revisioned by content hash) so the app truly works offline and
+      // data updates bust the cache on deploy.
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2,geojson}'],
+        globPatterns: ['**/*.{js,css,html,svg,png,woff2,geojson,json}'],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         navigateFallback: '/index.html',
         runtimeCaching: [

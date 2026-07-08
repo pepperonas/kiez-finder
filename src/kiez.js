@@ -174,6 +174,21 @@ export function loadWall() {
   return _wallPromise
 }
 
+// Named Berlin streets (compact Overpass-derived records built by
+// tools/build-streets.js) — search-only data: name, Bezirk, an on-street
+// representative point and the street's bbox. ~11,400 entries, ~830 KB.
+let _streetsPromise = null
+export function loadStreets() {
+  if (!_streetsPromise) {
+    _streetsPromise = loadJSON('/data/strassen.json')
+      .then((d) => d.streets.map(([name, bi, cx, cy, x1, y1, x2, y2]) => ({
+        name, bez: d.bez[bi] || '', pt: [cx, cy], bbox: [x1, y1, x2, y2],
+      })))
+      .catch((e) => { _streetsPromise = null; throw e }) // allow retry after a failure
+  }
+  return _streetsPromise
+}
+
 // colloquial Kiez names from OSM (place=quarter/neighbourhood) — point labels
 let _kiezNames = null
 export async function loadKiezNames() {

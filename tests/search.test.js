@@ -34,6 +34,12 @@ buildSearchIndex({
     feat({ gid: 1, bez: '08 - Neukölln', plr_name: 'Reuterkiezplatz', bzr_name: 'Reuterstraße' }),
     feat({ gid: 2, bez: '08 - Neukölln', plr_name: 'Schillerpromenade', bzr_name: 'Schillerpromenade' }),
   ]),
+  streets: [
+    { name: 'Sonnenallee', bez: 'Neukölln', pt: [13.45, 52.47], bbox: [13.42, 52.46, 13.48, 52.49] },
+    { name: 'Hauptstraße', bez: 'Pankow', pt: [13.43, 52.6], bbox: [13.42, 52.59, 13.44, 52.61] },
+    { name: 'Hauptstraße', bez: 'Spandau', pt: [13.14, 52.53], bbox: [13.13, 52.52, 13.15, 52.54] },
+    { name: 'Reuterkiez', bez: 'Neukölln', pt: [13.43, 52.49], bbox: [13.42, 52.48, 13.44, 52.5] }, // street named like a Kiez
+  ],
 })
 
 test('empty query returns nothing', () => {
@@ -81,4 +87,32 @@ test('typo tolerance finds a near-miss (bounded Levenshtein)', () => {
 
 test('search respects the result limit', () => {
   assert.ok(search('e', 3).length <= 3)
+})
+
+// ── streets ──────────────────────────────────────────────────────────────────
+test('streets are searchable and carry point + bbox instead of a feature', () => {
+  const hit = search('Sonnenallee')[0]
+  assert.equal(hit.type, 'str')
+  assert.equal(hit.label, 'Sonnenallee')
+  assert.equal(hit.sub, 'Neukölln')
+  assert.deepEqual(hit.pt, [13.45, 52.47])
+  assert.equal(hit.bbox.length, 4)
+  assert.equal(hit.feature, null)
+})
+
+test('same-named streets in different Bezirken stay separate entries', () => {
+  const hits = search('Hauptstraße').filter((r) => r.type === 'str')
+  assert.equal(hits.length, 2)
+  assert.deepEqual(hits.map((r) => r.sub).sort(), ['Pankow', 'Spandau'])
+})
+
+test('a Kiez outranks a same-named street (type priority)', () => {
+  const top = search('Reuterkiez')[0]
+  assert.equal(top.type, 'kiez')
+})
+
+test('street search folds "straße" in the query', () => {
+  assert.ok(search('sonnenallee').some((r) => r.type === 'str'))
+  assert.ok(search('hauptstrasse').some((r) => r.type === 'str'))
+  assert.ok(search('hauptstr').some((r) => r.type === 'str'))
 })

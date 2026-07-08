@@ -73,7 +73,8 @@ gehorchen alle diesem einen Satz.
 
 ## Features
 
-- 🔎 **Fuzzy-Suche** über alle Ebenen (Bezirke · Bezirksregionen · Prognoseräume · Kieze · Planungsräume) — eigener, abhängigkeitsfreier Berlin-getunter Scorer: Umlaut-/ß-/„straße"-Faltung, Präfix→Wort→Substring→Subsequenz→Tippfehler-Tiers, ~0,2 ms/Suche über ~950 Einträge. Treffer wählen → Fläche wird hervorgehoben
+- 🔎 **Fuzzy-Suche** über alle Ebenen (Bezirke · Bezirksregionen · Prognoseräume · Kieze · Planungsräume) **und jede benannte Straße Berlins** — eigener, abhängigkeitsfreier Berlin-getunter Scorer: Umlaut-/ß-/„straße"-Faltung, Präfix→Wort→Substring→Subsequenz→Tippfehler-Tiers, ~2 ms/Suche über ~12.500 Einträge. Treffer wählen → Fläche wird hervorgehoben
+- 🛣️ **Straßensuche** — alle ~10.100 benannten Straßen (Overpass/OSM, ~11.400 Einträge: gleichnamige Straßen in verschiedenen Stadtteilen bleiben getrennte Treffer, unterschieden per Bezirk-Unterzeile). Straße wählen → Beacon landet **auf der Straße**, ihr **Kiez wird aufgelöst und hervorgehoben** („Sonnenallee → in Weiße Siedlung · Neukölln"), die Kamera rahmt die **volle Straßenausdehnung** (kurze Gassen nah bei max z15.5, die 5-km-Sonnenallee komplett). Datensatz: kompakte 833 KB (`strassen.json`), einmalig gebaut via `tools/build-streets.js`
 - 📍 **Standort → Kiez** über die offiziellen LOR-2021-Planungsräume (542 Kieze), Point-in-Polygon im Browser
 - 🗣️ **Umgangssprachlicher Kiez** — der geläufige Kiez-Name (z.B. *Schillerkiez*, *Flughafenkiez*) ist der Titel; der amtliche Planungsraum (z.B. *Wartheplatz*) steht als Unterzeile
 - 🧩 **Kiez als EINE Fläche** — ein umgangssprachlicher Kiez besteht oft aus mehreren amtlichen Planungsräumen (Schillerkiez = Hasenheide + Schillerpromenade Nord/Süd + Wartheplatz). Die werden **zusammengeführt** und als eine zusammenhängende Fläche hervorgehoben — präzise, nicht die zu grobe Bezirksregion (355 Kiez-Flächen aus 542 Planungsräumen)
@@ -88,7 +89,7 @@ gehorchen alle diesem einen Satz.
 - 🗺️ **Lebendige Vektorkarte** (MapLibre GL) mit `flyTo`-Lock-on und sich selbst zeichnender Kiez-Grenze; ab Kiez-Zoom erscheinen **Straßennamen und Grünflächen dezent** (gedämpfte Töne + sanftes Grün, eine Zoomstufe früher als die Basemap sie zeigen würde — sie ordnen sich den Kiez-Labels immer unter)
 - 🎨 **Material 3 Expressive** — Feder-Physik statt Easing-Fades, tonale Flächen, XL-Shapes, Shape-Morph beim Tippen
 - 🌗 **Hell/Dunkel** mit kreisförmigem View-Transition-Reveal (dark-matter ↔ positron)
-- 📱 **PWA + Mobile** — installierbar, **echt offline-fähig**: alle 13 Geojson-Datensätze (~1,5 MB — Kieze, Bezirke, Regionen, Labels, Mauerverlauf …) werden vom Service Worker **revisioniert precached** — einmal besucht, klassifiziert die App auch ohne Netz, und Daten-Updates busten den Cache automatisch beim Deploy. Schlägt der Kern-Datensatz beim allerersten Laden fehl (offline/404), zeigt die App eine ehrliche **„Daten nicht geladen"-Card mit Retry** statt fälschlich „nicht in Berlin". Die Card ist auf Mobilgeräten ein **MD3-Bottom-Sheet** mit echten **Swipe-Gesten**: vom 44-px-Griff oder der ganzen Karte hoch-/runterziehen, **Pull-down vom Listenanfang** zum Einklappen, **Tap aufs eingeklappte Sheet** zum Öffnen; geschwindigkeits- + positionsbasiertes Snapping (leichter Flick genügt), Scroll-vs-Drag korrekt getrennt, nicht-modal über der Karte, Safe-Area-Insets, `dvh`-Höhe. Auf **Desktop** lässt sich das Info-Panel ein- und ausklappen (Pfeil-Button → schiebt es zur Seite, Reopen-Tab holt es zurück; Zustand wird gemerkt)
+- 📱 **PWA + Mobile** — installierbar, **echt offline-fähig**: alle 14 Datensätze (~2,3 MB — Kieze, Bezirke, Regionen, Labels, Mauerverlauf, Straßenindex …) werden vom Service Worker **revisioniert precached** — einmal besucht, klassifiziert die App auch ohne Netz, und Daten-Updates busten den Cache automatisch beim Deploy. Schlägt der Kern-Datensatz beim allerersten Laden fehl (offline/404), zeigt die App eine ehrliche **„Daten nicht geladen"-Card mit Retry** statt fälschlich „nicht in Berlin". Die Card ist auf Mobilgeräten ein **MD3-Bottom-Sheet** mit echten **Swipe-Gesten**: vom 44-px-Griff oder der ganzen Karte hoch-/runterziehen, **Pull-down vom Listenanfang** zum Einklappen, **Tap aufs eingeklappte Sheet** zum Öffnen; geschwindigkeits- + positionsbasiertes Snapping (leichter Flick genügt), Scroll-vs-Drag korrekt getrennt, nicht-modal über der Karte, Safe-Area-Insets, `dvh`-Höhe. Auf **Desktop** lässt sich das Info-Panel ein- und ausklappen (Pfeil-Button → schiebt es zur Seite, Reopen-Tab holt es zurück; Zustand wird gemerkt)
 - ♿ **Robust** — Progressive Enhancement, `prefers-reduced-motion`, sichtbarer Fokus, Tastatur (`R` = neu einchecken), Touch-Targets ≥ 44 px
 - 🔑 **Kein API-Key** — keyless Carto-Tiles + Nominatim, keine Secrets im Code
 
@@ -163,6 +164,16 @@ npx mapshaper public/data/kieze.geojson -each 'id=plr_id.substring(0,6)' -dissol
 
 # 6) OSM-Kiez-Namen (Punkt-Labels) via Overpass → kiez-names.geojson
 #    node-Query: place=quarter|neighbourhood in Berlin → 537 Punkte
+
+# 7) Straßenindex → strassen.json (für die Suche)
+#    Overpass: alle benannten highway-Ways in Berlin mit per-Way-Bounds ("out tags bb;",
+#    Query im Kopf von tools/build-streets.js), dann:
+curl -sS --data-urlencode data@query.txt https://overpass-api.de/api/interpreter > streets-raw.json
+node tools/build-streets.js streets-raw.json
+#    93.831 Ways → 10.119 Namen → 11.446 Cluster (Union-Find: gleichnamige Segmente
+#    innerhalb ~300 m verschmelzen; entfernte Namensvettern wie die 10 Hauptstraßen
+#    bleiben getrennt). Je Cluster: Union-BBox, ein Punkt AUF der Straße, Bezirk per
+#    eigenem Point-in-Polygon. Kompaktformat [name, bezIdx, cx, cy, bbox×4] → 833 KB.
 ```
 
 ## Deploy
@@ -179,6 +190,7 @@ rsync -avz --delete dist/ root@<vps>:/var/www/kiezfinder.celox.io/
 ## Datenquellen
 
 - **Kiez-Grenzen:** LOR 2021 Planungsräume — *Geoportal Berlin / Amt für Statistik Berlin-Brandenburg* (CC-BY-3.0 DE)
+- **Straßen:** © OpenStreetMap-Mitwirkende via Overpass API (ODbL)
 - **Karten:** © OpenStreetMap-Mitwirkende, © CARTO
 - **Adresse:** Nominatim / OpenStreetMap
 
