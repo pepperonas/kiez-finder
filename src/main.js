@@ -642,6 +642,32 @@ function updateThemeColor(theme) {
   if (!m) { m = document.createElement('meta'); m.setAttribute('name', 'theme-color'); document.head.appendChild(m) }
   m.setAttribute('content', theme === 'dark' ? '#0b0e14' : '#f3f4fb')
 }
+// Fallback ohne View Transitions (ältere Browser): ein einzelner, einfarbiger
+// Kreis-Layer wächst per clip-path vom Button auf (compositor-only), darunter
+// wird unsichtbar das Theme gewechselt + die Karte umgefärbt, dann blendet der
+// Kreis weich aus — 1:1 der themeRipple der celox-Website, Farben = Kiez-Tokens.
+let themeRippleActive = false
+function themeRipple(next, x, y, end, swap, restyle) {
+  themeRippleActive = true
+  const el = document.createElement('div')
+  el.style.cssText =
+    'position:fixed;inset:0;z-index:9999;pointer-events:none;' +
+    `background:${next === 'dark' ? '#0b0e14' : '#f3f4fb'};` +
+    `clip-path:circle(0px at ${x}px ${y}px);will-change:clip-path,opacity;`
+  document.body.appendChild(el)
+  const cleanup = () => { el.remove(); themeRippleActive = false }
+  el.animate(
+    { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${end}px at ${x}px ${y}px)`] },
+    { duration: 420, easing: 'cubic-bezier(0.22, 0.08, 0, 1)', fill: 'forwards' }
+  ).finished
+    .then(() => {
+      swap(); restyle()
+      return el.animate({ opacity: [1, 0] }, { duration: 260, delay: 60, easing: 'ease-out', fill: 'forwards' }).finished
+    })
+    .then(cleanup)
+    .catch(() => { swap(); restyle(); cleanup() })
+}
+
 function applyTheme(next, origin) {
   // Update STATE synchronously so the next toggle always computes the right
   // direction — the View Transition snapshots the full-screen WebGL map and can
@@ -654,27 +680,40 @@ function applyTheme(next, origin) {
   // transition callback from an overlapping toggle can't overwrite a newer flip
   const swap = () => document.documentElement.setAttribute('data-theme', state.theme)
   const restyle = () => { state.map && state.map.setTheme(state.theme) }
-  if (!document.startViewTransition || reduceMotion()) { swap(); restyle(); return }
+  if (reduceMotion()) { swap(); restyle(); return }
   const x = origin ? origin.x : innerWidth - 40
   const y = origin ? origin.y : 40
   const end = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y))
+  if (!document.startViewTransition) { themeRipple(next, x, y, end, swap, restyle); return }
+  // celox-Reveal: Desktop 900 ms, Mobile/Touch 520 ms (entschlackt gegen
+  // Ruckeln — html.theme-transition schaltet währenddessen backdrop-filter ab)
+  const dur = matchMedia('(max-width: 768px), (pointer: coarse)').matches ? 520 : 900
+  document.documentElement.classList.add('theme-transition')
   let swapped = false
   const t = document.startViewTransition(() => { swap(); swapped = true })
   t.ready.then(() => {
     document.documentElement.animate(
       { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${end}px at ${x}px ${y}px)`] },
-      { duration: 620, easing: 'cubic-bezier(0.2,0,0,1)', pseudoElement: '::view-transition-new(root)' }
+      { duration: dur, easing: 'cubic-bezier(0.22, 0.08, 0, 1)', pseudoElement: '::view-transition-new(root)' }
     )
   }).catch(() => {})
   // never let a slow/stuck VT strand the palette: force the visual swap after 600ms
   const fb = setTimeout(() => { if (!swapped) { swap(); swapped = true } }, 600)
   // guarantee the swap + map restyle even if the VT is skipped/aborted
-  t.finished.catch(() => {}).finally(() => { clearTimeout(fb); if (!swapped) swap(); restyle() })
+  t.finished.catch(() => {}).finally(() => {
+    clearTimeout(fb); if (!swapped) swap()
+    document.documentElement.classList.remove('theme-transition')
+    restyle()
+  })
 }
 
 themeBtn.addEventListener('click', (e) => {
+  if (themeRippleActive) return
+  // Origin = Klickpunkt (wie celox); Tastatur-Klicks (clientX/Y = 0) → Button-Mitte
   const r = themeBtn.getBoundingClientRect()
-  applyTheme(state.theme === 'dark' ? 'light' : 'dark', { x: r.left + r.width / 2, y: r.top + r.height / 2 })
+  const x = e.clientX || r.left + r.width / 2
+  const y = e.clientY || r.top + r.height / 2
+  applyTheme(state.theme === 'dark' ? 'light' : 'dark', { x, y })
 })
 
 // ── sector overlay toggle: aus → Bezirke → Bezirksregionen → Kieze ────────────

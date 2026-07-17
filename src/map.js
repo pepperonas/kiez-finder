@@ -1124,6 +1124,8 @@ export class KiezMap {
     const LW = 2.2, CW = 4.6, GW = 17
     const glowOp = SELECTION[this.theme].glowOp
     const set = (p) => {
+      // a theme restyle (setStyle) can wipe the layers mid-spring — skip those frames
+      if (!this.map.getLayer('kiez-fill')) return
       this.map.setPaintProperty('kiez-fill', 'fill-opacity', targetFill * p)
       this.map.setPaintProperty('kiez-glow', 'line-opacity', glowOp * p)
       this.map.setPaintProperty('kiez-glow', 'line-width', GW * p)
@@ -1148,6 +1150,7 @@ export class KiezMap {
     const src = this.map.getSource('kiez')
     if (!src) return
     src.setData(emptyFC())
+    if (!this.map.getLayer('kiez-fill')) return
     this.map.setPaintProperty('kiez-fill', 'fill-opacity', 0)
     this.map.setPaintProperty('kiez-glow', 'line-opacity', 0)
     this.map.setPaintProperty('kiez-line', 'line-opacity', 0)

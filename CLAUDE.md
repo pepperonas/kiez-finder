@@ -254,8 +254,18 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   runs **outside** the VT callback (putting it inside → "DOM update timeout" → lost toggles). `map.setTheme`
   waits for `isStyleLoaded()`, is token-guarded against overlap, and `_onLoad` re-adds custom layers
   **idempotently** (add-if-absent, never remove-then-add) so a restyle can't throw "source already exists";
-  `_paint`/`clearHighlight` no-op if the `kiez` source isn't back yet. `updateThemeColor` keeps the
+  `_paint`/`clearHighlight` no-op if the `kiez` source isn't back yet — and the reveal-spring `set()` +
+  `clearHighlight` paint-resets are additionally `getLayer('kiez-fill')`-guarded (a restyle can wipe the
+  layers MID-spring → console spam "Cannot style non-existing layer"). `updateThemeColor` keeps the
   `theme-color` meta matching the chosen theme.
+  **Reveal-Look = 1:1 die celox.io-Website (2026-07-17):** circular reveal via View Transitions vom
+  Klickpunkt, Desktop **900 ms** / Mobile+Touch (`max-width:768px` or `pointer:coarse`) **520 ms**,
+  Easing `cubic-bezier(0.22, 0.08, 0, 1)`; während der Transition schaltet `html.theme-transition`
+  ALLE `backdrop-filter` ab (Haupt-Ruckelquelle auf Mobile-GPUs, CSS in style.css). Browser ohne
+  `startViewTransition` bekommen den celox-`themeRipple`-Fallback: einfarbiger Kreis-Layer
+  (Kiez-Surface-Farben `#0b0e14`/`#f3f4fb`) wächst per clip-path vom Button, Theme+Map wechseln
+  unsichtbar darunter, dann fade-out; `themeRippleActive` guardet Doppelklicks. Bei Anpassungen
+  die celox-Referenz beachten: `_customers/celox/website/v2/src/layouts/Layout.astro` (Theme-Teil).
 - **OG/preview image** `public/og.png` (1200×630) is generated from the real Bezirksregionen geometry:
   a Node script projects them to an SVG (cool-palette fills) + brand wordmark/tagline and renders to PNG
   via `@resvg/resvg-js` using the self-hosted woff2 fonts. (Playwright screenshots are unreliable in
