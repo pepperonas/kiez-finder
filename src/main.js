@@ -647,6 +647,7 @@ function updateThemeColor(theme) {
 // wird unsichtbar das Theme gewechselt + die Karte umgefärbt, dann blendet der
 // Kreis weich aus — 1:1 der themeRipple der celox-Website, Farben = Kiez-Tokens.
 let themeRippleActive = false
+let fauxThemeTok = 0 // guards rapid re-toggles: only the latest restyle removes the faux-map filter
 function themeRipple(next, x, y, end, swap, restyle) {
   themeRippleActive = true
   const el = document.createElement('div')
@@ -677,9 +678,21 @@ function applyTheme(next, origin) {
   themeBtn.innerHTML = next === 'dark' ? ICONS.sun : ICONS.moon
   updateThemeColor(next)
   // always target the *current* theme (not the captured `next`) so a late/stale
-  // transition callback from an overlapping toggle can't overwrite a newer flip
-  const swap = () => document.documentElement.setAttribute('data-theme', state.theme)
-  const restyle = () => { state.map && state.map.setTheme(state.theme) }
+  // transition callback from an overlapping toggle can't overwrite a newer flip.
+  // Faux-Map-Theme: das WebGL-Canvas kann erst NACH der Transition echt
+  // restylen — swap() legt sofort einen invert-Filter aufs Canvas (nähert
+  // dark-matter ↔ positron an), damit der Kreis auch über der KARTE das neue
+  // Theme aufdeckt; entfernt, sobald der echte Style geladen ist (setTheme).
+  const swap = () => {
+    document.documentElement.setAttribute('data-theme', state.theme)
+    app.classList.add('map-faux-theme')
+  }
+  const restyle = () => {
+    const tok = ++fauxThemeTok
+    const done = () => { if (tok === fauxThemeTok) app.classList.remove('map-faux-theme') }
+    if (!state.map) return done()
+    Promise.resolve(state.map.setTheme(state.theme)).catch(() => {}).then(done)
+  }
   if (reduceMotion()) { swap(); restyle(); return }
   const x = origin ? origin.x : innerWidth - 40
   const y = origin ? origin.y : 40

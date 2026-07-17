@@ -659,6 +659,12 @@ html.theme-transition * {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
+/* Faux-Theme fürs Karten-Canvas: die WebGL-Karte restylt erst NACH der View
+   Transition (setStyle + Tile-Nachladen) — bis dahin nähert invert+hue-rotate
+   die Ziel-Palette an (dark-matter ↔ positron sind fast Lichtwert-Spiegel,
+   Hues bleiben erhalten). So deckt der Reveal-Kreis auch über der Karte schon
+   das neue Theme auf. Gesetzt in swap(), entfernt sobald setTheme() fertig ist. */
+#app.map-faux-theme .maplibregl-canvas { filter: invert(1) hue-rotate(180deg); }
 
 /* ── touch ergonomics (mobile) ── */
 .btn, .icon-btn, .meta-row--btn, .level-title, .seg-btn, .brand, .sheet-handle {

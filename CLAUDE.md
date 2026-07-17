@@ -261,7 +261,13 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   **Reveal-Look = 1:1 die celox.io-Website (2026-07-17):** circular reveal via View Transitions vom
   Klickpunkt, Desktop **900 ms** / Mobile+Touch (`max-width:768px` or `pointer:coarse`) **520 ms**,
   Easing `cubic-bezier(0.22, 0.08, 0, 1)`; während der Transition schaltet `html.theme-transition`
-  ALLE `backdrop-filter` ab (Haupt-Ruckelquelle auf Mobile-GPUs, CSS in style.css). Browser ohne
+  ALLE `backdrop-filter` ab (Haupt-Ruckelquelle auf Mobile-GPUs, CSS in style.css).
+  **Faux-Map-Theme:** die WebGL-Karte restylt erst NACH der Transition (setStyle+Tiles) — damit der
+  Kreis auch über der KARTE das neue Theme aufdeckt, legt `swap()` sofort `#app.map-faux-theme` an
+  (Canvas-Filter `invert(1) hue-rotate(180deg)` ≈ dark-matter↔positron, Hues bleiben erhalten);
+  entfernt wird die Klasse erst, wenn `map.setTheme()` aufgelöst hat (der echte neue Style rendert) —
+  nie früher (sonst Blank-Tile-Flash) und nie später (sonst wird der NEUE Style zurückgespiegelt).
+  `fauxThemeTok` (modul-scoped!) guardet schnelle Re-Toggles. Browser ohne
   `startViewTransition` bekommen den celox-`themeRipple`-Fallback: einfarbiger Kreis-Layer
   (Kiez-Surface-Farben `#0b0e14`/`#f3f4fb`) wächst per clip-path vom Button, Theme+Map wechseln
   unsichtbar darunter, dann fade-out; `themeRippleActive` guardet Doppelklicks. Bei Anpassungen
