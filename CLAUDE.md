@@ -275,7 +275,19 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   (doppelt invertiert = alter Look) und schnappte dann ab; zudem löst setTheme bei isStyleLoaded
   auf, BEVOR Tiles gezeichnet sind (Background-Flash). Verifiziert per 50-ms-Timeline: 0 Lücken,
   in denen weder Filter noch Veil das Canvas deckt; Doppel-Toggle stackt nie >1 Veil
-  (`this._veil`-Guard in map.js, `fauxThemeTok` modul-scoped in main.js). Browser ohne
+  (`this._veil`-Guard in map.js, `fauxThemeTok` modul-scoped in main.js).
+  **Re-Toggle-Härtung (2026-07-17, „harte Wechsel nach ein paar Toggles"):** (1) `swap()` ruft
+  `map.dropVeil()` — ein noch aktives Veil des VORHERIGEN Wechsels deckte sonst mit seinem festen
+  alten Look den ganzen nächsten Reveal ab und wurde dann hart weggerissen (läuft im VT-Callback →
+  alter Snapshot behält den Veil-Look). (2) Faux-Klasse CONDITIONAL: `toggle('map-faux-theme',
+  map.theme !== state.theme)` — nach schnellem Hin-und-zurück rendert das Canvas schon das Ziel,
+  blindes Invertieren zeigte das falsche Theme; dazu No-op-Skip in `setThemeVeiled` (Theme schon
+  committed → gar kein Veil). (3) Der Palette-Fallback-Timer ist **2500 ms** (war 600) — der
+  VT-Callback (WebGL-Snapshot) braucht auf beschäftigter GPU real >600 ms; feuerte der Timer
+  vorher, passierte der ganze Swap OHNE Animation. (4) Snapshot-Timeout **3 s** (war 1 s) — bei
+  Tile-Churn kommt der 'render'-Tick spät, Timeout = kein Veil = harter Restyle; Warten ist sicher,
+  der Faux-Filter liegt bis `onVeiled` durchgehend. Hammer-Test (5 Toggles/1 s) + Netto-Null-
+  Doppelklick + Re-Toggle-während-Veil sind Playwright-verifiziert. Browser ohne
   `startViewTransition` bekommen den celox-`themeRipple`-Fallback: einfarbiger Kreis-Layer
   (Kiez-Surface-Farben `#0b0e14`/`#f3f4fb`) wächst per clip-path vom Button, Theme+Map wechseln
   unsichtbar darunter, dann fade-out; `themeRippleActive` guardet Doppelklicks. Bei Anpassungen

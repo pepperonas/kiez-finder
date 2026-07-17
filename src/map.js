@@ -465,15 +465,29 @@ export class KiezMap {
       isStyleLoaded auflöst, bevor Tiles gezeichnet sind. `onVeiled` feuert,
       sobald das Veil das Canvas deckt — exakt dann darf der Aufrufer seinen
       Live-Canvas-Filter entfernen. */
+  /** Drop any active veil immediately (e.g. the next toggle starts while the
+      previous unveil is still pending — a stale veil would cover the new
+      reveal with the OLD look and then get ripped away hard). */
+  dropVeil() {
+    if (this._veil) { this._veil.remove(); this._veil = null }
+  }
+
   async setThemeVeiled(theme, onVeiled) {
     await this._ready
-    if (this._veil) { this._veil.remove(); this._veil = null } // rapid re-toggle: never stack veils
+    // map already committed to this theme (e.g. a fast toggle-back netted out)
+    // → no restyle will happen, so a veil would lay a WRONG look over an
+    // already-correct canvas. Nothing to hide — bail.
+    if (theme === this.theme && this._themedOnce) { if (onVeiled) onVeiled(); return }
+    this.dropVeil() // rapid re-toggle: never stack veils
     const gl = this.map.getCanvas()
     // copy must happen inside a 'render' tick — the WebGL buffer is cleared
     // after compositing (preserveDrawingBuffer is off); bounded so a stuck
-    // render can never hang the toggle
+    // render can never hang the toggle. Timeout GENEROUS (3s): after repeated
+    // toggles the GPU is busy with tile churn and the render tick arrives
+    // late — timing out means NO veil = a visible hard restyle. Waiting is
+    // safe: the caller's faux filter stays on until onVeiled fires.
     const veil = await new Promise((res) => {
-      const tmr = setTimeout(() => res(null), 1000)
+      const tmr = setTimeout(() => res(null), 3000)
       this.map.once('render', () => {
         clearTimeout(tmr)
         try {

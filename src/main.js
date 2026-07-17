@@ -685,7 +685,15 @@ function applyTheme(next, origin) {
   // Theme aufdeckt; entfernt, sobald der echte Style geladen ist (setTheme).
   const swap = () => {
     document.documentElement.setAttribute('data-theme', state.theme)
-    app.classList.add('map-faux-theme')
+    // Ein noch aktives Veil vom VORHERIGEN Wechsel muss hier weg (läuft im
+    // VT-Callback → der alte Snapshot behält den Veil-Look, die neue Seite
+    // zeigt das Canvas): sonst deckt es mit seinem festen alten Look den
+    // ganzen Reveal ab und wird danach hart weggerissen.
+    if (state.map) state.map.dropVeil()
+    // Filter nur, wenn die Karte das Ziel-Theme noch NICHT hat — nach einem
+    // schnellen Hin-und-zurück-Toggle rendert das Canvas schon das Ziel;
+    // blindes Invertieren zeigte dann das falsche Theme (und snappte hart)
+    app.classList.toggle('map-faux-theme', !!state.map && state.map.theme !== state.theme)
   }
   const restyle = () => {
     const tok = ++fauxThemeTok
@@ -714,8 +722,11 @@ function applyTheme(next, origin) {
       { duration: dur, easing: 'cubic-bezier(0.22, 0.08, 0, 1)', pseudoElement: '::view-transition-new(root)' }
     )
   }).catch(() => {})
-  // never let a slow/stuck VT strand the palette: force the visual swap after 600ms
-  const fb = setTimeout(() => { if (!swapped) { swap(); swapped = true } }, 600)
+  // never let a stuck VT strand the palette. 2500ms, NOT weniger: der
+  // VT-Callback (Snapshot der WebGL-Seite) braucht auf beschäftigter GPU
+  // real >600ms (gemessen 611ms) — feuert der Timer vor dem Callback, passiert
+  // der komplette Swap OHNE Animation (= harter Wechsel bei schnellen Toggles)
+  const fb = setTimeout(() => { if (!swapped) { swap(); swapped = true } }, 2500)
   // guarantee the swap + map restyle even if the VT is skipped/aborted
   t.finished.catch(() => {}).finally(() => {
     clearTimeout(fb); if (!swapped) swap()
