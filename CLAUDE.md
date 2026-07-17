@@ -287,7 +287,23 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   vorher, passierte der ganze Swap OHNE Animation. (4) Snapshot-Timeout **3 s** (war 1 s) — bei
   Tile-Churn kommt der 'render'-Tick spät, Timeout = kein Veil = harter Restyle; Warten ist sicher,
   der Faux-Filter liegt bis `onVeiled` durchgehend. Hammer-Test (5 Toggles/1 s) + Netto-Null-
-  Doppelklick + Re-Toggle-während-Veil sind Playwright-verifiziert. Browser ohne
+  Doppelklick + Re-Toggle-während-Veil sind Playwright-verifiziert.
+  **Cooldown gegen Rapid-Toggle-Glitches (2026-07-17):** schnelles Klicken startete ZWEI
+  überlappende View Transitions + zwei Veils gleichzeitig (verifiziert `vtMaxConcurrent`/`maxVeils`=2)
+  → Darstellungsfehler (VTs können nicht verschachteln, die laufende wird abgebrochen). Fix: ein
+  `themeBusy`-Guard im Click-Handler serialisiert. `applyTheme` gibt jetzt ein Promise zurück, das
+  **beim Reveal-Ende (`t.finished`) auflöst** — GENAU der Moment, ab dem eine neue VT gefahrlos
+  startet; der Guard hält bis dahin (Klicks werden verworfen, `.busy`-Klasse dimmt den Button als
+  Feedback). Bewusst NICHT bis zum vollen Veil-Settle warten — der WebGL-Reveal-Snapshot braucht in
+  langsamer Umgebung real ~4 s (`t.finished`), der Veil-Restyle nochmal Sekunden; volle
+  Serialisierung sperrte den Button ~10 s (gemessen, = Safety-Timeout). Der **Restyle läuft im
+  Hintergrund** (nicht im Cooldown) und ist gegen Overlap gehärtet: `KiezMap._restyleTok` — ein vom
+  nächsten Toggle überholter `setThemeVeiled` platziert sein spätes Veil NICHT mehr und restylet
+  nicht (sonst Orphan-Veil über dem neueren Zyklus); `dropVeil()` entfernt jetzt ALLE `.map-veil`.
+  Safety-Timeout 9 s löst `themeBusy` notfalls (gehängte VT, z.B. Tab im Hintergrund). Verifiziert:
+  10 Klicks/100 ms → nur 1 VT akzeptiert, `vtMaxConcurrent`/`maxVeils`=1, Endzustand sauber;
+  bewusster Re-Toggle direkt nach dem Reveal (Hintergrund-Restyle läuft noch) → akzeptiert, kein
+  Overlap, 0 Konsolenfehler. Browser ohne
   `startViewTransition` bekommen den celox-`themeRipple`-Fallback: einfarbiger Kreis-Layer
   (Kiez-Surface-Farben `#0b0e14`/`#f3f4fb`) wächst per clip-path vom Button, Theme+Map wechseln
   unsichtbar darunter, dann fade-out; `themeRippleActive` guardet Doppelklicks. Bei Anpassungen

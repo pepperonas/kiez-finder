@@ -648,6 +648,7 @@ function updateThemeColor(theme) {
 // Kreis weich aus — 1:1 der themeRipple der celox-Website, Farben = Kiez-Tokens.
 let themeRippleActive = false
 let fauxThemeTok = 0 // guards rapid re-toggles: only the latest restyle removes the faux-map filter
+let themeBusy = false // cooldown: a theme switch fully serializes (see the click handler)
 function themeRipple(next, x, y, end, swap, restyle) {
   themeRippleActive = true
   const el = document.createElement('div')
@@ -695,6 +696,9 @@ function applyTheme(next, origin) {
     // blindes Invertieren zeigte dann das falsche Theme (und snappte hart)
     app.classList.toggle('map-faux-theme', !!state.map && state.map.theme !== state.theme)
   }
+  // The map restyle (veil incl.) runs in the BACKGROUND — it takes seconds
+  // (WebGL restyle + tile reload) and is NOT part of the cooldown; the veil
+  // + fauxThemeTok + the map's _restyleTok keep overlapping restyles safe.
   const restyle = () => {
     const tok = ++fauxThemeTok
     const unfaux = () => { if (tok === fauxThemeTok) app.classList.remove('map-faux-theme') }
@@ -705,43 +709,63 @@ function applyTheme(next, origin) {
     Promise.resolve(state.map.setThemeVeiled(state.theme, unfaux))
       .catch(() => {}).finally(unfaux) // belt & braces if the veil path bailed early
   }
-  if (reduceMotion()) { swap(); restyle(); return }
+  // The returned promise resolves when the REVEAL is done (not the background
+  // restyle) — that's the cooldown boundary: the moment a NEW View Transition
+  // can start without overlapping the running one (überlappende VTs = die
+  // eigentlichen Darstellungsfehler bei schnellem Umschalten).
+  if (reduceMotion()) { swap(); restyle(); return Promise.resolve() }
   const x = origin ? origin.x : innerWidth - 40
   const y = origin ? origin.y : 40
   const end = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y))
-  if (!document.startViewTransition) { themeRipple(next, x, y, end, swap, restyle); return }
+  if (!document.startViewTransition) {
+    return new Promise((resolve) => themeRipple(next, x, y, end, swap, () => { restyle(); resolve() }))
+  }
   // celox-Reveal: Desktop 900 ms, Mobile/Touch 520 ms (entschlackt gegen
   // Ruckeln — html.theme-transition schaltet währenddessen backdrop-filter ab)
   const dur = matchMedia('(max-width: 768px), (pointer: coarse)').matches ? 520 : 900
-  document.documentElement.classList.add('theme-transition')
-  let swapped = false
-  const t = document.startViewTransition(() => { swap(); swapped = true })
-  t.ready.then(() => {
-    document.documentElement.animate(
-      { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${end}px at ${x}px ${y}px)`] },
-      { duration: dur, easing: 'cubic-bezier(0.22, 0.08, 0, 1)', pseudoElement: '::view-transition-new(root)' }
-    )
-  }).catch(() => {})
-  // never let a stuck VT strand the palette. 2500ms, NOT weniger: der
-  // VT-Callback (Snapshot der WebGL-Seite) braucht auf beschäftigter GPU
-  // real >600ms (gemessen 611ms) — feuert der Timer vor dem Callback, passiert
-  // der komplette Swap OHNE Animation (= harter Wechsel bei schnellen Toggles)
-  const fb = setTimeout(() => { if (!swapped) { swap(); swapped = true } }, 2500)
-  // guarantee the swap + map restyle even if the VT is skipped/aborted
-  t.finished.catch(() => {}).finally(() => {
-    clearTimeout(fb); if (!swapped) swap()
-    document.documentElement.classList.remove('theme-transition')
-    restyle()
+  return new Promise((resolve) => {
+    document.documentElement.classList.add('theme-transition')
+    let swapped = false
+    const t = document.startViewTransition(() => { swap(); swapped = true })
+    t.ready.then(() => {
+      document.documentElement.animate(
+        { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${end}px at ${x}px ${y}px)`] },
+        { duration: dur, easing: 'cubic-bezier(0.22, 0.08, 0, 1)', pseudoElement: '::view-transition-new(root)' }
+      )
+    }).catch(() => {})
+    // never let a stuck VT strand the palette. 2500ms, NOT weniger: der
+    // VT-Callback (Snapshot der WebGL-Seite) braucht auf beschäftigter GPU
+    // real >600ms (gemessen 611ms) — feuert der Timer vor dem Callback, passiert
+    // der komplette Swap OHNE Animation (= harter Wechsel bei schnellen Toggles)
+    const fb = setTimeout(() => { if (!swapped) { swap(); swapped = true } }, 2500)
+    // guarantee the swap + map restyle even if the VT is skipped/aborted
+    t.finished.catch(() => {}).finally(() => {
+      clearTimeout(fb); if (!swapped) swap()
+      document.documentElement.classList.remove('theme-transition')
+      restyle()   // background
+      resolve()   // cooldown over: reveal done → a new VT may safely start now
+    })
   })
 }
 
 themeBtn.addEventListener('click', (e) => {
-  if (themeRippleActive) return
+  // Cooldown: ein Theme-Wechsel läuft VOLLSTÄNDIG durch, bevor der nächste
+  // startet. Ohne den Guard überlappten bei schnellem Klicken zwei View
+  // Transitions + zwei Veils (verifiziert: vtMaxConcurrent/maxVeils = 2) →
+  // Darstellungsfehler. Der Guard hält bis der ganze Zyklus (Reveal + Veil-
+  // Restyle) settled ist; ein Safety-Timeout löst ihn notfalls (falls ein
+  // Promise nie auflöst, z.B. Tab im Hintergrund → VT hängt).
+  if (themeRippleActive || themeBusy) return
+  themeBusy = true
+  themeBtn.classList.add('busy') // visuelles Feedback: Klick bewusst gesperrt
+  const release = () => { themeBusy = false; themeBtn.classList.remove('busy'); clearTimeout(safety) }
+  const safety = setTimeout(release, 9000)
   // Origin = Klickpunkt (wie celox); Tastatur-Klicks (clientX/Y = 0) → Button-Mitte
   const r = themeBtn.getBoundingClientRect()
   const x = e.clientX || r.left + r.width / 2
   const y = e.clientY || r.top + r.height / 2
-  applyTheme(state.theme === 'dark' ? 'light' : 'dark', { x, y })
+  Promise.resolve(applyTheme(state.theme === 'dark' ? 'light' : 'dark', { x, y }))
+    .catch(() => {}).finally(release)
 })
 
 // ── sector overlay toggle: aus → Bezirke → Bezirksregionen → Kieze ────────────

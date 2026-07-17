@@ -467,13 +467,18 @@ export class KiezMap {
       Live-Canvas-Filter entfernen. */
   /** Drop any active veil immediately (e.g. the next toggle starts while the
       previous unveil is still pending — a stale veil would cover the new
-      reveal with the OLD look and then get ripped away hard). */
+      reveal with the OLD look and then get ripped away hard). Removes ALL
+      `.map-veil` nodes: a superseded restyle may have left its own behind. */
   dropVeil() {
-    if (this._veil) { this._veil.remove(); this._veil = null }
+    this._veil = null
+    for (const v of this.map.getCanvas().parentNode.querySelectorAll('.map-veil')) v.remove()
   }
 
   async setThemeVeiled(theme, onVeiled) {
     await this._ready
+    // supersede any restyle still in flight — its late veil-placement/unveil
+    // must NOT run (would orphan a veil over this newer restyle)
+    const rtok = (this._restyleTok = (this._restyleTok || 0) + 1)
     // map already committed to this theme (e.g. a fast toggle-back netted out)
     // → no restyle will happen, so a veil would lay a WRONG look over an
     // already-correct canvas. Nothing to hide — bail.
@@ -499,6 +504,9 @@ export class KiezMap {
       })
       this.map.triggerRepaint()
     })
+    // a newer restyle superseded us during the async snapshot → abort quietly:
+    // don't place a veil (it would orphan over the newer cycle), don't restyle
+    if (rtok !== this._restyleTok) { if (veil) veil.remove?.(); if (onVeiled) onVeiled(); return }
     if (veil) {
       veil.className = 'map-veil'
       gl.parentNode.insertBefore(veil, gl.nextSibling) // above canvas, below markers (beacon stays live)
@@ -506,7 +514,7 @@ export class KiezMap {
     }
     if (onVeiled) onVeiled()
     await this.setTheme(theme)
-    if (!veil) return
+    if (!veil || rtok !== this._restyleTok) return // superseded → leave veil for the newer cycle's dropVeil
     // unveil once the new style has actually drawn ('idle'), bounded; a camera
     // move unveils immediately — panning under a frozen image reads as broken
     await new Promise((res) => {
