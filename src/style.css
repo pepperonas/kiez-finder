@@ -665,6 +665,16 @@ html.theme-transition * {
    Hues bleiben erhalten). So deckt der Reveal-Kreis auch über der Karte schon
    das neue Theme auf. Gesetzt in swap(), entfernt sobald setTheme() fertig ist. */
 #app.map-faux-theme .maplibregl-canvas { filter: invert(1) hue-rotate(180deg); }
+/* Eingefrorene Faux-Kopie der Karte während des Post-Reveal-Restyles: deckt
+   das GL-Canvas (unter den DOM-Markern), während der echte Style darunter
+   lädt, und blendet dann weich aus. Trägt denselben invert-Filter — die Kopie
+   enthält die ALTEN Style-Pixel. */
+.map-veil {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  pointer-events: none;
+  filter: invert(1) hue-rotate(180deg);
+  transition: opacity 400ms var(--ease-standard);
+}
 
 /* ── touch ergonomics (mobile) ── */
 .btn, .icon-btn, .meta-row--btn, .level-title, .seg-btn, .brand, .sheet-handle {

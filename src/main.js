@@ -689,9 +689,13 @@ function applyTheme(next, origin) {
   }
   const restyle = () => {
     const tok = ++fauxThemeTok
-    const done = () => { if (tok === fauxThemeTok) app.classList.remove('map-faux-theme') }
-    if (!state.map) return done()
-    Promise.resolve(state.map.setTheme(state.theme)).catch(() => {}).then(done)
+    const unfaux = () => { if (tok === fauxThemeTok) app.classList.remove('map-faux-theme') }
+    if (!state.map) return unfaux()
+    // Veil-Restyle: der Live-Canvas-Filter darf erst fallen, wenn das
+    // eingefrorene Veil das Canvas deckt — sonst blitzt die restylende Karte
+    // durch (alter Look / halbgeladene Tiles = harter Flash nach dem Reveal)
+    Promise.resolve(state.map.setThemeVeiled(state.theme, unfaux))
+      .catch(() => {}).finally(unfaux) // belt & braces if the veil path bailed early
   }
   if (reduceMotion()) { swap(); restyle(); return }
   const x = origin ? origin.x : innerWidth - 40

@@ -262,12 +262,20 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   Klickpunkt, Desktop **900 ms** / Mobile+Touch (`max-width:768px` or `pointer:coarse`) **520 ms**,
   Easing `cubic-bezier(0.22, 0.08, 0, 1)`; während der Transition schaltet `html.theme-transition`
   ALLE `backdrop-filter` ab (Haupt-Ruckelquelle auf Mobile-GPUs, CSS in style.css).
-  **Faux-Map-Theme:** die WebGL-Karte restylt erst NACH der Transition (setStyle+Tiles) — damit der
-  Kreis auch über der KARTE das neue Theme aufdeckt, legt `swap()` sofort `#app.map-faux-theme` an
-  (Canvas-Filter `invert(1) hue-rotate(180deg)` ≈ dark-matter↔positron, Hues bleiben erhalten);
-  entfernt wird die Klasse erst, wenn `map.setTheme()` aufgelöst hat (der echte neue Style rendert) —
-  nie früher (sonst Blank-Tile-Flash) und nie später (sonst wird der NEUE Style zurückgespiegelt).
-  `fauxThemeTok` (modul-scoped!) guardet schnelle Re-Toggles. Browser ohne
+  **Faux-Map-Theme + Veil:** die WebGL-Karte restylt erst NACH der Transition (setStyle+Tiles) —
+  damit der Kreis auch über der KARTE das neue Theme aufdeckt, legt `swap()` sofort
+  `#app.map-faux-theme` an (Canvas-Filter `invert(1) hue-rotate(180deg)` ≈ dark-matter↔positron,
+  Hues bleiben erhalten). Der Rückweg läuft über `map.setThemeVeiled()` (map.js): der aktuelle
+  Frame wird **im 'render'-Tick** (Buffer nur dort lesbar, preserveDrawingBuffer off) in ein
+  2D-Canvas kopiert und als `.map-veil` ÜBER das GL-Canvas gelegt (unter den DOM-Markern — Beacon
+  bleibt live), erst DANN fällt der Live-Filter (`onVeiled`-Callback), das echte Restyle läuft
+  unsichtbar darunter, Unveil-Fade erst bei `'idle'` (Tiles gerendert; hart auf 4 s begrenzt,
+  `movestart` unveilt sofort — Pannen unter eingefrorenem Bild wirkt kaputt). OHNE Veil blitzte
+  die Karte nach dem Reveal hart auf: der Filter lag noch auf dem schon NEU rendernden Style
+  (doppelt invertiert = alter Look) und schnappte dann ab; zudem löst setTheme bei isStyleLoaded
+  auf, BEVOR Tiles gezeichnet sind (Background-Flash). Verifiziert per 50-ms-Timeline: 0 Lücken,
+  in denen weder Filter noch Veil das Canvas deckt; Doppel-Toggle stackt nie >1 Veil
+  (`this._veil`-Guard in map.js, `fauxThemeTok` modul-scoped in main.js). Browser ohne
   `startViewTransition` bekommen den celox-`themeRipple`-Fallback: einfarbiger Kreis-Layer
   (Kiez-Surface-Farben `#0b0e14`/`#f3f4fb`) wächst per clip-path vom Button, Theme+Map wechseln
   unsichtbar darunter, dann fade-out; `themeRippleActive` guardet Doppelklicks. Bei Anpassungen

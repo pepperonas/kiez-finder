@@ -454,6 +454,63 @@ export class KiezMap {
     }
   }
 
+  /** Theme-Restyle hinter einem eingefrorenen "Veil": der aktuell komponierte
+      Frame wird in ein 2D-Canvas kopiert und ÜBER das GL-Canvas gelegt (unter
+      den DOM-Markern), das echte Restyle läuft unsichtbar darunter; erst wenn
+      die neuen Tiles wirklich gerendert sind ('idle', hart begrenzt) blendet
+      das Veil aus. Ohne Veil endete der Theme-Reveal in einem harten Blitz:
+      der Faux-invert-Filter lag noch auf dem Canvas, während der NEUE Style
+      schon renderte (doppelt invertiert = wieder der alte Look), dann fiel der
+      Filter schlagartig — plus Background-Flash, weil setTheme bei
+      isStyleLoaded auflöst, bevor Tiles gezeichnet sind. `onVeiled` feuert,
+      sobald das Veil das Canvas deckt — exakt dann darf der Aufrufer seinen
+      Live-Canvas-Filter entfernen. */
+  async setThemeVeiled(theme, onVeiled) {
+    await this._ready
+    if (this._veil) { this._veil.remove(); this._veil = null } // rapid re-toggle: never stack veils
+    const gl = this.map.getCanvas()
+    // copy must happen inside a 'render' tick — the WebGL buffer is cleared
+    // after compositing (preserveDrawingBuffer is off); bounded so a stuck
+    // render can never hang the toggle
+    const veil = await new Promise((res) => {
+      const tmr = setTimeout(() => res(null), 1000)
+      this.map.once('render', () => {
+        clearTimeout(tmr)
+        try {
+          const c = document.createElement('canvas')
+          c.width = gl.width; c.height = gl.height
+          c.getContext('2d').drawImage(gl, 0, 0)
+          res(c)
+        } catch (e) { res(null) } // e.g. tainted canvas → restyle without veil
+      })
+      this.map.triggerRepaint()
+    })
+    if (veil) {
+      veil.className = 'map-veil'
+      gl.parentNode.insertBefore(veil, gl.nextSibling) // above canvas, below markers (beacon stays live)
+      this._veil = veil
+    }
+    if (onVeiled) onVeiled()
+    await this.setTheme(theme)
+    if (!veil) return
+    // unveil once the new style has actually drawn ('idle'), bounded; a camera
+    // move unveils immediately — panning under a frozen image reads as broken
+    await new Promise((res) => {
+      const fin = () => {
+        clearTimeout(tmr)
+        this.map.off('idle', fin); this.map.off('movestart', fin)
+        res()
+      }
+      const tmr = setTimeout(fin, 4000)
+      this.map.once('idle', fin)
+      this.map.once('movestart', fin)
+    })
+    if (this._veil === veil) this._veil = null
+    if (reduceMotion()) { veil.remove(); return }
+    veil.style.opacity = '0' // .map-veil carries the opacity transition
+    setTimeout(() => veil.remove(), 500)
+  }
+
   async setTheme(theme) {
     if (theme === this.theme && this._themedOnce) return
     this.theme = theme
