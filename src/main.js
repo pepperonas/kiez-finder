@@ -696,29 +696,28 @@ function applyTheme(next, origin) {
     // blindes Invertieren zeigte dann das falsche Theme (und snappte hart)
     app.classList.toggle('map-faux-theme', !!state.map && state.map.theme !== state.theme)
   }
-  // The map restyle (veil incl.) runs in the BACKGROUND — it takes seconds
-  // (WebGL restyle + tile reload) and is NOT part of the cooldown; the veil
-  // + fauxThemeTok + the map's _restyleTok keep overlapping restyles safe.
+  // Returns a promise that resolves when the map restyle (setStyle + tile load
+  // + veil fade) is COMPLETE. The cooldown waits for this whole thing: two
+  // overlapping restyles race MapLibre's setStyle (+ veil placement) even when
+  // the View Transitions themselves don't overlap — that was the remaining
+  // "harter Wechsel"-Bug when re-toggling right after the visible reveal while
+  // the previous restyle was still running in the background.
   const restyle = () => {
     const tok = ++fauxThemeTok
     const unfaux = () => { if (tok === fauxThemeTok) app.classList.remove('map-faux-theme') }
-    if (!state.map) return unfaux()
+    if (!state.map) { unfaux(); return Promise.resolve() }
     // Veil-Restyle: der Live-Canvas-Filter darf erst fallen, wenn das
     // eingefrorene Veil das Canvas deckt — sonst blitzt die restylende Karte
     // durch (alter Look / halbgeladene Tiles = harter Flash nach dem Reveal)
-    Promise.resolve(state.map.setThemeVeiled(state.theme, unfaux))
+    return Promise.resolve(state.map.setThemeVeiled(state.theme, unfaux))
       .catch(() => {}).finally(unfaux) // belt & braces if the veil path bailed early
   }
-  // The returned promise resolves when the REVEAL is done (not the background
-  // restyle) — that's the cooldown boundary: the moment a NEW View Transition
-  // can start without overlapping the running one (überlappende VTs = die
-  // eigentlichen Darstellungsfehler bei schnellem Umschalten).
-  if (reduceMotion()) { swap(); restyle(); return Promise.resolve() }
+  if (reduceMotion()) { swap(); return restyle() }
   const x = origin ? origin.x : innerWidth - 40
   const y = origin ? origin.y : 40
   const end = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y))
   if (!document.startViewTransition) {
-    return new Promise((resolve) => themeRipple(next, x, y, end, swap, () => { restyle(); resolve() }))
+    return new Promise((resolve) => themeRipple(next, x, y, end, swap, () => restyle().finally(resolve)))
   }
   // celox-Reveal: Desktop 900 ms, Mobile/Touch 520 ms (entschlackt gegen
   // Ruckeln — html.theme-transition schaltet währenddessen backdrop-filter ab)
@@ -738,28 +737,32 @@ function applyTheme(next, origin) {
     // real >600ms (gemessen 611ms) — feuert der Timer vor dem Callback, passiert
     // der komplette Swap OHNE Animation (= harter Wechsel bei schnellen Toggles)
     const fb = setTimeout(() => { if (!swapped) { swap(); swapped = true } }, 2500)
-    // guarantee the swap + map restyle even if the VT is skipped/aborted
+    // guarantee the swap + map restyle even if the VT is skipped/aborted; the
+    // cooldown holds until restyle() settles (full serialization, no race)
     t.finished.catch(() => {}).finally(() => {
       clearTimeout(fb); if (!swapped) swap()
       document.documentElement.classList.remove('theme-transition')
-      restyle()   // background
-      resolve()   // cooldown over: reveal done → a new VT may safely start now
+      restyle().finally(resolve)
     })
   })
 }
 
 themeBtn.addEventListener('click', (e) => {
-  // Cooldown: ein Theme-Wechsel läuft VOLLSTÄNDIG durch, bevor der nächste
-  // startet. Ohne den Guard überlappten bei schnellem Klicken zwei View
-  // Transitions + zwei Veils (verifiziert: vtMaxConcurrent/maxVeils = 2) →
-  // Darstellungsfehler. Der Guard hält bis der ganze Zyklus (Reveal + Veil-
-  // Restyle) settled ist; ein Safety-Timeout löst ihn notfalls (falls ein
-  // Promise nie auflöst, z.B. Tab im Hintergrund → VT hängt).
+  // Cooldown: ein Theme-Wechsel läuft VOLLSTÄNDIG durch (Reveal + der ganze
+  // Karten-Restyle: setStyle + Tile-Load + Veil-Fade), bevor der nächste
+  // startet. Sonst racen zwei setStyle-Aufrufe + zwei Veil-Platzierungen —
+  // auch wenn die View Transitions dank Guard NICHT mehr überlappen (das war
+  // der verbleibende „harte Wechsel", wenn man direkt nach dem sichtbaren
+  // Reveal erneut klickt, während der Hintergrund-Restyle noch lief). Auf
+  // echter Hardware ~2–4 s; der Safety-Timeout (16 s) löst nur einen echten
+  // Hänger (z.B. Tab im Hintergrund → VT-Snapshot pausiert) und liegt bewusst
+  // ÜBER der gebundenen Worst-Case-Summe (Reveal + 3 s Snapshot + 4 s setTheme
+  // + 4 s Unveil), damit er eine legitime Auflösung nie vorzeitig freigibt.
   if (themeRippleActive || themeBusy) return
   themeBusy = true
   themeBtn.classList.add('busy') // visuelles Feedback: Klick bewusst gesperrt
   const release = () => { themeBusy = false; themeBtn.classList.remove('busy'); clearTimeout(safety) }
-  const safety = setTimeout(release, 9000)
+  const safety = setTimeout(release, 16000)
   // Origin = Klickpunkt (wie celox); Tastatur-Klicks (clientX/Y = 0) → Button-Mitte
   const r = themeBtn.getBoundingClientRect()
   const x = e.clientX || r.left + r.width / 2
