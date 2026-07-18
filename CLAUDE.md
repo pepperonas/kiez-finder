@@ -46,6 +46,13 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   lock-on (`fly:true`) re-opens the bottom sheet; a casual map-pick keeps the current state (a peeked
   sheet stays peeked) so the map + overlay you're exploring stay visible — otherwise every pick slammed
   the sheet open over the map and overlay-mode switches looked like they did nothing.
+  **Auto-Zoom toggle (⛶ topbar toggle):** `state.autoZoom` (persisted `kf-autozoom`, default on)
+  governs ONLY the map-tap camera fit — `locateAt` passes `fit: state.autoZoom` into
+  `map.goTo(lon,lat,feature,{fit})`, which paints the boundary + moves the beacon but skips `fitTo`
+  when off (the tapped point is already on screen, so the camera stays put). Explicit "take-me-there"
+  actions are unaffected and always frame: the geolocation lock-on (`fly:true`), the level rows,
+  search selection, and the "Auf Karte zentrieren" buttons. `applyAutoZoom` flips
+  `aria-pressed`/`is-active` (accent-tinted when on, like the wall button) + persists.
   **Mobile bottom sheet** (`sheet`/`initSheetDrag` + `beginDrag`/`moveDrag`/`endDrag`): on `≤839px`
   the card is a fixed bottom sheet, `--sheet-y` transform, `open`↔`peek` snap via the M3 spring.
   **Compact peek (~113px):** in peek the decorative/secondary elements collapse via CSS
@@ -68,7 +75,8 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
 - `src/map.js` — `KiezMap` class wrapping MapLibre GL. Keyless CARTO tiles (dark-matter/positron).
   `lockOn()` is the signature moment: `flyTo` the user, drop the beacon, then animate the Kiez
   fill/outline in with a spring. `highlight(feature,{fit})` highlights any LOR level (+`fitBounds`);
-  `goTo()` handles a map-click pick; `onPick(cb)` fires on map clicks → main re-locates.
+  `goTo(lon,lat,feature,{fit})` handles a map-click pick (`fit:false` from the Auto-Zoom-off
+  toggle marks the area but leaves the camera put); `onPick(cb)` fires on map clicks → main re-locates.
   **"Current area" chip:** in `main.js`, a floating pill names the coloured region under the map
   **centre** (via `map.areaAtCenter(mode)` → `queryRenderedFeatures` on the active `ov-*-fill`, giving
   name+colour). Driven by `map.onMove` (rAF-throttled `move` + `idle`); `refreshAreaChip` retries on rAF

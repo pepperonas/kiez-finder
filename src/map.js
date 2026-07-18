@@ -1106,17 +1106,19 @@ export class KiezMap {
     }
   }
 
-  /** Map-click pick: move the beacon to the point and frame its Kiez. */
-  async goTo(lon, lat, feature) {
+  /** Map-click pick: move the beacon to the point and (optionally) frame its Kiez.
+   *  `fit:false` (auto-zoom toggle off) marks the area but leaves the camera put —
+   *  the tapped point is already on screen, so no move is needed. */
+  async goTo(lon, lat, feature, { fit = true } = {}) {
     await this._ready
     this._lastPos = [lon, lat]
     this._placeBeacon([lon, lat])
     if (feature) {
       this._paint(feature)
-      this.fitTo(feature)
+      if (fit) this.fitTo(feature)
     } else {
       this.clearHighlight()
-      this.map.easeTo({
+      if (fit) this.map.easeTo({
         center: [lon, lat],
         zoom: Math.max(this.map.getZoom(), 11),
         duration: reduceMotion() ? 0 : 600,

@@ -47,6 +47,8 @@ const ICONS = {
   chevronL: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   chevronR: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   road: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4 5.5 20M16 4l2.5 16" stroke-linecap="round"/><path d="M12 4.6v3M12 10.7v3M12 16.8v3" stroke-linecap="round"/></svg>',
+  // auto-fit frame (corner brackets + centre) — reads as "auto-zoom to the area"
+  autozoom: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.5V5.5A1.5 1.5 0 0 1 5.5 4h3M15.5 4h3A1.5 1.5 0 0 1 20 5.5v3M20 15.5v3a1.5 1.5 0 0 1-1.5 1.5h-3M8.5 20h-3A1.5 1.5 0 0 1 4 18.5v-3" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="2.3"/></svg>',
 }
 
 const state = {
@@ -60,6 +62,9 @@ const state = {
   level: 'kiez',    // active highlight level: kiez | bez | bzr | pgr (default = colloquial Kiez = merged group)
   overlay: 'off',   // map sector overlay: off | bezirke | bzr
   overlayReady: false,
+  // auto-zoom: when on, a map-tap frames the tapped Kiez; off keeps the camera
+  // put (only the tap path — explicit "centre"/level/search actions always frame)
+  autoZoom: (() => { try { return localStorage.getItem('kf-autozoom') !== '0' } catch (e) { return true } })(),
   searchReady: false,
   selectedPlace: null,
   kiezArea: null,   // resolved highlight area for the active Kiez (OSM or merged group)
@@ -95,6 +100,14 @@ const wallBtn = h('button', {
   aria: { label: 'Berliner Mauer 1989: Retro-Schwarz-Weiß-Ansicht umschalten', pressed: 'false' },
   html: ICONS.wall,
 })
+// Auto-Zoom beim Antippen der Karte — an (Default) = Tap rahmt den Kiez; aus =
+// Kamera bleibt stehen (nur markieren). Active-Look = an, wie beim Mauer-Button.
+const autoZoomBtn = h('button', {
+  class: 'icon-btn autozoom-btn' + (state.autoZoom ? ' is-active' : ''), type: 'button',
+  title: state.autoZoom ? 'Auto-Zoom beim Antippen: an' : 'Auto-Zoom beim Antippen: aus',
+  aria: { label: 'Automatisch heranzoomen beim Antippen der Karte umschalten', pressed: String(state.autoZoom) },
+  html: ICONS.autozoom,
+})
 
 // ── fuzzy search (Bezirke / Bezirksregionen / Prognoseräume / Kieze / Planungsräume) ──
 const searchInput = h('input', {
@@ -115,7 +128,7 @@ const topbar = h('header', { class: 'topbar' },
     h('span', { class: 'brand-name' },
       h('strong', { text: 'Kiez' }), h('span', { text: '-Finder' }))),
   searchBox,
-  h('div', { class: 'topbar-actions' }, installBtn, overlayBtn, wallBtn, themeBtn),
+  h('div', { class: 'topbar-actions' }, installBtn, overlayBtn, wallBtn, autoZoomBtn, themeBtn),
 )
 
 // floating "current area" chip — names the coloured region under the map centre
@@ -618,7 +631,7 @@ async function locateAt(pos, { fly = false } = {}) {
 
   if (state.map) {
     if (fly) state.map.lockOn(pos.lon, pos.lat, area)
-    else state.map.goTo(pos.lon, pos.lat, area)
+    else state.map.goTo(pos.lon, pos.lat, area, { fit: state.autoZoom })
   }
 
   if (!kiez) {
@@ -892,6 +905,16 @@ async function applyWall(on) {
   refreshAreaChip()
 }
 wallBtn.addEventListener('click', () => applyWall(!state.wall))
+
+// ── Auto-Zoom toggle: frame the tapped Kiez on a map-tap, or leave the camera ──
+function applyAutoZoom(on) {
+  state.autoZoom = on
+  try { localStorage.setItem('kf-autozoom', on ? '1' : '0') } catch (e) {}
+  autoZoomBtn.classList.toggle('is-active', on)
+  autoZoomBtn.setAttribute('aria-pressed', String(on))
+  autoZoomBtn.setAttribute('title', on ? 'Auto-Zoom beim Antippen: an' : 'Auto-Zoom beim Antippen: aus')
+}
+autoZoomBtn.addEventListener('click', () => applyAutoZoom(!state.autoZoom))
 
 // ── search controller ────────────────────────────────────────────────────────
 const TYPE_ICON = { bez: ICONS.layers, bzr: ICONS.layers, pgr: ICONS.layers, kiez: ICONS.pin, plr: ICONS.pin, str: ICONS.road }
