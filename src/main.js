@@ -13,6 +13,7 @@ import { loadKieze, loadOutline, loadLevels, levelFC, loadKiezNames, loadWall, l
   findKiez, bezirkName, kmFromBerlin, featureForLevel, levelName, kiezAreaFor, kiezeFC,
   kiezAreasFC, osmKiezeFC, findOsmKiez, pointInGeometry } from './kiez.js'
 import { buildSearchIndex, search } from './search.js'
+import { readBoolPref, writeBoolPref } from './prefs.js'
 import { getPosition, reverseGeocode } from './geo.js'
 import { revealStagger, tweenNumber, spring, SPRINGS, reduceMotion, finePointer, damdamper } from './motion.js'
 
@@ -64,7 +65,7 @@ const state = {
   overlayReady: false,
   // auto-zoom: when on, a map-tap frames the tapped Kiez; off keeps the camera
   // put (only the tap path — explicit "centre"/level/search actions always frame)
-  autoZoom: (() => { try { return localStorage.getItem('kf-autozoom') !== '0' } catch (e) { return true } })(),
+  autoZoom: (() => { try { return readBoolPref(localStorage, 'kf-autozoom', true) } catch (e) { return true } })(),
   searchReady: false,
   selectedPlace: null,
   kiezArea: null,   // resolved highlight area for the active Kiez (OSM or merged group)
@@ -909,7 +910,7 @@ wallBtn.addEventListener('click', () => applyWall(!state.wall))
 // ── Auto-Zoom toggle: frame the tapped Kiez on a map-tap, or leave the camera ──
 function applyAutoZoom(on) {
   state.autoZoom = on
-  try { localStorage.setItem('kf-autozoom', on ? '1' : '0') } catch (e) {}
+  try { writeBoolPref(localStorage, 'kf-autozoom', on) } catch (e) {}
   autoZoomBtn.classList.toggle('is-active', on)
   autoZoomBtn.setAttribute('aria-pressed', String(on))
   autoZoomBtn.setAttribute('title', on ? 'Auto-Zoom beim Antippen: an' : 'Auto-Zoom beim Antippen: aus')

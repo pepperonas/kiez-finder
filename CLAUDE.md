@@ -22,11 +22,15 @@ npm test         # unit tests (Node's built-in runner, no deps) — tests/*.test
 No linter configured. Geolocation needs a secure context (localhost or HTTPS).
 
 **Tests** (`tests/`, `node --test`, zero dependencies) cover the dependency-light pure
-logic: `search.js` (norm folding + the multi-tier scorer / type-priority / dedup) and
+logic: `search.js` (norm folding + the multi-tier scorer / type-priority / dedup),
 `kiez.js` (point-in-polygon classification incl. holes + MultiPolygon, `bezirkName`,
-`kmFromBerlin`, `bboxOf`, `levelName`). `map.js` isn't covered — it pulls in MapLibre +
-CSS, so its pure helpers (graph-colouring, label candidates) would need extracting into a
-maplibre-free module first. Add tests alongside as `tests/<name>.test.js`.
+`kmFromBerlin`, `bboxOf`, `levelName`), and `prefs.js` (the DOM-free `readBoolPref`/
+`writeBoolPref` persistence helpers backing the Auto-Zoom toggle — default derivation,
+'1'/'0' semantics, garbage/legacy fallback, throwing/absent storage, round-trip).
+`main.js`/`map.js` aren't covered — they pull in MapLibre + CSS, so pure logic worth
+testing (persistence, graph-colouring, label candidates) is **extracted into a
+maplibre-free module first** (that's what `prefs.js` is). Add tests alongside as
+`tests/<name>.test.js`.
 
 ## Architecture
 
@@ -167,6 +171,10 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   When present and ≠ the LOR name, `main.js` `patchKiezName()` promotes it to the title and demotes
   the official Planungsraum name (e.g. "Flughafenstraße") to a `.kiez-official` subline. OSM `quarter`
   isn't flächendeckend, so it only augments — the LOR name is the instant default + fallback.
+- `src/prefs.js` — DOM-free `readBoolPref(storage,key,dflt)` / `writeBoolPref(storage,key,on)` for
+  localStorage-backed boolean preferences (storage injected → unit-testable, throwing/absent storage
+  falls back to the default). Backs the Auto-Zoom toggle (`kf-autozoom`); `main.js` passes the real
+  `localStorage`. Covered by `tests/prefs.test.js`.
 - `src/motion.js` — **the spring system.** CSS has no springs, so spatial motion uses a tiny Euler
   spring integrator with the verbatim **M3 Expressive** tokens (spatial-fast 800/0.6,
   spatial-default 380/0.8, spatial-slow 200/0.8). Opacity/colour stay on CSS easing. Honors
