@@ -176,22 +176,27 @@ node tools/screenshots.cjs                        # Terminal 2 (braucht Playwrig
 ## Tests ausführen
 
 ```bash
-npm test                                                        # 56 Unit-Tests, Nodes eingebauter Runner, null Test-Dependencies
+npm test                                                        # 77 Unit-Tests, Nodes eingebauter Runner, null Test-Dependencies
 node --test --experimental-test-coverage tests/*.test.js        # dito + Coverage-Report
+node tools/check-doc-sync.mjs                                   # dito + prüft, dass diese Doku-Zahlen der Messung entsprechen
 ```
 
-Getestet wird die **abhängigkeitsfreie Pure-Logik** — Stand heute **56 Tests, 100 % Line-Coverage**
-auf allen drei unit-testbaren Modulen (96 % Branch):
+Getestet wird die **abhängigkeitsfreie Pure-Logik** — Stand heute **77 Tests, 100 % Line-Coverage**
+auf allen fünf unit-testbaren Modulen (~97 % Branch):
 
 | Modul | Was abgesichert ist |
 |---|---|
 | `src/kiez.js` | Point-in-Polygon-Klassifizierung (Löcher, MultiPolygon), Hierarchie-Ableitung (`featureForLevel`, `levelName`), `findOsmKiez`-Nesting (kleinste Fläche gewinnt), `kiezAreaFor`-Fallbacks — und die **Loader per fetch-Mock**: Memoisierung, optionale Datensätze fehlen sauber, Kern-Datensatz-Fehler wird als Fehler gemeldet (nie als „nicht in Berlin"), `loadWall`/`loadStreets` **Fail → Reset → Retry** |
 | `src/search.js` | Umlaut-/ß-/„straße"-Faltung, Multi-Tier-Scoring, Typ-Priorität, Dedup, Straßen-Einträge |
+| `src/geo.js` | Geolocation-**Fehler-Mapping** (denied/unavailable/timeout/unknown/unsupported), Nominatim-Adresszeilen-Assemblierung, Kiez-Extraktion (`quarter`→`neighbourhood`), Koordinaten-gerundetes Caching, Best-Effort-Fehlpfade → `null` |
+| `src/motion.js` | **Spring-Physik** mit Fake-Clock + deterministischem rAF: exakte Konvergenz, **Overshoot bei damping 0.6** (der Signature-Bounce), kein Overshoot bei 0.8, Cancel mid-flight, `reduced-motion`-Sofortpfade, Stagger-Reveal, Pointer-Damper |
 | `src/prefs.js` | `localStorage`-Persistenz-Semantik (Defaults, Garbage-Fallback, werfende Storage) |
 
 `main.js`/`map.js` hängen an DOM + MapLibre/WebGL und sind bewusst nicht unit-getestet — testwürdige
 Logik wird stattdessen in maplibre-freie Module extrahiert (so entstand `prefs.js`). Die CI
-(GitHub Actions, Node 20 + 22) führt Tests + Coverage + Production-Build bei jedem Push aus.
+(GitHub Actions, Node 20 + 22) führt bei jedem Push Tests + Coverage + Production-Build aus **und
+prüft per `tools/check-doc-sync.mjs`, dass Coverage-Badge und Test-Zahlen in dieser Doku der
+tatsächlichen Messung entsprechen** — die Zahlen hier können nicht still veralten.
 
 ## Tech-Stack
 

@@ -21,8 +21,8 @@ npm test         # unit tests (Node's built-in runner, no deps) — tests/*.test
 ```
 No linter configured. Geolocation needs a secure context (localhost or HTTPS).
 
-**Tests** (`tests/`, `node --test`, zero dependencies — 56 tests, 100% line coverage on
-the three unit-testable modules) cover the dependency-light pure logic: `search.js`
+**Tests** (`tests/`, `node --test`, zero dependencies — 77 tests, 100% line coverage on
+the five unit-testable modules) cover the dependency-light pure logic: `search.js`
 (norm folding + the multi-tier scorer / type-priority / dedup), `kiez.js` (point-in-polygon
 classification incl. holes + MultiPolygon, `bezirkName`, `kmFromBerlin`, `bboxOf`,
 `levelName` — plus, via a **fetch mock**, the loaders and the loaded-state functions:
@@ -33,7 +33,12 @@ classification incl. holes + MultiPolygon, `bezirkName`, `kmFromBerlin`, `bboxOf
 `tests/loaders-fixtures.mjs` and MUST stay separate files: the runner isolates each test
 file in its own process, giving the fallback file a fresh module instance — query-string
 imports would instead split `src/kiez.js` into one coverage row per instance), and
-`prefs.js` (the DOM-free persistence helpers backing the Auto-Zoom toggle).
+`prefs.js` (the DOM-free persistence helpers backing the Auto-Zoom toggle),
+`geo.js` (error mapping, Nominatim line assembly, rounded-coordinate caching — global
+stubs for navigator/fetch/sessionStorage; the module touches globals only at call time,
+so no extraction was needed), and `motion.js` (spring physics with a fake clock + an
+auto-pumping rAF stub — every scheduled frame runs on a 0-ms timer advancing a fake
+clock one 60fps step; asserts exact convergence, overshoot at damping 0.6, cancel).
 `main.js`/`map.js` aren't covered — they pull in MapLibre + CSS, so pure logic worth
 testing (persistence, graph-colouring, label candidates) is **extracted into a
 maplibre-free module first** (that's what `prefs.js` is). Add tests alongside as
@@ -41,7 +46,10 @@ maplibre-free module first** (that's what `prefs.js` is). Add tests alongside as
 (glob, NOT a bare `tests/` directory arg — Node 22 tries to execute the directory as a
 module and dies with MODULE_NOT_FOUND; Node 20 happened to glob it).
 **CI:** `.github/workflows/ci.yml` runs tests+coverage+build on Node 20/22 per push/PR;
-the README's CI badge points at it.
+the README's CI badge points at it. The test step is `node tools/check-doc-sync.mjs`,
+which runs the suite with coverage AND fails on doc drift: the README coverage badge and
+every test-count claim in README.md/CLAUDE.md must match the measurement — after adding
+tests, update those numbers or CI goes red (this paragraph's count is checked too).
 
 **README screenshots** (`docs/screenshot-*.png`) are regenerated with
 `tools/screenshots.cjs` against a `npm run preview -- --port 4190` server (needs a

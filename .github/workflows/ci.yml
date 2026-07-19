@@ -22,10 +22,10 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
-      - name: Unit-Tests + Coverage
-        # Glob statt Verzeichnis-Argument: Node 22 versucht ein bloßes "tests/"
-        # als Modul auszuführen (MODULE_NOT_FOUND), Node 20 globbt es — die
-        # shell-expandierte Dateiliste läuft auf beiden.
-        run: node --test --experimental-test-coverage tests/*.test.js
+      - name: Unit-Tests + Coverage + Doku-Sync
+        # Führt die Suite mit Coverage aus UND prüft, dass Coverage-Badge und
+        # Test-Anzahl in README.md/CLAUDE.md der Messung entsprechen — die
+        # statischen Doku-Zahlen können so nicht still veralten.
+        run: node tools/check-doc-sync.mjs
       - name: Production-Build
         run: npm run build
