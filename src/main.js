@@ -15,7 +15,8 @@ import { loadKieze, loadOutline, loadLevels, levelFC, loadKiezNames, loadWall, l
 import { buildSearchIndex, search } from './search.js'
 import { readBoolPref, writeBoolPref } from './prefs.js'
 import { loadStats, loadKiezInfo, statsData, infoData, selectorFor, selectorForFeature,
-  aggregate, ranksFor, geodesicAreaM2, infoFor, infoForBezirk, fmtInt, fmtKm2, fmtDichte } from './stats.js'
+  aggregate, ranksFor, geodesicAreaM2, infoFor, infoForBezirk,
+  fmtInt, fmtKm2, fmtDichte, fmtAlter, fmtAnteil } from './stats.js'
 import { getPosition, reverseGeocode } from './geo.js'
 import { revealStagger, tweenNumber, spring, SPRINGS, reduceMotion, finePointer, damdamper } from './motion.js'
 
@@ -442,6 +443,8 @@ function buildStatsBlock() {
     return { val, el: h('div', { class: 'stat-tile' }, val, h('span', { class: 'stat-label', text: label })) }
   }
   const pop = tile('Einwohner'), area = tile('Fläche'), dens = tile('Einw./km²')
+  const age = tile('Ø Alter'), u18 = tile('unter 18'), o65 = tile('ab 65')
+  const ageRow = h('div', { class: 'stats-tiles stats-tiles--age', hidden: true }, age.el, u18.el, o65.el)
   const rank = h('p', { class: 'stats-rank', hidden: true })
   const aboutText = h('p', { class: 'about-text' })
   const aboutLink = h('a', { class: 'about-a', target: '_blank', rel: 'noopener' })
@@ -452,8 +455,9 @@ function buildStatsBlock() {
   const root = h('section', { class: 'stats', 'data-reveal': '', hidden: true },
     h('p', { class: 'stats-head' }, 'Statistik', scope),
     h('div', { class: 'stats-tiles' }, pop.el, area.el, dens.el),
-    rank, about, note)
-  _statsEls = { root, scope, pop: pop.val, area: area.val, dens: dens.val, rank, about, aboutText, aboutLink, note }
+    ageRow, rank, about, note)
+  _statsEls = { root, scope, pop: pop.val, area: area.val, dens: dens.val,
+    ageRow, age: age.val, u18: u18.val, o65: o65.val, rank, about, aboutText, aboutLink, note }
   return root
 }
 
@@ -484,6 +488,7 @@ function patchStats(selection) {
     els.pop.textContent = '—'
     els.dens.textContent = '—'
     els.area.textContent = fmtKm2(geodesicAreaM2(osmGeom))
+    els.ageRow.hidden = true
     els.rank.hidden = true
     els.note.textContent = 'Feiner OSM-Kiez — amtliche Einwohnerzahlen gibt es erst ab Planungsraum-Ebene.'
     hasNumbers = true
@@ -493,6 +498,13 @@ function patchStats(selection) {
       els.pop.textContent = agg.pop == null ? 'k. A.' : (agg.partial ? '≥ ' : '') + fmtInt(agg.pop)
       els.area.textContent = fmtKm2(agg.m2)
       els.dens.textContent = fmtDichte(agg.pop, agg.m2) || '—'
+      // Altersstruktur: Ø approximativ (Bandmitten), U18/65+ exakte Bandsummen
+      if (agg.avgAge != null) {
+        els.age.textContent = '≈ ' + fmtAlter(agg.avgAge)
+        els.u18.textContent = fmtAnteil(agg.u18, agg.pop) || '—'
+        els.o65.textContent = fmtAnteil(agg.o65, agg.pop) || '—'
+        els.ageRow.hidden = false
+      } else els.ageRow.hidden = true
       const r = ranksFor(data, kiezeFC(), level, sel)
       if (r && r.of > 1) {
         els.rank.textContent = `№ ${r.popRank} von ${r.of} nach Einwohnern · № ${r.densRank} nach Dichte`
@@ -500,7 +512,7 @@ function patchStats(selection) {
       } else els.rank.hidden = true
       els.note.textContent = `Einwohner: Amt für Statistik Berlin-Brandenburg · Stand ${data.stand}`
       hasNumbers = true
-    } else els.rank.hidden = true
+    } else { els.rank.hidden = true; els.ageRow.hidden = true }
   }
 
   // Wikipedia-Kurztext: Kieze über den Namen, Bezirke über "bez:<Name>"

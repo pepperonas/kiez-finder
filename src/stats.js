@@ -65,13 +65,16 @@ const matches = (sel, p) =>
       : p.plr_id.startsWith(sel.v)
 
 /**
- * Aggregat über die Mitglieds-PLRs → { pop, m2, n, partial } oder null.
+ * Aggregat über die Mitglieds-PLRs → { pop, m2, n, partial, avgAge, u18, o65 } oder null.
  * pop = null, wenn KEIN Mitglied einen Wert hat (SAFE-anonymisierte PLRs);
  * partial = true, wenn einzelne Mitglieder anonymisiert sind (Summe = Untergrenze).
+ * avgAge (approx. aus Altersband-Mitten) + u18/o65 (exakte Bandsummen) sind null,
+ * wenn die Daten sie nicht tragen (ältere stats.json) oder pop null ist.
  */
 export function aggregate(data, fc, sel) {
   if (!data || !fc || !sel) return null
   let pop = 0, m2 = 0, n = 0, have = 0, partial = false
+  let ageSum = 0, u18 = 0, o65 = 0, haveAge = false
   for (const f of fc.features) {
     const p = f.properties
     if (!matches(sel, p)) continue
@@ -80,10 +83,18 @@ export function aggregate(data, fc, sel) {
     n++
     m2 += row[1]
     if (row[0] == null) partial = true
-    else { pop += row[0]; have++ }
+    else {
+      pop += row[0]; have++
+      if (row[2] != null) { ageSum += row[2]; u18 += row[3]; o65 += row[4]; haveAge = true }
+    }
   }
   if (!n) return null
-  return { pop: have ? pop : null, m2, n, partial: partial && have > 0 }
+  return {
+    pop: have ? pop : null, m2, n, partial: partial && have > 0,
+    avgAge: haveAge && pop ? ageSum / pop : null,
+    u18: haveAge ? u18 : null,
+    o65: haveAge ? o65 : null,
+  }
 }
 
 // ── Ränge: Position der Einheit unter allen Einheiten derselben Ebene ────────
@@ -180,4 +191,14 @@ export function fmtKm2(m2) {
 export function fmtDichte(pop, m2) {
   if (pop == null || !m2) return null
   return fmtInt(Math.round(pop / (m2 / 1e6)))
+}
+/** "42,9 J." — approximatives Durchschnittsalter (aus Altersband-Mitten). */
+export function fmtAlter(avgAge) {
+  if (avgAge == null) return null
+  return avgAge.toFixed(1).replace('.', ',') + ' J.'
+}
+/** Anteil als "15 %" (kaufmännisch gerundet) — null-sicher. */
+export function fmtAnteil(part, total) {
+  if (part == null || !total) return null
+  return Math.round((part / total) * 100) + ' %'
 }

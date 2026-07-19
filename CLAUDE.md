@@ -21,7 +21,7 @@ npm test         # unit tests (Node's built-in runner, no deps) — tests/*.test
 ```
 No linter configured. Geolocation needs a secure context (localhost or HTTPS).
 
-**Tests** (`tests/`, `node --test`, zero dependencies — 90 tests, 100% line coverage on
+**Tests** (`tests/`, `node --test`, zero dependencies — 92 tests, 100% line coverage on
 the six unit-testable modules) cover the dependency-light pure logic: `search.js`
 (norm folding + the multi-tier scorer / type-priority / dedup), `kiez.js` (point-in-polygon
 classification incl. holes + MultiPolygon, `bezirkName`, `kmFromBerlin`, `bboxOf`,
@@ -200,7 +200,7 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   the official Planungsraum name (e.g. "Flughafenstraße") to a `.kiez-official` subline. OSM `quarter`
   isn't flächendeckend, so it only augments — the LOR name is the instant default + fallback.
 - `src/stats.js` — **Bereichs-Statistik** (maplibre-free, pure core + thin loaders). Data:
-  `public/data/stats.json` (`{stand, quelle, plr: {plr_id: [einwohner|null, m2]}}` — official
+  `public/data/stats.json` (`{stand, quelle, plr: {plr_id: [einwohner|null, m2, alterssumme|null, u18|null, ab65|null]}}` (alterssumme = Σ Bandmitte×Besetzung der feinen EWR-Altersbänder, offenes Endband auf 97 gekappt → aggregierbares ≈Ø-Alter; u18/o65 exakte Bandsummen; Berlin-Ø 42,9 ≈ amtlich 42,8) — official
   Einwohnerregisterstatistik 31.12.2025 + official `finhalt` areas; built by `tools/build-stats.mjs`
   from vendored sources in `tools/vendor/`, validated 542/542 against kieze.geojson, Berlin total
   3.913.644) and `public/data/kiez-info.json` (Wikipedia summaries, 164 entries incl. `bez:<Name>`

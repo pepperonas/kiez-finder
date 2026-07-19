@@ -8,7 +8,7 @@ import assert from 'node:assert/strict'
 import {
   loadStats, loadKiezInfo, statsData, infoData,
   selectorFor, selectorForFeature, aggregate, ranksFor, clearRankCache,
-  geodesicAreaM2, infoFor, infoForBezirk, fmtInt, fmtKm2, fmtDichte,
+  geodesicAreaM2, infoFor, infoForBezirk, fmtInt, fmtKm2, fmtDichte, fmtAlter, fmtAnteil,
 } from '../src/stats.js'
 
 // ── Fixture: 5 PLRs — 4 Kiez-Gruppen, 2 Bezirke, ein NA (SAFE-anonymisiert) ──
@@ -20,12 +20,13 @@ const FC = { type: 'FeatureCollection', features: [
   plr('01011101', 'k3'), // Bezirk 01 — Einwohner anonymisiert (NA)
   plr('01011102', 'k4'), // Bezirk 01
 ] }
+// [pop, m2, alterssumme (Σ Bandmitte×Besetzung), u18, ab65]
 const DATA = { stand: '31.12.2025', plr: {
-  '08010101': [1000, 500000],
-  '08010102': [2000, 500000],
-  '08020201': [4000, 1000000],
-  '01011101': [null, 200000], // "NA"
-  '01011102': [500, 300000],
+  '08010101': [1000, 500000, 40000, 150, 100],  // Ø 40,0
+  '08010102': [2000, 500000, 90000, 300, 400],  // Ø 45,0
+  '08020201': [4000, 1000000, 160000, 800, 600],
+  '01011101': [null, 200000, null, null, null], // "NA"
+  '01011102': [500, 300000, 25000, 50, 125],
 } }
 
 // ── Loader (fetch-Stub): memoisiert, Fehlschlag → null statt Throw ───────────
@@ -73,9 +74,17 @@ test('selectorForFeature: Such-Treffer (Aggregat-Features mit id, Kiez-Fläche m
 })
 
 // ── Aggregation ──────────────────────────────────────────────────────────────
-test('aggregate summiert die Mitglieds-PLRs einer Kiez-Gruppe', () => {
+test('aggregate summiert die Mitglieds-PLRs einer Kiez-Gruppe (inkl. Altersstruktur)', () => {
   const a = aggregate(DATA, FC, { kind: 'gid', v: 'k1' })
-  assert.deepEqual(a, { pop: 3000, m2: 1000000, n: 2, partial: false })
+  assert.equal(a.pop, 3000)
+  assert.equal(a.m2, 1000000)
+  assert.equal(a.n, 2)
+  assert.equal(a.partial, false)
+  // Ø-Alter aggregiert über die ALTERSSUMMEN, nicht als Mittel der Mittel:
+  // (40000 + 90000) / 3000 = 43,33 — NICHT (40+45)/2 = 42,5
+  assert.ok(Math.abs(a.avgAge - 130000 / 3000) < 1e-9)
+  assert.equal(a.u18, 450)
+  assert.equal(a.o65, 500)
 })
 
 test('aggregate über Präfixe: BZR und Bezirk', () => {
@@ -93,6 +102,15 @@ test('aggregate: anonymisierte PLRs → partial (Summe = Untergrenze) bzw. pop n
   const k3 = aggregate(DATA, FC, { kind: 'gid', v: 'k3' })
   assert.equal(k3.pop, null)        // ausschließlich NA → keine Zahl erfinden
   assert.equal(k3.m2, 200000)       // Fläche ist trotzdem amtlich
+  assert.equal(k3.avgAge, null)     // ohne Einwohner auch kein Alter
+})
+
+test('aggregate ohne Altersdaten (ältere stats.json) → Alters-Felder null', () => {
+  const OLD = { stand: 'x', plr: { '08010101': [1000, 500000] } } // 2er-Arrays
+  const a = aggregate(OLD, FC, { kind: 'plr', v: '08010101' })
+  assert.equal(a.pop, 1000)
+  assert.equal(a.avgAge, null)
+  assert.equal(a.u18, null)
 })
 
 test('aggregate: kein Treffer/fehlende Inputs → null', () => {
@@ -161,4 +179,13 @@ test('fmtInt / fmtKm2 / fmtDichte formatieren de-DE', () => {
   assert.equal(fmtDichte(3000, 1000000), '3.000')
   assert.equal(fmtDichte(null, 1000000), null)
   assert.equal(fmtDichte(3000, 0), null)
+})
+
+test('fmtAlter / fmtAnteil: de-DE, null-sicher', () => {
+  assert.equal(fmtAlter(42.933), '42,9 J.')
+  assert.equal(fmtAlter(null), null)
+  assert.equal(fmtAnteil(450, 3000), '15 %')
+  assert.equal(fmtAnteil(500, 3000), '17 %') // kaufmännisch gerundet
+  assert.equal(fmtAnteil(null, 3000), null)
+  assert.equal(fmtAnteil(450, 0), null)
 })

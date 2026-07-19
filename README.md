@@ -43,7 +43,7 @@ Kamera fliegt zu dir, dann zeichnet sich deine Kiez-Grenze selbst ein) und der L
 - 🧩 **Kiez als EINE Fläche** — ein umgangssprachlicher Kiez besteht oft aus mehreren amtlichen Planungsräumen (Schillerkiez = Hasenheide + Schillerpromenade Nord/Süd + Wartheplatz). Die werden **zusammengeführt** und als eine zusammenhängende Fläche hervorgehoben — präzise, nicht die zu grobe Bezirksregion (355 Kiez-Flächen aus 542 Planungsräumen)
 - 🏘️ **Feinkörnige OSM-Kieze** — benannte Kieze, die *kleiner* als ein Planungsraum sind (z.B. *Scheunenviertel*, *Möckernkiez*, *Fischerinsel*), kommen mit ihrer **exakten OSM-Grenze** (71 Polygone) — suchbar, hervorhebbar und beim Drinstehen automatisch erkannt
 - 🧅 **Wählbare LOR-Ebenen** — tippe in der Card auf **Kiez · Bezirksregion · Bezirk**, und die zugehörige Fläche wird hervorgehoben (Auto-Zoom auf ihre Ausdehnung)
-- 📊 **Bereichs-Statistik in der Card** — für die gewählte Einheit (Kiez · Bezirksregion · Prognoseraum · Bezirk, auch aus der Suche): **Einwohnerzahl** aus der amtlichen **Einwohnerregisterstatistik** (je LOR-Planungsraum, Stand 31.12.2025, exakt auf die Einheit aufsummiert), **amtliche Fläche** (Geoportal `finhalt`), **Dichte** (Einw./km²) und **Ränge** („№ 53 von 427 nach Einwohnern · № 6 nach Dichte" — der Reuterkiez ist wirklich der sechst­dichteste Kiez Berlins). Die Stats **folgen der Ebenen-Auswahl live**; SAFE-anonymisierte Planungsräume werden ehrlich ausgewiesen („≥"-Untergrenze bzw. „k. A."), feine OSM-Kieze zeigen ihre geodätisch berechnete Fläche statt erfundener Amtszahlen; auch die **Straßensuche** zeigt die Stats des aufgelösten Kiezes. Alles offline (2 statische JSONs, ~66 KB, precached)
+- 📊 **Bereichs-Statistik in der Card** — für die gewählte Einheit (Kiez · Bezirksregion · Prognoseraum · Bezirk, auch aus der Suche): **Einwohnerzahl** aus der amtlichen **Einwohnerregisterstatistik** (je LOR-Planungsraum, Stand 31.12.2025, exakt auf die Einheit aufsummiert), **amtliche Fläche** (Geoportal `finhalt`), **Dichte** (Einw./km²), **Altersstruktur** (Ø-Alter ≈ aus Altersband-Mitten — Berlin-Kontrolle: 42,9 vs. amtlich 42,8 — plus exakte U18-/65+-Anteile) und **Ränge** („№ 53 von 427 nach Einwohnern · № 6 nach Dichte" — der Reuterkiez ist wirklich der sechst­dichteste Kiez Berlins). Die Stats **folgen der Ebenen-Auswahl live**; SAFE-anonymisierte Planungsräume werden ehrlich ausgewiesen („≥"-Untergrenze bzw. „k. A."), feine OSM-Kieze zeigen ihre geodätisch berechnete Fläche statt erfundener Amtszahlen; auch die **Straßensuche** zeigt die Stats des aufgelösten Kiezes. Alles offline (2 statische JSONs, ~66 KB, precached)
 - 📖 **„Über diesen Kiez"** — Wikipedia-Kurzbeschreibung direkt in der Card (164 Kieze + alle 12 Bezirke, de.wikipedia, CC BY-SA, mit Artikel-Link). Build-seitig kuratiert: Begriffsklärungen und Namensvettern außerhalb Berlins werden verworfen, in Berlin mehrdeutige Kiez-Namen bewusst übersprungen — lieber Lücke als falscher Text
 - 🖱️ **Karte ist anklickbar** — tippe irgendwohin in Berlin, und die Card springt auf den Kiez dieses Punkts (inkl. neuer Adresse)
 - ⛶ **Auto-Zoom-Schalter** (Topbar) — legt fest, ob ein **Karten-Tap** automatisch auf den getroffenen Kiez heranzoomt (Standard: an). Ausgeschaltet wird die Fläche zwar markiert, die Kamera bleibt aber stehen — praktisch zum Erkunden benachbarter Kieze, ohne dass die Karte bei jedem Tipp springt. Betrifft nur den Tap; „Auf Karte zentrieren", die Ebenen-Auswahl, die Suche und der Geo-Check-in rahmen weiterhin. Zustand wird gemerkt
@@ -191,12 +191,12 @@ node tools/screenshots.cjs                        # Terminal 2 (braucht Playwrig
 ## Tests ausführen
 
 ```bash
-npm test                                                        # 90 Unit-Tests, Nodes eingebauter Runner, null Test-Dependencies
+npm test                                                        # 92 Unit-Tests, Nodes eingebauter Runner, null Test-Dependencies
 node --test --experimental-test-coverage tests/*.test.js        # dito + Coverage-Report
 node tools/check-doc-sync.mjs                                   # dito + prüft, dass diese Doku-Zahlen der Messung entsprechen
 ```
 
-Getestet wird die **abhängigkeitsfreie Pure-Logik** — Stand heute **90 Tests, 100 % Line-Coverage**
+Getestet wird die **abhängigkeitsfreie Pure-Logik** — Stand heute **92 Tests, 100 % Line-Coverage**
 auf allen sechs unit-testbaren Modulen (~97 % Branch):
 
 | Modul | Was abgesichert ist |
