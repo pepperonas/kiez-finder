@@ -37,7 +37,9 @@ imports would instead split `src/kiez.js` into one coverage row per instance), a
 `main.js`/`map.js` aren't covered — they pull in MapLibre + CSS, so pure logic worth
 testing (persistence, graph-colouring, label candidates) is **extracted into a
 maplibre-free module first** (that's what `prefs.js` is). Add tests alongside as
-`tests/<name>.test.js`. Coverage: `node --test --experimental-test-coverage tests/`.
+`tests/<name>.test.js`. Coverage: `node --test --experimental-test-coverage tests/*.test.js`
+(glob, NOT a bare `tests/` directory arg — Node 22 tries to execute the directory as a
+module and dies with MODULE_NOT_FOUND; Node 20 happened to glob it).
 **CI:** `.github/workflows/ci.yml` runs tests+coverage+build on Node 20/22 per push/PR;
 the README's CI badge points at it.
 

@@ -23,6 +23,9 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Unit-Tests + Coverage
-        run: node --test --experimental-test-coverage tests/
+        # Glob statt Verzeichnis-Argument: Node 22 versucht ein bloßes "tests/"
+        # als Modul auszuführen (MODULE_NOT_FOUND), Node 20 globbt es — die
+        # shell-expandierte Dateiliste läuft auf beiden.
+        run: node --test --experimental-test-coverage tests/*.test.js
       - name: Production-Build
         run: npm run build

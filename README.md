@@ -176,8 +176,8 @@ node tools/screenshots.cjs                        # Terminal 2 (braucht Playwrig
 ## Tests ausführen
 
 ```bash
-npm test                                          # 56 Unit-Tests, Nodes eingebauter Runner, null Test-Dependencies
-node --test --experimental-test-coverage tests/   # dito + Coverage-Report
+npm test                                                        # 56 Unit-Tests, Nodes eingebauter Runner, null Test-Dependencies
+node --test --experimental-test-coverage tests/*.test.js        # dito + Coverage-Report
 ```
 
 Getestet wird die **abhängigkeitsfreie Pure-Logik** — Stand heute **56 Tests, 100 % Line-Coverage**
