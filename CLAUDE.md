@@ -21,8 +21,8 @@ npm test         # unit tests (Node's built-in runner, no deps) — tests/*.test
 ```
 No linter configured. Geolocation needs a secure context (localhost or HTTPS).
 
-**Tests** (`tests/`, `node --test`, zero dependencies — 77 tests, 100% line coverage on
-the five unit-testable modules) cover the dependency-light pure logic: `search.js`
+**Tests** (`tests/`, `node --test`, zero dependencies — 90 tests, 100% line coverage on
+the six unit-testable modules) cover the dependency-light pure logic: `search.js`
 (norm folding + the multi-tier scorer / type-priority / dedup), `kiez.js` (point-in-polygon
 classification incl. holes + MultiPolygon, `bezirkName`, `kmFromBerlin`, `bboxOf`,
 `levelName` — plus, via a **fetch mock**, the loaders and the loaded-state functions:
@@ -34,6 +34,7 @@ classification incl. holes + MultiPolygon, `bezirkName`, `kmFromBerlin`, `bboxOf
 file in its own process, giving the fallback file a fresh module instance — query-string
 imports would instead split `src/kiez.js` into one coverage row per instance), and
 `prefs.js` (the DOM-free persistence helpers backing the Auto-Zoom toggle),
+`stats.js` (selectors/aggregation/ranks/formatting — pure with injected fixtures),
 `geo.js` (error mapping, Nominatim line assembly, rounded-coordinate caching — global
 stubs for navigator/fetch/sessionStorage; the module touches globals only at call time,
 so no extraction was needed), and `motion.js` (spring physics with a fake clock + an
@@ -198,6 +199,21 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   When present and ≠ the LOR name, `main.js` `patchKiezName()` promotes it to the title and demotes
   the official Planungsraum name (e.g. "Flughafenstraße") to a `.kiez-official` subline. OSM `quarter`
   isn't flächendeckend, so it only augments — the LOR name is the instant default + fallback.
+- `src/stats.js` — **Bereichs-Statistik** (maplibre-free, pure core + thin loaders). Data:
+  `public/data/stats.json` (`{stand, quelle, plr: {plr_id: [einwohner|null, m2]}}` — official
+  Einwohnerregisterstatistik 31.12.2025 + official `finhalt` areas; built by `tools/build-stats.mjs`
+  from vendored sources in `tools/vendor/`, validated 542/542 against kieze.geojson, Berlin total
+  3.913.644) and `public/data/kiez-info.json` (Wikipedia summaries, 164 entries incl. `bez:<Name>`
+  keys for the 12 Bezirke; built by `tools/build-kiez-info.mjs` with disambiguation + Berlin-mention
+  filters; ambiguous duplicate kiez names skipped). API: `selectorFor(level, plr)` /
+  `selectorForFeature(type, feature)` → gid/prefix/plr selector; `aggregate(data, fc, sel)` sums
+  member PLRs (`pop: null` if all SAFE-anonymised, `partial` flag → UI shows "≥"); `ranksFor` ranks
+  the unit among its level peers by Einwohner + Dichte (cache keyed on data identity,
+  `clearRankCache()` for tests); `geodesicAreaM2` for fine OSM-Kieze (no official numbers — the UI
+  shows their computed area + a note instead of inventing Einwohner); `fmtInt/fmtKm2/fmtDichte`
+  (de-DE). `main.js` renders the block (`buildStatsBlock`/`patchStats`/`statsSelection`) in
+  `renderFound` + `renderPlace` (search hits incl. OSM-kiez picks, street picks → resolved Kiez) and
+  re-patches it on `selectLevel` — no re-render. Covered by `tests/stats.test.js`.
 - `src/prefs.js` — DOM-free `readBoolPref(storage,key,dflt)` / `writeBoolPref(storage,key,on)` for
   localStorage-backed boolean preferences (storage injected → unit-testable, throwing/absent storage
   falls back to the default). Backs the Auto-Zoom toggle (`kf-autozoom`); `main.js` passes the real
@@ -269,7 +285,7 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   v4 also never fires `style.load` on setStyle. The reliable sequence (measured): wait for a
   `styledata` (swap begun) and only then accept `isStyleLoaded()===true` (checked on
   styledata/idle), with a 4 s hard-timeout + an `once('idle')` rebuild fallback.
-- **PWA/offline:** all `public/data/*` (13 geojson + `strassen.json`, ~2.3 MB) are **precached** by
+- **PWA/offline:** all `public/data/*` (13 geojson + `strassen.json` + `stats.json` + `kiez-info.json`, ~2.4 MB) are **precached** by
   the SW (`geojson,json` in `workbox.globPatterns`) — revisioned by content hash, so data edits bust
   the cache on deploy; the app classifies fully offline after the first visit and the **street
   search works fully offline** too (verified: preview server killed → reload → search + Kiez

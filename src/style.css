@@ -498,6 +498,44 @@ body {
 .actions { display: flex; flex-wrap: wrap; gap: .6rem; width: 100%; margin-top: 1rem; }
 .source { margin: .9rem 0 0; font-size: .72rem; color: var(--on-surface-var); opacity: .8; line-height: 1.45; }
 
+/* ── Bereichs-Statistik (Einwohner · Fläche · Dichte + Wikipedia-Kurztext) ── */
+.stats { width: 100%; margin-top: 1rem; }
+.stats-head {
+  margin: 0 0 .5rem; display: flex; align-items: baseline; justify-content: space-between; gap: .6rem;
+  font-size: .68rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--on-surface-var);
+}
+.stats-scope {
+  color: var(--accent); text-transform: none; letter-spacing: .01em;
+  font-size: .8rem; font-weight: 650; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.stats-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: .5rem; }
+.stat-tile {
+  display: flex; flex-direction: column; align-items: center; gap: .12rem;
+  padding: .6rem .35rem .5rem; text-align: center; border-radius: var(--r-m);
+  background: color-mix(in srgb, var(--accent) 7%, var(--sc-low));
+  border: 1px solid var(--outline-faint);
+}
+.stat-val {
+  font-family: var(--font-display); font-weight: 700; font-size: 1.04rem; letter-spacing: -.01em;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.stat-label { font-size: .62rem; text-transform: uppercase; letter-spacing: .08em; color: var(--on-surface-var); }
+.stats-rank { margin: .55rem 0 0; font-size: .76rem; color: var(--on-surface-var); }
+.kiez-about {
+  margin-top: .75rem; padding: .7rem .85rem;
+  border-left: 3px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+  border-radius: 0 var(--r-m) var(--r-m) 0;
+}
+.about-text { margin: 0; font-size: .84rem; line-height: 1.55; }
+.about-meta { margin: .4rem 0 0; font-size: .7rem; color: var(--on-surface-var); }
+.about-meta a { color: var(--accent); font-weight: 600; text-decoration: none; }
+.about-meta a:hover { text-decoration: underline; }
+.stats-note { margin: .55rem 0 0; font-size: .68rem; color: var(--on-surface-var); opacity: .8; line-height: 1.45; }
+.stats-note:empty { display: none; }
+
 /* ── buttons (bespoke, with state layer + press) ── */
 .btn {
   position: relative; flex: 1 1 auto; min-height: 50px;

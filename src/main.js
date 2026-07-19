@@ -14,6 +14,8 @@ import { loadKieze, loadOutline, loadLevels, levelFC, loadKiezNames, loadWall, l
   kiezAreasFC, osmKiezeFC, findOsmKiez, pointInGeometry } from './kiez.js'
 import { buildSearchIndex, search } from './search.js'
 import { readBoolPref, writeBoolPref } from './prefs.js'
+import { loadStats, loadKiezInfo, statsData, infoData, selectorFor, selectorForFeature,
+  aggregate, ranksFor, geodesicAreaM2, infoFor, infoForBezirk, fmtInt, fmtKm2, fmtDichte } from './stats.js'
 import { getPosition, reverseGeocode } from './geo.js'
 import { revealStagger, tweenNumber, spring, SPRINGS, reduceMotion, finePointer, damdamper } from './motion.js'
 
@@ -430,6 +432,89 @@ function updateSectorStamp() {
   if (slot) fillSectorSlot(slot, state.pos)
 }
 
+// ── Bereichs-Statistik (Einwohner · Fläche · Dichte + Wikipedia-Kurztext) ────
+// Ein Block pro Karte; patchbar ohne Re-Render (Level-Wechsel, Daten-Nachzug).
+let _statsEls = null
+function buildStatsBlock() {
+  const scope = h('span', { class: 'stats-scope' })
+  const tile = (label) => {
+    const val = h('span', { class: 'stat-val', text: '—' })
+    return { val, el: h('div', { class: 'stat-tile' }, val, h('span', { class: 'stat-label', text: label })) }
+  }
+  const pop = tile('Einwohner'), area = tile('Fläche'), dens = tile('Einw./km²')
+  const rank = h('p', { class: 'stats-rank', hidden: true })
+  const aboutText = h('p', { class: 'about-text' })
+  const aboutLink = h('a', { class: 'about-a', target: '_blank', rel: 'noopener' })
+  const about = h('div', { class: 'kiez-about', hidden: true },
+    aboutText,
+    h('p', { class: 'about-meta' }, aboutLink, ' · Text: Wikipedia (CC BY-SA)'))
+  const note = h('p', { class: 'stats-note' })
+  const root = h('section', { class: 'stats', 'data-reveal': '', hidden: true },
+    h('p', { class: 'stats-head' }, 'Statistik', scope),
+    h('div', { class: 'stats-tiles' }, pop.el, area.el, dens.el),
+    rank, about, note)
+  _statsEls = { root, scope, pop: pop.val, area: area.val, dens: dens.val, rank, about, aboutText, aboutLink, note }
+  return root
+}
+
+// Beschreibt die aktuelle Auswahl für den Stats-Block (Karten-Flow).
+function statsSelection(level) {
+  if (!state.plr) return null
+  const p = state.plr.properties
+  // feiner OSM-Kiez als Titel → keine amtliche Einwohnerzahl (er ist kleiner
+  // als ein Planungsraum); Fläche geodätisch aus dem Polygon, Text per Name
+  const osm = level === 'kiez' && state.kiezArea && state.kiezArea.properties.gid == null
+    && state.kiezArea.properties.name
+  if (osm) return { level, name: state.kiezArea.properties.name, osmGeom: state.kiezArea.geometry }
+  const name = level === 'kiez' ? (p.kiez || p.plr_name) : levelName(level, state.plr)
+  return { level, sel: selectorFor(level, state.plr), name }
+}
+
+// Füllt den Block aus einer Auswahl { level, sel?, name, osmGeom? } — oder blendet ihn aus.
+function patchStats(selection) {
+  if (!_statsEls) return
+  const els = _statsEls
+  const data = statsData()
+  if (!selection || (!selection.sel && !selection.osmGeom)) { els.root.hidden = true; return }
+  const { level, sel, name, osmGeom } = selection
+
+  els.scope.textContent = name || ''
+  let hasNumbers = false
+  if (osmGeom) {
+    els.pop.textContent = '—'
+    els.dens.textContent = '—'
+    els.area.textContent = fmtKm2(geodesicAreaM2(osmGeom))
+    els.rank.hidden = true
+    els.note.textContent = 'Feiner OSM-Kiez — amtliche Einwohnerzahlen gibt es erst ab Planungsraum-Ebene.'
+    hasNumbers = true
+  } else if (data) {
+    const agg = aggregate(data, kiezeFC(), sel)
+    if (agg) {
+      els.pop.textContent = agg.pop == null ? 'k. A.' : (agg.partial ? '≥ ' : '') + fmtInt(agg.pop)
+      els.area.textContent = fmtKm2(agg.m2)
+      els.dens.textContent = fmtDichte(agg.pop, agg.m2) || '—'
+      const r = ranksFor(data, kiezeFC(), level, sel)
+      if (r && r.of > 1) {
+        els.rank.textContent = `№ ${r.popRank} von ${r.of} nach Einwohnern · № ${r.densRank} nach Dichte`
+        els.rank.hidden = false
+      } else els.rank.hidden = true
+      els.note.textContent = `Einwohner: Amt für Statistik Berlin-Brandenburg · Stand ${data.stand}`
+      hasNumbers = true
+    } else els.rank.hidden = true
+  }
+
+  // Wikipedia-Kurztext: Kieze über den Namen, Bezirke über "bez:<Name>"
+  const inf = level === 'bez' ? infoForBezirk(infoData(), name) : level === 'kiez' ? infoFor(infoData(), name) : null
+  if (inf) {
+    els.aboutText.textContent = inf.x
+    els.aboutLink.textContent = inf.t
+    els.aboutLink.href = inf.u || '#'
+    els.about.hidden = false
+  } else els.about.hidden = true
+
+  els.root.hidden = !hasNumbers && !inf
+}
+
 function renderFound({ kiez, pos, address, kiezName, openSheet = true }) {
   state.plr = kiez
   state.pos = pos
@@ -474,6 +559,7 @@ function renderFound({ kiez, pos, address, kiezName, openSheet = true }) {
       levelRow('bez', 'Bezirk', bezirkName(p.bez)),
       addressRow(address && address.line),
     ),
+    buildStatsBlock(),
     h('p', { class: 'hint', 'data-reveal': '', text:
       'Tippe eine Ebene an, um sie hervorzuheben — oder tippe auf die Karte.' }),
     h('div', { class: 'coords', 'data-reveal': '' },
@@ -484,6 +570,11 @@ function renderFound({ kiez, pos, address, kiezName, openSheet = true }) {
   )
   setCard(body, true, openSheet)
   tweenCoords(coordsEl, pos)
+  // Daten sind ggf. noch unterwegs (Boot) — dann patcht der Loader-Callback nach
+  patchStats(statsSelection(state.level))
+  Promise.all([loadStats(), loadKiezInfo()]).then(() => {
+    if (_statsEls && document.contains(_statsEls.root)) patchStats(statsSelection(state.level))
+  })
 }
 
 // reflect the active level in the card chrome without re-rendering (no replay)
@@ -506,6 +597,7 @@ async function selectLevel(level) {
   if (!state.plr || !state.map) return
   state.level = level
   syncLevelUI()
+  patchStats(statsSelection(level)) // Stats folgen der gewählten Ebene (kein Re-Render)
   await loadLevels().catch(() => null)
   const feature = levelFeature(level)
   if (feature) state.map.highlight(feature, { fit: true })
@@ -994,7 +1086,10 @@ function selectStreet(e) {
     : kiez ? (kiez.properties.kiez || kiez.properties.plr_name) : null
   const frame = () => state.map && state.map.frameStreet(lon, lat, area, e.bbox)
   frame()
-  renderPlace(e, { sub: 'in ' + [kiezLabel, e.sub].filter(Boolean).join(' · '), onCenter: frame })
+  // Stats des aufgelösten Kiezes, in dem die Straße liegt
+  const stats = osm ? { level: 'kiez', name: osm.properties.name, osmGeom: osm.geometry }
+    : kiez ? { level: 'kiez', sel: selectorFor('kiez', kiez), name: kiezLabel } : null
+  renderPlace(e, { sub: 'in ' + [kiezLabel, e.sub].filter(Boolean).join(' · '), onCenter: frame, stats })
 }
 
 function renderPlace(e, opts = {}) {
@@ -1014,12 +1109,23 @@ function renderPlace(e, opts = {}) {
       h('p', { class: 'eyebrow', 'data-reveal': '', text: 'Ausgewählt · ' + e.typeLabel }),
       h('h1', { class: 'kiez-name', 'data-reveal': '', text: e.label }),
       subText ? h('p', { class: 'muted', 'data-reveal': '', text: subText }) : null,
+      buildStatsBlock(),
       h('div', { class: 'actions' }, back, center),
       h('p', { class: 'source', 'data-reveal': '', html: e.type === 'str'
         ? 'Straßen: © OpenStreetMap-Mitwirkende (ODbL) · Grenzen: LOR 2021 · Geoportal Berlin'
         : 'Grenzen: LOR 2021 · Geoportal Berlin / Amt für Statistik Berlin-Brandenburg' }),
     )
   )
+  // Suche: Stats der gewählten Einheit; Straße: Stats ihres aufgelösten Kiezes.
+  // Feiner OSM-Kiez (kein gid) → geodätische Fläche + Wikipedia statt Amtszahlen.
+  const osmPick = e.type === 'kiez' && e.feature && e.feature.properties.gid == null && e.feature.geometry
+  const selection = opts.stats !== undefined ? opts.stats
+    : osmPick ? { level: 'kiez', name: e.label, osmGeom: e.feature.geometry }
+      : e.feature ? { level: e.type, sel: selectorForFeature(e.type, e.feature), name: e.label } : null
+  patchStats(selection)
+  Promise.all([loadStats(), loadKiezInfo()]).then(() => {
+    if (_statsEls && document.contains(_statsEls.root)) patchStats(selection)
+  })
 }
 
 // debounce the fuzzy scan (~950 entries) while typing; clearing stays instant
@@ -1123,6 +1229,10 @@ async function boot() {
   applyOverlay(state.overlay)
   // restore the persisted wall mode (lazy-loads its data on first activation)
   try { if (localStorage.getItem('kf-wall') === '1') applyWall(true) } catch (e) {}
+  // Bereichs-Statistiken + Wikipedia-Kurztexte (nicht-blockierend; die Karte
+  // patcht sich nach, sobald sie da sind — ohne sie fehlt nur der Stats-Block)
+  loadStats()
+  loadKiezInfo()
   // load polygons + map shell in parallel, then check in
   await Promise.all([loadKieze().catch(() => null), state.map.whenReady()])
   // aggregate levels feed the level-switch highlight + sector overlay;
