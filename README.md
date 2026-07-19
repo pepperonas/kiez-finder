@@ -49,13 +49,14 @@ Kamera fliegt zu dir, dann zeichnet sich deine Kiez-Grenze selbst ein) und der L
 - ⛶ **Auto-Zoom-Schalter** (Topbar) — legt fest, ob ein **Karten-Tap** automatisch auf den getroffenen Kiez heranzoomt (Standard: an). Ausgeschaltet wird die Fläche zwar markiert, die Kamera bleibt aber stehen — praktisch zum Erkunden benachbarter Kieze, ohne dass die Karte bei jedem Tipp springt. Betrifft nur den Tap; „Auf Karte zentrieren", die Ebenen-Auswahl, die Suche und der Geo-Check-in rahmen weiterhin. Zustand wird gemerkt
 - 🗺️ **Sektoren-Overlay** (4-Stufen-Button) — *aus · Bezirke (L) · Regionen (M) · Kieze (S)*, von grob nach fein. Färbt die jeweilige Ebene **nachbarschafts-bewusst** (Distanz-2-Graph-Coloring über geteilte Grenzen) → angrenzende **und** nahe Flächen bekommen weit auseinanderliegende Farbtöne und sind klar unterscheidbar. **Jede sichtbare Fläche wird beschriftet** — pro Region ein Label an einem sichtbaren Innenpunkt, beim Zoomen/Verschieben nachgeführt (nicht nur die Fläche, deren Mittelpunkt zufällig im Bild liegt); **kartografische Hierarchie**: Kollisionspriorität + Labelgröße folgen der Flächengröße (große Flächen gewinnen und lesen größer), bedrängte Labels weichen per variablem Anker aus statt zu verschwinden, Label-Punkte bleiben beim Verschieben stabil (Anti-Jitter-Hysterese), und die **ausgewählte Fläche trägt immer ihr eigenes akzentfarbenes Label** (höchste Priorität, keine Doppelung). Zusätzlich benennt eine schwebende **„Aktueller-Bereich"-Plakette** mit Farbpunkt live die Fläche in der Kartenmitte
 - 🟦 **Starke Auswahl-Umrandung** — die aktive Auswahl wird mit kräftiger heller Linie + dunklem Casing-Halo gezeichnet, damit sie auch über dem dichten Farb-Overlay klar heraussticht
+- 🌡️ **Heatmaps** (eigener Topbar-Button mit Metrik-Popover) — färbt ganz Berlin je **Planungsraum** als Choroplethe nach **Bevölkerungsdichte · Ø-Alter · U18-Anteil · 65+-Anteil · Angebotsmiete · Bodenrichtwert Wohnbauland**. Preise aus amtlich-offenen Quellen (beide **dl-de-zero-2.0**): Angebotsmieten €/m² netto kalt je Prognoseraum aus dem *Wohnatlas Berlin* (2022), Bodenrichtwerte 01.01.2026 aus *BORIS* (812 Wohnbauland-Zonen, je PLR über ein Innenpunkt-Raster gemittelt). **Quantil-Klassen** (7) statt linearer Skala — Berlins Verteilungen sind so schief, dass linear fast einfarbig wäre; farbfehlsichten-taugliche Sequenz-Rampen (dunkel: Inferno-glühend, hell: Viridis), **Legende** mit Min/Max + Stichtag, die schwebende Plakette zeigt live **Kiez-Name + Metrikwert** unterm Kartenzentrum („Graefekiez · 21.007 Einw./km²"). PLRs ohne Daten bleiben ehrlich transparent; exklusiv zu Sektoren-Overlay und Mauer-Modus; Metrik persistiert (`kf-heat`), komplett offline (`preise.json` 12 KB precached)
 - 🧱 **Berliner-Mauer-Modus (Retro)** — eigener Topbar-Button: die Karte wechselt in einen **Schwarz-Weiß-Archivlook** (Graustufen + Sepia-Hauch, Filmkorn, Vignette) und zeigt den **offiziellen Mauerverlauf von 1989** (Geoportal Berlin, digitalisiert vom Luftbild 25.04.1989): Grenzmauer als markante Doppellinie, Hinterlandmauer gestrichelt, **Grenzstreifen („Todesstreifen") als echte Fläche**, und **beide Stadthälften eigenständig getönt** (West als solide Aufhellung, Ost zusätzlich **diagonal schraffiert** — die klassische Archiv-Signatur, beide klar vom Brandenburger Umland abgesetzt) mit großen **WEST-BERLIN / OST-BERLIN**-Sektor-Schriftzügen im Archivkarten-Stil. Dazu **zwei Spot-Farben wie auf alten Druckkarten**: Spree, Kanäle und Seen in gedecktem **Tintenblau**, Parks in gedämpftem **Grün** — übersättigt ins Canvas gemalt, sodass sie den (abgeschwächten) S/W-Filter als gealterte Töne überleben. Die schwebende Plakette wird zum **Ost/West-Anzeiger** („West-Berlin · 1989") — Point-in-Polygon gegen die abgeleiteten Sektor-Polygone (West 480 km² aus Grenzmauer + politischer Grenze verschmolzen; Ost 410 km² = Stadtgebiet minus Mauerring, inkl. der historisch korrekten DDR-Exklave **West-Staaken**). Der Modus erfasst die **ganze Seite**: alle UI-Flächen (Pass-Karte, Topbar, Suche, Buttons, Plakette) wechseln auf ein Tusche-/Papier-Farbschema und **Schreibmaschinen-Typografie** (System-Courier, 0 KB), und die Pass-Karte bekommt einen **Aktenstempel** „SEKTOR · 1989 — OST-BERLIN / Sowjetischer Sektor" (bzw. West: „Amerikanischer · Britischer · Französischer Sektor"), der dir sagt, auf welcher Seite der Mauer dein Standort gelegen *hätte*. Modus persistiert; schließt sich mit dem Farb-Overlay gegenseitig aus (Farben wären in S/W sinnlos), das vorherige Overlay kommt beim Verlassen zurück
 - 🏷️ **Eigene Label-Ebene** — Bezirke groß/hell (schon bei weitem Zoom), Bezirksregionen kleiner; MapLibre-Kollision zeigt immer die im Ausschnitt passenden Labels (Basemap-Ortsteil-Labels werden ausgeblendet, damit die offizielle Hierarchie dominiert)
 - 🗺️🗣️ **Umgangssprachliche Kiez-Namen auf der Karte** — 537 OSM-Kieze (`place=quarter`/`neighbourhood`, z.B. Flughafenkiez, Reuterkiez, Sprengelkiez) als akzentfarbene Labels bei höherem Zoom
 - 🗺️ **Lebendige Vektorkarte** (MapLibre GL) mit `flyTo`-Lock-on und sich selbst zeichnender Kiez-Grenze; ab Kiez-Zoom erscheinen **Straßennamen und Grünflächen dezent** (gedämpfte Töne + sanftes Grün, eine Zoomstufe früher als die Basemap sie zeigen würde — sie ordnen sich den Kiez-Labels immer unter)
 - 🎨 **Material 3 Expressive** — Feder-Physik statt Easing-Fades, tonale Flächen, XL-Shapes, Shape-Morph beim Tippen
 - 🌗 **Hell/Dunkel** mit kreisförmigem View-Transition-Reveal wie auf celox.io (900 ms Desktop / 520 ms Mobile, dark-matter ↔ positron), **der auch die Karte mitzieht**: die WebGL-Karte restylt erst nach der Animation, deshalb wird sie während des Reveals per invert-Filter aufs Ziel-Theme angenähert und hinter einem eingefrorenen Standbild („Veil") umgestylt, das erst weich ausblendet, sobald die neuen Kacheln wirklich gerendert sind — kein harter Blitz, auch bei schnellem Hin-und-her-Schalten
-- 📱 **PWA + Mobile** — installierbar, **echt offline-fähig**: alle 16 Datensätze (~2,4 MB — Kieze, Bezirke, Regionen, Labels, Mauerverlauf, Straßenindex, Einwohner-Statistik, Kiez-Beschreibungen …) werden vom Service Worker **revisioniert precached** — einmal besucht, klassifiziert die App auch ohne Netz, und Daten-Updates busten den Cache automatisch beim Deploy. Schlägt der Kern-Datensatz beim allerersten Laden fehl (offline/404), zeigt die App eine ehrliche **„Daten nicht geladen"-Card mit Retry** statt fälschlich „nicht in Berlin". Die Card ist auf Mobilgeräten ein **MD3-Bottom-Sheet** mit echten **Swipe-Gesten**: vom 44-px-Griff oder der ganzen Karte hoch-/runterziehen, **Pull-down vom Listenanfang** zum Einklappen, **Tap aufs eingeklappte Sheet** zum Öffnen; geschwindigkeits- + positionsbasiertes Snapping (leichter Flick genügt), Scroll-vs-Drag korrekt getrennt, nicht-modal über der Karte, Safe-Area-Insets, `dvh`-Höhe. Auf **Desktop** lässt sich das Info-Panel ein- und ausklappen (Pfeil-Button → schiebt es zur Seite, Reopen-Tab holt es zurück; Zustand wird gemerkt)
+- 📱 **PWA + Mobile** — installierbar, **echt offline-fähig**: alle 17 Datensätze (~2,4 MB — Kieze, Bezirke, Regionen, Labels, Mauerverlauf, Straßenindex, Einwohner-Statistik, Kiez-Beschreibungen …) werden vom Service Worker **revisioniert precached** — einmal besucht, klassifiziert die App auch ohne Netz, und Daten-Updates busten den Cache automatisch beim Deploy. Schlägt der Kern-Datensatz beim allerersten Laden fehl (offline/404), zeigt die App eine ehrliche **„Daten nicht geladen"-Card mit Retry** statt fälschlich „nicht in Berlin". Die Card ist auf Mobilgeräten ein **MD3-Bottom-Sheet** mit echten **Swipe-Gesten**: vom 44-px-Griff oder der ganzen Karte hoch-/runterziehen, **Pull-down vom Listenanfang** zum Einklappen, **Tap aufs eingeklappte Sheet** zum Öffnen; geschwindigkeits- + positionsbasiertes Snapping (leichter Flick genügt), Scroll-vs-Drag korrekt getrennt, nicht-modal über der Karte, Safe-Area-Insets, `dvh`-Höhe. Auf **Desktop** lässt sich das Info-Panel ein- und ausklappen (Pfeil-Button → schiebt es zur Seite, Reopen-Tab holt es zurück; Zustand wird gemerkt)
 - ♿ **Robust** — Progressive Enhancement, `prefers-reduced-motion`, sichtbarer Fokus, Tastatur (`R` = neu einchecken), Touch-Targets ≥ 44 px
 - 🔑 **Kein API-Key** — keyless Carto-Tiles + Nominatim, keine Secrets im Code
 
@@ -77,11 +78,17 @@ Kamera fliegt zu dir, dann zeichnet sich deine Kiez-Grenze selbst ein) und der L
 
 <br/><br/>
 
-<img src="docs/screenshot-bezirke.png" alt="Bezirke-Overlay (L) mit Labels und Aktueller-Bereich-Plakette" width="45.5%"/>
+<img src="docs/screenshot-heatmap.png" alt="Heatmap: Bevölkerungsdichte je Planungsraum als Quantil-Choroplethe mit Legende" width="45.5%"/>
 &nbsp;
 <img src="docs/screenshot-mauer.png" alt="Berliner-Mauer-Modus: Retro-Archivkarte mit Mauerverlauf 1989 und Sektor-Stempel" width="45.5%"/>
 
-<sub><i>Bezirke-Overlay (L) mit „Aktueller-Bereich"-Plakette · Berliner-Mauer-Modus 1989 mit Sektor-Stempel</i></sub>
+<sub><i>Heatmap „Bevölkerungsdichte" (Quantil-Klassen, Legende, Wert-Plakette) · Berliner-Mauer-Modus 1989 mit Sektor-Stempel</i></sub>
+
+<br/><br/>
+
+<img src="docs/screenshot-bezirke.png" alt="Bezirke-Overlay (L) mit Labels und Aktueller-Bereich-Plakette" width="60%"/>
+
+<sub><i>Bezirke-Overlay (L) mit „Aktueller-Bereich"-Plakette</i></sub>
 
 </div>
 
@@ -119,6 +126,7 @@ automatisch in `localStorage` persistiert:
 | `kf-wall` | `1` \| `0` | Berliner-Mauer-Modus |
 | `kf-autozoom` | `1` \| `0` | Auto-Zoom beim Karten-Tap (Default: an) |
 | `kf-panel` | `open` \| `collapsed` | Desktop-Info-Panel ein-/ausgeklappt |
+| `kf-heat` | `off` \| `dichte` \| `alter` \| `u18` \| `o65` \| `miete` \| `brw` | aktive Heatmap-Metrik |
 
 Fürs **Hosting** gibt es genau ein Muss: der Webserver muss
 `Permissions-Policy: geolocation=(self)` **auf dem HTML-Dokument** setzen — bei nginx auch im
@@ -175,6 +183,9 @@ node tools/build-stats.mjs      # → public/data/stats.json (Einwohner + amtlic
                                 #   hermetisch aus tools/vendor/, validiert gegen kieze.geojson)
 node tools/build-kiez-info.mjs  # → public/data/kiez-info.json (Wikipedia-Kurztexte, ~2 min,
                                 #   Begriffsklärungs- und Berlin-Plausibilitätsfilter)
+node tools/build-heat-prices.mjs # → public/data/preise.json (Angebotsmieten je Prognoseraum +
+                                #   Bodenrichtwerte Wohnbauland je PLR, beide live vom Geoportal-WFS,
+                                #   dl-de-zero-2.0; validiert Abdeckung + Plausibilitäts-Median)
 ```
 
 Neuer EWR-Stichtag: aktuelle `EWR_L21_*E_Matrix.csv` besorgen (daten.berlin.de bzw. Mirror,
@@ -191,13 +202,13 @@ node tools/screenshots.cjs                        # Terminal 2 (braucht Playwrig
 ## Tests ausführen
 
 ```bash
-npm test                                                        # 92 Unit-Tests, Nodes eingebauter Runner, null Test-Dependencies
+npm test                                                        # 103 Unit-Tests, Nodes eingebauter Runner, null Test-Dependencies
 node --test --experimental-test-coverage tests/*.test.js        # dito + Coverage-Report
 node tools/check-doc-sync.mjs                                   # dito + prüft, dass diese Doku-Zahlen der Messung entsprechen
 ```
 
-Getestet wird die **abhängigkeitsfreie Pure-Logik** — Stand heute **92 Tests, 100 % Line-Coverage**
-auf allen sechs unit-testbaren Modulen (~97 % Branch):
+Getestet wird die **abhängigkeitsfreie Pure-Logik** — Stand heute **103 Tests, 100 % Line-Coverage**
+auf allen sieben unit-testbaren Modulen (~97 % Branch):
 
 | Modul | Was abgesichert ist |
 |---|---|
@@ -206,6 +217,7 @@ auf allen sechs unit-testbaren Modulen (~97 % Branch):
 | `src/geo.js` | Geolocation-**Fehler-Mapping** (denied/unavailable/timeout/unknown/unsupported), Nominatim-Adresszeilen-Assemblierung, Kiez-Extraktion (`quarter`→`neighbourhood`), Koordinaten-gerundetes Caching, Best-Effort-Fehlpfade → `null` |
 | `src/motion.js` | **Spring-Physik** mit Fake-Clock + deterministischem rAF: exakte Konvergenz, **Overshoot bei damping 0.6** (der Signature-Bounce), kein Overshoot bei 0.8, Cancel mid-flight, `reduced-motion`-Sofortpfade, Stagger-Reveal, Pointer-Damper |
 | `src/stats.js` | Bereichs-Statistik: gid-/Präfix-**Selektoren**, PLR-**Aggregation** (inkl. „≥"-Untergrenzen bei SAFE-anonymisierten Räumen), **Ränge** je Ebene, geodätische Fläche (OSM-Kieze), Wikipedia-Lookups, de-DE-Formatierung |
+| `src/heat.js` | Heatmap-Kern: Metrik-Katalog, **Heat-FC-Join** (fehlende Werte werden weggelassen, nicht genullt), **Quantil-Klassengrenzen** (Schiefe, Duplikat-Dedup), Klassenindex, MapLibre-**Paint-Expression** (`has`→`step`), Legenden-Daten, Farbrampen |
 | `src/prefs.js` | `localStorage`-Persistenz-Semantik (Defaults, Garbage-Fallback, werfende Storage) |
 
 `main.js`/`map.js` hängen an DOM + MapLibre/WebGL und sind bewusst nicht unit-getestet — testwürdige
@@ -259,6 +271,8 @@ rsync -avz --delete dist/ root@<vps>:/var/www/kiezfinder.celox.io/
 - **Einwohner:** Einwohnerregisterstatistik je LOR-Planungsraum, Stand 31.12.2025 — *Amt für Statistik Berlin-Brandenburg* (CC BY; Provenienz + Verifikation der vendorten Kopie: `tools/vendor/README.md`)
 - **Flächen:** amtliche Flächeninhalte (`finhalt`) — *Geoportal Berlin, WFS `lor_2021`*
 - **Kiez-Beschreibungen:** *Wikipedia* (de.wikipedia.org), Texte CC BY-SA 4.0, je Eintrag mit Artikel-Link
+- **Angebotsmieten:** Wohnatlas Berlin (2022, €/m² netto kalt je Prognoseraum) — *SenSBW via Geoportal-WFS* (dl-de-zero-2.0)
+- **Bodenrichtwerte:** BORIS Berlin, Stichtag 01.01.2026 — *Gutachterausschuss für Grundstückswerte via Geoportal-WFS* (dl-de-zero-2.0)
 - **Mauerverlauf:** „Verlauf der Berliner Mauer, 1989" — *Geoportal Berlin*
 - **Straßen:** © OpenStreetMap-Mitwirkende via Overpass API (ODbL)
 - **Karten:** © OpenStreetMap-Mitwirkende, © CARTO

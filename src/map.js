@@ -342,6 +342,65 @@ export class KiezMap {
     return f ? { name: f.properties.name, col: f.properties.col } : null
   }
 
+  // Heat mode: the PLR under the screen centre → its name + raw properties
+  // (the caller formats the active metric's value for the chip).
+  heatAtCenter() {
+    if (!this.map.getLayer('heat-fill')) return null
+    const pt = this.map.project(this.map.getCenter())
+    const f = this.map.queryRenderedFeatures(pt, { layers: ['heat-fill'] })[0]
+    return f ? { name: f.properties.name, props: f.properties } : null
+  }
+
+  // ── Heatmap (Choroplethen je Planungsraum) ──────────────────────────────────
+  /** Geometry + metric properties, set once; layers re-added after restyles. */
+  async setHeatData(fc) {
+    await this._ready
+    this._heatRaw = fc
+    this._addHeatLayers()
+  }
+
+  _addHeatLayers() {
+    if (!this._heatRaw) return
+    const src = this.map.getSource('heat')
+    if (src) src.setData(this._heatRaw)
+    else this.map.addSource('heat', { type: 'geojson', data: this._heatRaw })
+    // below the blue selection, like the categorical overlays
+    const before = this.map.getLayer('kiez-fill') ? 'kiez-fill' : undefined
+    if (!this.map.getLayer('heat-fill')) {
+      this.map.addLayer({
+        id: 'heat-fill', type: 'fill', source: 'heat',
+        layout: { visibility: 'none' },
+        paint: { 'fill-color': 'rgba(0,0,0,0)', 'fill-opacity': this.theme === 'dark' ? 0.55 : 0.5 },
+      }, before)
+    }
+    if (!this.map.getLayer('heat-line')) {
+      this.map.addLayer({
+        id: 'heat-line', type: 'line', source: 'heat',
+        layout: { visibility: 'none', 'line-join': 'round' },
+        paint: {
+          'line-color': this.theme === 'dark' ? 'rgba(6,9,16,0.5)' : 'rgba(255,255,255,0.6)',
+          'line-width': ['interpolate', ['linear'], ['zoom'], 9, 0.4, 13, 1, 15, 1.8],
+        },
+      }, before)
+    }
+    // theme-dependent paints refresh on every (re)load
+    if (this.map.getLayer('heat-fill')) this.map.setPaintProperty('heat-fill', 'fill-opacity', this.theme === 'dark' ? 0.55 : 0.5)
+    if (this.map.getLayer('heat-line')) this.map.setPaintProperty('heat-line', 'line-color', this.theme === 'dark' ? 'rgba(6,9,16,0.5)' : 'rgba(255,255,255,0.6)')
+    // restyle while a metric is active → re-apply its paint + visibility
+    if (this._heatPaint) this.setHeatMode(true, this._heatPaint)
+  }
+
+  /** on/off + the active metric's fill-color expression (from heat.js). */
+  setHeatMode(on, paint) {
+    this._heatPaint = on ? paint : null
+    for (const id of ['heat-fill', 'heat-line']) {
+      if (this.map.getLayer(id)) this.map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none')
+    }
+    if (on && paint && this.map.getLayer('heat-fill')) {
+      this.map.setPaintProperty('heat-fill', 'fill-color', paint)
+    }
+  }
+
   _onLoad() {
     const accent = ACCENT[this.theme]
     // Idempotent add helpers — a rapid theme re-style can re-enter before the old
@@ -408,6 +467,7 @@ export class KiezMap {
     this._tuneBasemapLabels()
     this._tuneBasemapDetails()
     if (this._overlayRaw) this._addOverlayLayers()
+    if (this._heatRaw) this._addHeatLayers()
     if (this._wallRaw) this._addWallLayers()
   }
 

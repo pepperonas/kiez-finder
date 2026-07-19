@@ -21,8 +21,8 @@ npm test         # unit tests (Node's built-in runner, no deps) — tests/*.test
 ```
 No linter configured. Geolocation needs a secure context (localhost or HTTPS).
 
-**Tests** (`tests/`, `node --test`, zero dependencies — 92 tests, 100% line coverage on
-the six unit-testable modules) cover the dependency-light pure logic: `search.js`
+**Tests** (`tests/`, `node --test`, zero dependencies — 103 tests, 100% line coverage on
+the seven unit-testable modules) cover the dependency-light pure logic: `search.js`
 (norm folding + the multi-tier scorer / type-priority / dedup), `kiez.js` (point-in-polygon
 classification incl. holes + MultiPolygon, `bezirkName`, `kmFromBerlin`, `bboxOf`,
 `levelName` — plus, via a **fetch mock**, the loaders and the loaded-state functions:
@@ -35,6 +35,8 @@ file in its own process, giving the fallback file a fresh module instance — qu
 imports would instead split `src/kiez.js` into one coverage row per instance), and
 `prefs.js` (the DOM-free persistence helpers backing the Auto-Zoom toggle),
 `stats.js` (selectors/aggregation/ranks/formatting — pure with injected fixtures),
+`heat.js` (heat-FC join with omitted-not-nulled missing values, quantile breaks, paint
+expression shape, legend data — pure with injected fixtures),
 `geo.js` (error mapping, Nominatim line assembly, rounded-coordinate caching — global
 stubs for navigator/fetch/sessionStorage; the module touches globals only at call time,
 so no extraction was needed), and `motion.js` (spring physics with a fake clock + an
@@ -56,8 +58,9 @@ tests, update those numbers or CI goes red (this paragraph's count is checked to
 `tools/screenshots.cjs` against a `npm run preview -- --port 4190` server (needs a
 resolvable `playwright` package + real Chrome; captures via CDP because Playwright's
 `page.screenshot` hangs on the continuously repainting software-WebGL MapLibre canvas;
-geolocation mocked to the Reuterkiez; 4 shots dark = app default, the Mauer shot
-deliberately light for the paper-archival look). Compress afterwards with
+geolocation mocked to the Reuterkiez; 5 shots dark = app default (incl. the
+Dichte-heatmap shot), the Mauer shot deliberately light for the paper-archival
+look). Compress afterwards with
 `pngquant --quality=70-90` (script header documents the exact call).
 
 ## Architecture
@@ -214,6 +217,23 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   (de-DE). `main.js` renders the block (`buildStatsBlock`/`patchStats`/`statsSelection`) in
   `renderFound` + `renderPlace` (search hits incl. OSM-kiez picks, street picks → resolved Kiez) and
   re-patches it on `selectLevel` — no re-render. Covered by `tests/stats.test.js`.
+- `src/heat.js` — **Heatmap** (Choroplethen je Planungsraum; maplibre-free core + thin `loadPreise`).
+  Metrics: dichte/alter/u18/o65 (from stats.json) + miete/brw (from `public/data/preise.json`, built
+  by `tools/build-heat-prices.mjs`: Angebotsmieten €/m² je PROGNOSERAUM from Wohnatlas WFS
+  `wa_01_angebotsmieten` (newest layer wa_01_2022, join via plr_id-prefix 4) + Bodenrichtwerte
+  Wohnbauland from BORIS WFS `brw2026` (W-zones only, per-PLR interior-point-grid mean, 533/542
+  covered) — both dl-de-zero-2.0). `buildHeatFC` joins kieze geometry + metric props (missing values
+  OMITTED, the paint expression checks `['has', key]` → transparent "keine Daten"); `quantileBreaks`
+  (7 classes — Berlin distributions are too skewed for linear scales), `heatPaint` (case/has/step),
+  `legendFor`, `RAMPS` (dark = inferno-like, light = reversed viridis, both colour-blind-safe
+  sequential). map.js: `setHeatData`/`setHeatMode(on, paint)`/`heatAtCenter` ('heat-fill'/'heat-line'
+  below the selection, re-added idempotently in `_onLoad`, paint re-applied after restyles via
+  `_heatPaint`). main.js: `heatBtn` opens a popover (`renderHeatPop`, ESC/outside-close),
+  `applyHeat(key)` computes breaks+paint+legend and persists `kf-heat`; mutually exclusive with the
+  categorical overlay AND wall mode (both directions); theme toggle re-applies the heat ramp after
+  the restyle (in `restyle().finally`); the area chip shows name + formatted metric value
+  (`applyHeatChip`, dot = class colour). Legend: bottom-right on desktop (left is the panel's),
+  above the peeked sheet on mobile. Covered by `tests/heat.test.js`.
 - `src/prefs.js` — DOM-free `readBoolPref(storage,key,dflt)` / `writeBoolPref(storage,key,on)` for
   localStorage-backed boolean preferences (storage injected → unit-testable, throwing/absent storage
   falls back to the default). Backs the Auto-Zoom toggle (`kf-autozoom`); `main.js` passes the real
@@ -289,7 +309,7 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   v4 also never fires `style.load` on setStyle. The reliable sequence (measured): wait for a
   `styledata` (swap begun) and only then accept `isStyleLoaded()===true` (checked on
   styledata/idle), with a 4 s hard-timeout + an `once('idle')` rebuild fallback.
-- **PWA/offline:** all `public/data/*` (13 geojson + `strassen.json` + `stats.json` + `kiez-info.json`, ~2.4 MB) are **precached** by
+- **PWA/offline:** all `public/data/*` (13 geojson + `strassen.json` + `stats.json` + `kiez-info.json` + `preise.json`, ~2.4 MB) are **precached** by
   the SW (`geojson,json` in `workbox.globPatterns`) — revisioned by content hash, so data edits bust
   the cache on deploy; the app classifies fully offline after the first visit and the **street
   search works fully offline** too (verified: preview server killed → reload → search + Kiez

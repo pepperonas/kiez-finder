@@ -261,6 +261,70 @@ body {
   border-color: color-mix(in srgb, var(--accent) 45%, var(--outline));
   background: color-mix(in srgb, var(--accent) 14%, var(--sc-high));
 }
+.heat-btn.is-active {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--outline));
+  background: color-mix(in srgb, var(--accent) 14%, var(--sc-high));
+}
+
+/* ── Heatmap: Metrik-Popover + Legende ── */
+.heat-pop {
+  position: fixed; z-index: 8; min-width: 220px;
+  padding: .5rem; border-radius: var(--r-l);
+  background: color-mix(in srgb, var(--sc-high) 92%, transparent);
+  border: 1px solid var(--outline-faint);
+  backdrop-filter: blur(14px) saturate(1.2); box-shadow: var(--shadow-2);
+  animation: md-pop var(--dur-short) var(--ease-emphasized) both;
+}
+.heat-pop-title {
+  margin: .1rem .55rem .35rem; font-size: .66rem; font-weight: 700;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--on-surface-var);
+}
+.heat-item {
+  position: relative; display: flex; align-items: center; gap: .55rem; width: 100%;
+  padding: .5rem .6rem; border: 0; border-radius: var(--r-m);
+  background: transparent; color: var(--on-surface); cursor: pointer;
+  font: inherit; font-size: .88rem; font-weight: 500; text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+.heat-item::before { /* state layer */
+  content: ''; position: absolute; inset: 0; border-radius: inherit;
+  background: currentColor; opacity: 0; transition: opacity var(--dur-short) var(--ease-standard);
+}
+.heat-item:hover::before { opacity: var(--st-hover); }
+.heat-item.is-active {
+  color: var(--accent); font-weight: 700;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.heat-dot { flex: 0 0 auto; width: 10px; height: 10px; border-radius: 50%; }
+
+.heat-legend {
+  position: fixed; left: 12px; bottom: max(12px, env(safe-area-inset-bottom)); z-index: 5;
+  width: 210px; padding: .6rem .7rem .55rem; border-radius: var(--r-l);
+  background: color-mix(in srgb, var(--sc-high) 88%, transparent);
+  border: 1px solid var(--outline-faint);
+  backdrop-filter: blur(14px) saturate(1.2); box-shadow: var(--shadow-1);
+  pointer-events: none;
+}
+.legend-title { margin: 0 0 .4rem; font-size: .76rem; font-weight: 700; letter-spacing: .01em; }
+.legend-bar { display: flex; height: 10px; border-radius: 5px; overflow: hidden; }
+.legend-swatch { flex: 1 1 auto; }
+.legend-range {
+  display: flex; justify-content: space-between; gap: .6rem;
+  margin-top: .3rem; font-size: .68rem; color: var(--on-surface-var);
+  font-variant-numeric: tabular-nums;
+}
+.legend-stand { margin: .25rem 0 0; font-size: .62rem; color: var(--on-surface-var); opacity: .8; }
+/* Mobil: über dem gepeekten Bottom-Sheet (~113px) parken; bei offenem Sheet
+   liegt die Karte ohnehin hinter dem Sheet */
+@media (max-width: 839.98px) {
+  .heat-legend { bottom: calc(126px + env(safe-area-inset-bottom)); width: 176px; }
+}
+/* Desktop: das Info-Panel besetzt links unten → Legende nach rechts, oberhalb
+   der Zoom-Controls (und damit auch frei von der Attribution) */
+@media (min-width: 840px) {
+  .heat-legend { left: auto; right: 12px; bottom: 116px; }
+}
 
 /* ── 3-state sector overlay toggle (icon morphs into a labelled pill) ── */
 .seg-btn {

@@ -78,6 +78,15 @@ async function main() {
     await page.click('.seg-btn') // → kiez
     await sleep(9000)
     await cdpShot(page, OUT + '/screenshot-kieze.png')
+
+    // Heatmap: Bevölkerungsdichte (quantile choropleth + legend + value chip)
+    await page.click('.seg-btn') // → off
+    await sleep(1000)
+    await page.click('.heat-btn')
+    await sleep(400)
+    await page.click('.heat-item:nth-of-type(2)') // Bevölkerungsdichte
+    await sleep(8000)
+    await cdpShot(page, OUT + '/screenshot-heatmap.png')
     await ctx.close()
   }
 

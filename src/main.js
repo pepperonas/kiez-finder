@@ -17,6 +17,8 @@ import { readBoolPref, writeBoolPref } from './prefs.js'
 import { loadStats, loadKiezInfo, statsData, infoData, selectorFor, selectorForFeature,
   aggregate, ranksFor, geodesicAreaM2, infoFor, infoForBezirk,
   fmtInt, fmtKm2, fmtDichte, fmtAlter, fmtAnteil } from './stats.js'
+import { loadPreise, preiseData, METRICS, metricByKey, standFor, buildHeatFC,
+  quantileBreaks, classIndex, heatPaint, legendFor, RAMPS } from './heat.js'
 import { getPosition, reverseGeocode } from './geo.js'
 import { revealStagger, tweenNumber, spring, SPRINGS, reduceMotion, finePointer, damdamper } from './motion.js'
 
@@ -45,6 +47,7 @@ const ICONS = {
   pin: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-6.4 7-11.3A7 7 0 0 0 5 9.7C5 14.6 12 21 12 21Z"/><circle cx="12" cy="9.6" r="2.4" fill="var(--surface)"/></svg>',
   layers: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 3.5 8 12 12.5 20.5 8 12 3.5Z" stroke-linejoin="round"/><path d="M4 12.2 12 16.5l8-4.3M4 15.9 12 20.2l8-4.3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   wall: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="13" rx="1" stroke-linejoin="round"/><path d="M3.5 9.83h17M3.5 14.17h17M9.17 5.5v4.33M14.83 5.5v4.33M6.33 9.83v4.34M12 9.83v4.34M17.67 9.83v4.34M9.17 14.17v4.33M14.83 14.17v4.33" stroke-linecap="round"/></svg>',
+  heat: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13.8V5.2a2 2 0 1 1 4 0v8.6a4.6 4.6 0 1 1-4 0Z" stroke-linejoin="round"/><path d="M12 9.2v7.3" stroke-linecap="round"/><circle cx="12" cy="17.4" r="1.4" fill="currentColor" stroke="none"/></svg>',
   search: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5" stroke-linecap="round"/></svg>',
   x: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke-linecap="round"/></svg>',
   loc: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><circle cx="12" cy="12" r="7.5"/><path d="M12 1.6v3M12 19.4v3M1.6 12h3M19.4 12h3" stroke-linecap="round"/></svg>',
@@ -75,6 +78,9 @@ const state = {
   wall: false,      // Berliner-Mauer retro mode active
   wallData: null,   // { wall: FC, west: Feature } once loaded
   overlayBeforeWall: null, // overlay mode to restore when leaving wall mode
+  heat: 'off',      // heatmap metric key (dichte/alter/u18/o65/miete/brw) or 'off'
+  heatFC: null,     // built heat FeatureCollection (kieze geometry + metric props)
+  heatBreaks: null, // active metric's quantile breaks (chip dot colour)
 }
 
 // ── shell ──────────────────────────────────────────────────────────────────
@@ -104,6 +110,25 @@ const wallBtn = h('button', {
   aria: { label: 'Berliner Mauer 1989: Retro-Schwarz-Weiß-Ansicht umschalten', pressed: 'false' },
   html: ICONS.wall,
 })
+// Heatmap-Control: Button öffnet ein kompaktes Popover mit Metrik-Chips
+// (aus · Dichte · Ø Alter · U18 · 65+ · Miete · Bodenrichtwert)
+const heatBtn = h('button', {
+  class: 'icon-btn heat-btn', type: 'button',
+  title: 'Heatmap (Dichte, Alter, Preise …)',
+  aria: { label: 'Heatmap-Ebene wählen', haspopup: 'true', expanded: 'false' },
+  html: ICONS.heat,
+})
+const heatPop = h('div', { class: 'heat-pop', hidden: true, role: 'menu', aria: { label: 'Heatmap-Metriken' } })
+// Legende der aktiven Heatmap (Quantil-Farbrampe + Min/Max)
+const legendTitle = h('p', { class: 'legend-title' })
+const legendBar = h('div', { class: 'legend-bar', 'aria-hidden': 'true' })
+const legendMin = h('span', { class: 'legend-min' })
+const legendMax = h('span', { class: 'legend-max' })
+const legendStand = h('p', { class: 'legend-stand' })
+const heatLegend = h('div', { class: 'heat-legend', hidden: true, aria: { live: 'polite' } },
+  legendTitle, legendBar,
+  h('div', { class: 'legend-range' }, legendMin, legendMax), legendStand)
+
 // Auto-Zoom beim Antippen der Karte — an (Default) = Tap rahmt den Kiez; aus =
 // Kamera bleibt stehen (nur markieren). Active-Look = an, wie beim Mauer-Button.
 const autoZoomBtn = h('button', {
@@ -132,7 +157,7 @@ const topbar = h('header', { class: 'topbar' },
     h('span', { class: 'brand-name' },
       h('strong', { text: 'Kiez' }), h('span', { text: '-Finder' }))),
   searchBox,
-  h('div', { class: 'topbar-actions' }, installBtn, overlayBtn, wallBtn, autoZoomBtn, themeBtn),
+  h('div', { class: 'topbar-actions' }, installBtn, overlayBtn, heatBtn, wallBtn, autoZoomBtn, themeBtn),
 )
 
 // floating "current area" chip — names the coloured region under the map centre
@@ -168,7 +193,7 @@ const reopenBtn = h('button', {
   h('span', { class: 'pr-label', text: 'Kiez-Pass' }),
   h('span', { class: 'pr-chev', 'aria-hidden': 'true', html: ICONS.chevronR }))
 
-app.append(mapEl, stage, topbar, areaChip, reopenBtn)
+app.append(mapEl, stage, topbar, heatPop, heatLegend, areaChip, reopenBtn)
 
 // ── desktop: collapse / expand the info panel ────────────────────────────────
 function setPanelCollapsed(collapsed, moveFocus = true) {
@@ -828,7 +853,11 @@ function applyTheme(next, origin) {
     // eingefrorene Veil das Canvas deckt — sonst blitzt die restylende Karte
     // durch (alter Look / halbgeladene Tiles = harter Flash nach dem Reveal)
     return Promise.resolve(state.map.setThemeVeiled(state.theme, unfaux))
-      .catch(() => {}).finally(unfaux) // belt & braces if the veil path bailed early
+      .catch(() => {}).finally(() => {
+        unfaux() // belt & braces if the veil path bailed early
+        // Heat-Rampe + Legende sind theme-abhängig → nach dem Restyle neu anwenden
+        if (state.heat !== 'off') applyHeat(state.heat)
+      })
   }
   if (reduceMotion()) { swap(); return restyle() }
   const x = origin ? origin.x : innerWidth - 40
@@ -952,11 +981,13 @@ let _chipRaf = 0
 function refreshAreaChip() {
   if (_chipRaf) { cancelAnimationFrame(_chipRaf); _chipRaf = 0 }
   if (state.wall) { applyWallChip(); return }
-  if (state.overlay === 'off') { areaChip.hidden = true; return }
+  const heatOn = state.heat !== 'off' && metricByKey(state.heat)
+  if (state.overlay === 'off' && !heatOn) { areaChip.hidden = true; return }
+  const apply = heatOn ? applyHeatChip : applyAreaChip
   const deadline = performance.now() + 1500
   const tick = () => {
     _chipRaf = 0
-    if (applyAreaChip()) return
+    if (apply()) return
     if (performance.now() < deadline) { _chipRaf = requestAnimationFrame(tick); return }
     areaChip.hidden = true
   }
@@ -966,6 +997,8 @@ function applyOverlay(mode) {
   // the colour choropleth is meaningless under the B&W wall filter → the two
   // modes are mutually exclusive; turning an overlay on leaves wall mode
   if (mode !== 'off' && state.wall) { state.overlayBeforeWall = null; applyWall(false) }
+  // ebenso exklusiv zur Heatmap (zwei konkurrierende Vollflächen-Färbungen)
+  if (mode !== 'off' && state.heat !== 'off') applyHeat('off')
   state.overlay = mode
   try { localStorage.setItem('kf-overlay', mode) } catch (e) {}
   const m = OVERLAY_META[mode]
@@ -983,6 +1016,7 @@ overlayBtn.addEventListener('click', () => {
 
 // ── Berliner Mauer 1989: retro B&W view mode ─────────────────────────────────
 async function applyWall(on) {
+  if (on && state.heat !== 'off') applyHeat('off') // Heatmap-Farben wären unterm S/W-Filter sinnlos
   state.wall = on
   try { localStorage.setItem('kf-wall', on ? '1' : '0') } catch (e) {}
   wallBtn.setAttribute('aria-pressed', String(on))
@@ -1015,6 +1049,103 @@ async function applyWall(on) {
   refreshAreaChip()
 }
 wallBtn.addEventListener('click', () => applyWall(!state.wall))
+
+// ── Heatmap: Choroplethen je Planungsraum (Dichte/Alter/U18/65+/Miete/BRW) ────
+let _heatReady = false
+function heatValues(key) {
+  return state.heatFC.features.map((f) => f.properties[key]).filter((v) => v != null)
+}
+function renderHeatPop() {
+  const mk = (key, label) => {
+    const active = state.heat === key
+    const b = h('button', {
+      class: 'heat-item' + (active ? ' is-active' : ''), type: 'button', role: 'menuitemradio',
+      aria: { checked: String(active) },
+    }, key !== 'off' ? h('span', { class: 'heat-dot', 'aria-hidden': 'true' }) : null, label)
+    if (key !== 'off') {
+      // Mini-Vorschau: Punkt in der Mitte der aktiven Theme-Rampe
+      b.querySelector('.heat-dot').style.background = RAMPS[state.theme][4]
+    }
+    b.addEventListener('click', () => { applyHeat(key); closeHeatPop() })
+    return b
+  }
+  heatPop.replaceChildren(
+    h('p', { class: 'heat-pop-title', text: 'Heatmap' }),
+    mk('off', 'Aus'),
+    ...METRICS.map((m) => mk(m.key, m.label)))
+}
+function openHeatPop() {
+  renderHeatPop()
+  // unter dem Button ausrichten (rechtsbündig zur Action-Reihe)
+  const r = heatBtn.getBoundingClientRect()
+  heatPop.style.top = (r.bottom + 8) + 'px'
+  heatPop.style.right = Math.max(8, innerWidth - r.right) + 'px'
+  heatPop.hidden = false
+  heatBtn.setAttribute('aria-expanded', 'true')
+}
+function closeHeatPop() {
+  heatPop.hidden = true
+  heatBtn.setAttribute('aria-expanded', 'false')
+}
+heatBtn.addEventListener('click', () => (heatPop.hidden ? openHeatPop() : closeHeatPop()))
+document.addEventListener('click', (e) => {
+  if (!heatPop.hidden && !heatPop.contains(e.target) && !heatBtn.contains(e.target)) closeHeatPop()
+})
+window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !heatPop.hidden) closeHeatPop() })
+
+function applyHeat(key) {
+  // exklusiv zu Mauer-Modus und Farb-Overlay (drei konkurrierende Vollflächen-Looks)
+  if (key !== 'off') {
+    if (state.wall) { state.overlayBeforeWall = null; applyWall(false) }
+    if (state.overlay !== 'off') applyOverlay('off')
+  }
+  state.heat = key
+  try { localStorage.setItem('kf-heat', key) } catch (e) {}
+  const metric = metricByKey(key)
+  heatBtn.classList.toggle('is-active', !!metric)
+  if (!metric) {
+    state.heatBreaks = null
+    if (state.map) state.map.setHeatMode(false)
+    heatLegend.hidden = true
+    refreshAreaChip()
+    return
+  }
+  if (!_heatReady || !state.map) return // Daten kommen noch — Boot ruft erneut
+  const values = heatValues(key)
+  const breaks = quantileBreaks(values, 7)
+  state.heatBreaks = breaks
+  state.map.setHeatMode(true, heatPaint(key, breaks, state.theme))
+  const leg = legendFor(metric, breaks, values, state.theme)
+  if (leg) {
+    legendTitle.textContent = leg.title
+    legendBar.replaceChildren(...leg.colors.map((c) => {
+      const s = h('span', { class: 'legend-swatch' }); s.style.background = c; return s
+    }))
+    legendMin.textContent = leg.min
+    legendMax.textContent = leg.max + ' ' + leg.unit
+    const stand = standFor(metric, statsData(), preiseData())
+    legendStand.textContent = stand ? `Stand ${stand} · je Planungsraum` : 'je Planungsraum'
+    heatLegend.hidden = false
+  }
+  refreshAreaChip()
+}
+
+// Chip im Heat-Modus: PLR unter der Kartenmitte + Wert der aktiven Metrik
+function applyHeatChip() {
+  const metric = metricByKey(state.heat)
+  if (!state.map || !metric) return false
+  const hit = state.map.heatAtCenter()
+  if (!hit || !hit.name) return false
+  const v = hit.props[state.heat]
+  areaChipDot.style.background = v != null && state.heatBreaks
+    ? RAMPS[state.theme][Math.min(classIndex(v, state.heatBreaks), RAMPS[state.theme].length - 1)]
+    : 'transparent'
+  areaChipName.textContent = hit.name
+  areaChipLevel.textContent = v != null ? `${metric.fmt(v)} ${metric.unit}` : 'keine Daten'
+  positionAreaChip()
+  areaChip.hidden = false
+  return true
+}
 
 // ── Auto-Zoom toggle: frame the tapped Kiez on a map-tap, or leave the camera ──
 function applyAutoZoom(on) {
@@ -1250,8 +1381,24 @@ async function boot() {
   // patcht sich nach, sobald sie da sind — ohne sie fehlt nur der Stats-Block)
   loadStats()
   loadKiezInfo()
+  loadPreise()
   // load polygons + map shell in parallel, then check in
   await Promise.all([loadKieze().catch(() => null), state.map.whenReady()])
+  // Heatmap-Daten: kieze-Geometrie + Metriken joinen, Layer anlegen, dann den
+  // persistierten Modus wiederherstellen (Fehlschlag → Feature entfällt still)
+  Promise.all([loadStats(), loadPreise()]).then(() => {
+    const fc = buildHeatFC(kiezeFC(), statsData(), preiseData())
+    if (!fc || !state.map) return
+    state.map.setHeatData(fc).then(() => {
+      state.heatFC = fc
+      _heatReady = true
+      try {
+        const saved = localStorage.getItem('kf-heat')
+        if (saved && saved !== 'off' && metricByKey(saved) && !state.wall) applyHeat(saved)
+        else if (state.heat !== 'off') applyHeat(state.heat)
+      } catch (e) {}
+    })
+  }).catch(() => null)
   // aggregate levels feed the level-switch highlight + sector overlay;
   // colloquial OSM Kiez names feed the accent map labels
   Promise.all([loadLevels(), loadKiezNames().catch(() => null), loadStreets().catch(() => null)]).then(([, kiezNames, streets]) => {
