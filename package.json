@@ -4,6 +4,9 @@
   "version": "1.0.0",
   "type": "module",
   "description": "Dein Kiez-Pass für Berlin — finde heraus, in welchem Kiez du gerade stehst.",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",

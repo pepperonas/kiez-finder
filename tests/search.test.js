@@ -27,7 +27,10 @@ buildSearchIndex({
     feat({ bzr_name: 'Reuterstraße', bez: '08 - Neukölln' }),
     feat({ bzr_name: 'Neuköllner Mitte/Zentrum', bez: '08 - Neukölln' }),
   ]),
-  pgr: fc([feat({ pgr_name: 'Neukölln', bez: '08 - Neukölln' })]), // == Bezirk → skipped
+  pgr: fc([
+    feat({ pgr_name: 'Neukölln', bez: '08 - Neukölln' }), // == Bezirk → skipped
+    feat({ pgr_name: 'Gropiusstadt Nord', bez: '08 - Neukölln' }), // distinct → indexed
+  ]),
   areas: fc([feat({ kiez: 'Reuterkiez', gid: 1 }), feat({ kiez: 'Schillerkiez', gid: 2 })]),
   osmKieze: fc([feat({ name: 'Reuterkiez' })]), // same name as an area → dedup to one
   kieze: fc([
@@ -57,6 +60,14 @@ test('a prefix query surfaces the Bezirk exact-match on top', () => {
   const top = search('Neukölln')[0]
   assert.equal(top.label, 'Neukölln')
   assert.equal(top.type, 'bez')
+})
+
+test('a Prognoseraum that differs from its Bezirk is indexed and findable', () => {
+  const top = search('Gropiusstadt')[0]
+  assert.equal(top.label, 'Gropiusstadt Nord')
+  assert.equal(top.type, 'pgr')
+  assert.equal(top.typeLabel, 'Prognoseraum')
+  assert.equal(top.sub, 'Neukölln')
 })
 
 test('type priority breaks ties (Kiez > Bezirksregion > Planungsraum)', () => {

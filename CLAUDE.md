@@ -21,16 +21,33 @@ npm test         # unit tests (Node's built-in runner, no deps) — tests/*.test
 ```
 No linter configured. Geolocation needs a secure context (localhost or HTTPS).
 
-**Tests** (`tests/`, `node --test`, zero dependencies) cover the dependency-light pure
-logic: `search.js` (norm folding + the multi-tier scorer / type-priority / dedup),
-`kiez.js` (point-in-polygon classification incl. holes + MultiPolygon, `bezirkName`,
-`kmFromBerlin`, `bboxOf`, `levelName`), and `prefs.js` (the DOM-free `readBoolPref`/
-`writeBoolPref` persistence helpers backing the Auto-Zoom toggle — default derivation,
-'1'/'0' semantics, garbage/legacy fallback, throwing/absent storage, round-trip).
+**Tests** (`tests/`, `node --test`, zero dependencies — 56 tests, 100% line coverage on
+the three unit-testable modules) cover the dependency-light pure logic: `search.js`
+(norm folding + the multi-tier scorer / type-priority / dedup), `kiez.js` (point-in-polygon
+classification incl. holes + MultiPolygon, `bezirkName`, `kmFromBerlin`, `bboxOf`,
+`levelName` — plus, via a **fetch mock**, the loaders and the loaded-state functions:
+`tests/loaders.test.js` = happy paths (memoisation, `findKiez`/`findOsmKiez` nesting,
+`kiezAreaFor` merge, `featureForLevel` prefix derivation) and `tests/loaders-fallback.test.js`
+= failure paths (core-dataset failure surfaces as an error, optional datasets missing,
+`loadWall`/`loadStreets` fail→reset→retry). The two files share fixtures via
+`tests/loaders-fixtures.mjs` and MUST stay separate files: the runner isolates each test
+file in its own process, giving the fallback file a fresh module instance — query-string
+imports would instead split `src/kiez.js` into one coverage row per instance), and
+`prefs.js` (the DOM-free persistence helpers backing the Auto-Zoom toggle).
 `main.js`/`map.js` aren't covered — they pull in MapLibre + CSS, so pure logic worth
 testing (persistence, graph-colouring, label candidates) is **extracted into a
 maplibre-free module first** (that's what `prefs.js` is). Add tests alongside as
-`tests/<name>.test.js`.
+`tests/<name>.test.js`. Coverage: `node --test --experimental-test-coverage tests/`.
+**CI:** `.github/workflows/ci.yml` runs tests+coverage+build on Node 20/22 per push/PR;
+the README's CI badge points at it.
+
+**README screenshots** (`docs/screenshot-*.png`) are regenerated with
+`tools/screenshots.cjs` against a `npm run preview -- --port 4190` server (needs a
+resolvable `playwright` package + real Chrome; captures via CDP because Playwright's
+`page.screenshot` hangs on the continuously repainting software-WebGL MapLibre canvas;
+geolocation mocked to the Reuterkiez; 4 shots dark = app default, the Mauer shot
+deliberately light for the paper-archival look). Compress afterwards with
+`pngquant --quality=70-90` (script header documents the exact call).
 
 ## Architecture
 

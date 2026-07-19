@@ -89,4 +89,5 @@ test('levelName reads the right hierarchy field for a Planungsraum', () => {
   assert.equal(levelName('bez', plr), 'Neukölln') // bezirkName applied
   assert.equal(levelName('kiez', { properties: { plr_name: 'X' } }), 'X') // falls back to plr_name
   assert.equal(levelName('bez', null), '—')
+  assert.equal(levelName('nope', plr), '—') // unknown level key → em-dash fallback
 })

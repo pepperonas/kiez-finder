@@ -6,47 +6,12 @@
 
 ### Dein Kiez-Pass für Berlin — check ein und erfahre sofort, in welchem Kiez du gerade stehst.
 
-[![Live](https://img.shields.io/badge/live-kiezfinder.celox.io-7da2ff?style=for-the-badge&logo=icloud&logoColor=white)](https://kiezfinder.celox.io)
-[![PWA](https://img.shields.io/badge/PWA-installierbar-5a3fd6?style=for-the-badge&logo=pwa&logoColor=white)](https://kiezfinder.celox.io)
-[![License: MIT](https://img.shields.io/badge/License-MIT-b69cff.svg?style=for-the-badge)](LICENSE)
-
-<!-- status -->
-[![Last commit](https://img.shields.io/github/last-commit/pepperonas/kiez-finder?logo=git&logoColor=white)](https://github.com/pepperonas/kiez-finder/commits/main)
-[![Commit activity](https://img.shields.io/github/commit-activity/m/pepperonas/kiez-finder)](https://github.com/pepperonas/kiez-finder/commits/main)
-[![Repo size](https://img.shields.io/github/repo-size/pepperonas/kiez-finder)](https://github.com/pepperonas/kiez-finder)
+[![CI](https://img.shields.io/github/actions/workflow/status/pepperonas/kiez-finder/ci.yml?branch=main&label=CI&logo=githubactions&logoColor=white)](https://github.com/pepperonas/kiez-finder/actions/workflows/ci.yml)
+[![Coverage (Unit)](https://img.shields.io/badge/coverage_(unit)-100%25_lines-brightgreen)](#tests-ausf%C3%BChren)
+[![Live](https://img.shields.io/website?url=https%3A%2F%2Fkiezfinder.celox.io&label=kiezfinder.celox.io&logo=icloud&logoColor=white)](https://kiezfinder.celox.io)
+[![Version](https://img.shields.io/github/package-json/v/pepperonas/kiez-finder?logo=npm&logoColor=white)](package.json)
+[![License](https://img.shields.io/github/license/pepperonas/kiez-finder?color=b69cff)](LICENSE)
 [![Top language](https://img.shields.io/github/languages/top/pepperonas/kiez-finder?logo=javascript&logoColor=000)](#tech-stack)
-[![Stars](https://img.shields.io/github/stars/pepperonas/kiez-finder?style=flat&logo=github)](https://github.com/pepperonas/kiez-finder/stargazers)
-
-<!-- tech -->
-[![Vite](https://img.shields.io/badge/Vite-6-646CFF?logo=vite&logoColor=white)](https://vite.dev)
-[![MapLibre GL](https://img.shields.io/badge/MapLibre%20GL-4-396CB2?logo=maplibre&logoColor=white)](https://maplibre.org)
-[![Material 3](https://img.shields.io/badge/Material%203-Expressive-7da2ff?logo=materialdesign&logoColor=white)](https://m3.material.io)
-[![Vanilla JS](https://img.shields.io/badge/Vanilla-JS-f7df1e?logo=javascript&logoColor=000)](#tech-stack)
-[![No framework](https://img.shields.io/badge/framework-none-success)](#tech-stack)
-[![Self-hosted fonts](https://img.shields.io/badge/fonts-self--hosted-b69cff)](#tech-stack)
-
-<!-- data -->
-[![Daten LOR 2021](https://img.shields.io/badge/Daten-LOR%202021-1f9d55)](#datenquellen)
-[![Kieze](https://img.shields.io/badge/Kieze-542-1f9d55)](#datenquellen)
-[![Bezirke](https://img.shields.io/badge/Bezirke-12-1f9d55)](#datenquellen)
-[![Bezirksregionen](https://img.shields.io/badge/Bezirksregionen-143-1f9d55)](#datenquellen)
-[![OpenStreetMap](https://img.shields.io/badge/OpenStreetMap-Kiez--Namen-7ebc6f?logo=openstreetmap&logoColor=white)](#datenquellen)
-[![No API key](https://img.shields.io/badge/API%20key-none-success)](#datenquellen)
-
-<!-- features -->
-[![Fuzzy search](https://img.shields.io/badge/Suche-fuzzy-7da2ff)](#features)
-[![Offline](https://img.shields.io/badge/offline-ready-5a3fd6)](#features)
-[![Sprache](https://img.shields.io/badge/Sprache-Deutsch-e8590c)](#)
-[![a11y](https://img.shields.io/badge/a11y-reduced--motion%20·%20Tastatur-blueviolet)](#features)
-[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#mitmachen)
-
-<br/>
-
-<img src="docs/screenshot-mobile.png" alt="Kiez-Finder — Pass-Karte als Bottom-Sheet" width="270"/>
-&nbsp;
-<img src="docs/screenshot-bezirke.png" alt="Bezirke-Overlay mit Labels" width="48%"/>
-
-<sub><i>Bottom-Sheet auf Mobil · farbige Ebenen-Overlays (Bezirke L · Regionen M · Kieze S)</i></sub>
 
 </div>
 
@@ -63,13 +28,11 @@ zeichnet die Grenze deines Kiezes auf die Karte und zeigt dir die volle Hierarch
 Die Klassifizierung läuft gegen die **amtlichen Kiez-Grenzen** (Point-in-Polygon im Browser) —
 nicht gegen ungenaues Reverse-Geocoding. Stehst du außerhalb der Stadtgrenze, sagt der Pass dir das auch.
 
-## Das Konzept: ein Kiez-Pass
-
-Eine einzige Idee, durch jede Schicht gezogen: *Du checkst an deinem Standort ein, und die Stadt
-verrät dir, welcher Kiez dich gerade beherbergt.* Die Sprache („einchecken"), die Karte (eine
-gestempelte Pass-Karte), der **Signature-Moment** (Lock-on: die Kamera fliegt zu dir, dann zeichnet
-sich deine Kiez-Grenze selbst ein) und der Leerzustand („außerhalb der Stadtgrenze gilt der Pass nicht")
-gehorchen alle diesem einen Satz.
+**Das Konzept: ein Kiez-Pass.** Eine einzige Idee, durch jede Schicht gezogen: *Du checkst an
+deinem Standort ein, und die Stadt verrät dir, welcher Kiez dich gerade beherbergt.* Die Sprache
+(„einchecken"), die Karte (eine gestempelte Pass-Karte), der **Signature-Moment** (Lock-on: die
+Kamera fliegt zu dir, dann zeichnet sich deine Kiez-Grenze selbst ein) und der Leerzustand
+(„außerhalb der Stadtgrenze gilt der Pass nicht") gehorchen alle diesem einen Satz.
 
 ## Features
 
@@ -94,44 +57,71 @@ gehorchen alle diesem einen Satz.
 - ♿ **Robust** — Progressive Enhancement, `prefers-reduced-motion`, sichtbarer Fokus, Tastatur (`R` = neu einchecken), Touch-Targets ≥ 44 px
 - 🔑 **Kein API-Key** — keyless Carto-Tiles + Nominatim, keine Secrets im Code
 
-## Tech-Stack
+## Screenshots
 
-| Schicht | Wahl | Warum |
-|---|---|---|
-| Build | **Vite 6** | Eine kleine JS-Insel, gehashte Assets, PWA-Plugin |
-| Karte | **MapLibre GL JS 4** | Vektor-Tiles, weiche `flyTo`-Physik, Polygon-Layer |
-| Tiles | **CARTO dark-matter / positron** | keyless, kostenlos, dunkel |
-| Geocoding | **Nominatim (OSM)** | nur für die Adresszeile (gecacht, 1 req/s-Policy) |
-| Motion | eigener **MD3-Feder-Integrator** | echte Spring-Physik (`stiffness`/`damping`), nicht CSS-Fades |
-| Fonts | **Space Grotesk + Inter** (variable, self-hosted) | Display vs. Body, keine externen Requests |
-| UI | **Vanilla JS** | maximal klein, volle Kontrolle über jeden Frame |
+<div align="center">
 
-## Motion-System
+<img src="docs/screenshot-desktop.png" alt="Desktop: Kiez-Pass mit gezeichneter Reuterkiez-Grenze nach dem Lock-on" width="92%"/>
 
-CSS kennt keine Federn — deshalb fährt die räumliche Bewegung (Position/Größe/Reveal, mit Overshoot)
-über einen winzigen semi-impliziten Euler-Spring-Integrator (`src/motion.js`). Die Konstanten sind die
-**M3-*Expressive*-Tokens** wörtlich:
+<sub><i>Der Signature-Moment: Lock-on auf den Standort, die Kiez-Grenze zeichnet sich selbst ein</i></sub>
 
-| Spring | stiffness | damping | Einsatz |
-|---|---|---|---|
-| spatial-fast | 800 | 0.6 | Signatur-Bounce |
-| spatial-default | 380 | 0.8 | Karten-/Listen-Reveal |
-| spatial-slow | 200 | 0.8 | Kiez-Grenze zeichnet sich ein |
+<br/><br/>
 
-Opazität & Farbe („effects") bleiben auf MD3-Easing (`cubic-bezier(0.2,0,0,1)`) — ein überschwingender
-Fade sieht kaputt aus. Ein Timing-System, überall wiederverwendet.
+<img src="docs/screenshot-mobile.png" alt="Mobil: Pass-Karte als MD3-Bottom-Sheet" width="24.5%"/>
+&nbsp;
+<img src="docs/screenshot-kieze.png" alt="Kieze-Overlay (S): nachbarschafts-bewusst eingefärbtes Kiez-Patchwork mit Labels" width="66%"/>
 
-## Lokal entwickeln
+<sub><i>MD3-Bottom-Sheet auf Mobil · Kieze-Overlay (S): das nachbarschafts-bewusst eingefärbte Kiez-Patchwork</i></sub>
+
+<br/><br/>
+
+<img src="docs/screenshot-bezirke.png" alt="Bezirke-Overlay (L) mit Labels und Aktueller-Bereich-Plakette" width="45.5%"/>
+&nbsp;
+<img src="docs/screenshot-mauer.png" alt="Berliner-Mauer-Modus: Retro-Archivkarte mit Mauerverlauf 1989 und Sektor-Stempel" width="45.5%"/>
+
+<sub><i>Bezirke-Overlay (L) mit „Aktueller-Bereich"-Plakette · Berliner-Mauer-Modus 1989 mit Sektor-Stempel</i></sub>
+
+</div>
+
+## Installation
 
 ```bash
+git clone https://github.com/pepperonas/kiez-finder.git
+cd kiez-finder
 npm install
-npm run dev       # Vite-Dev-Server (HTTPS nötig für Geolocation → siehe Hinweis)
+```
+
+Voraussetzungen: **Node ≥ 20** (die CI testet 20 + 22). Keine API-Keys, keine `.env` — es gibt keine Secrets.
+
+## Quickstart
+
+```bash
+npm run dev       # Vite-Dev-Server (Geolocation braucht einen secure context → localhost zählt)
 npm run build     # Production-Build nach dist/
 npm run preview   # Build lokal testen
 ```
 
 > **Hinweis:** Geolocation braucht einen *secure context*. `localhost` gilt als sicher; auf anderen
-> Hosts muss HTTPS aktiv sein.
+> Hosts muss HTTPS aktiv sein. Ohne Standort-Freigabe funktioniert die App trotzdem — einfach auf
+> die Karte tippen oder die Suche benutzen.
+
+## Konfiguration
+
+Die App hat **keine Build-Konfiguration und keine Secrets** — alles Nutzer-Einstellbare wird
+automatisch in `localStorage` persistiert:
+
+| Key | Werte | Bedeutung |
+|---|---|---|
+| `kf-theme` | `dark` \| `light` | Farbschema (Default: dunkel bzw. `prefers-color-scheme`) |
+| `kf-overlay` | `off` \| `bezirke` \| `bzr` \| `kiez` | aktives Sektoren-Overlay |
+| `kf-wall` | `1` \| `0` | Berliner-Mauer-Modus |
+| `kf-autozoom` | `1` \| `0` | Auto-Zoom beim Karten-Tap (Default: an) |
+| `kf-panel` | `open` \| `collapsed` | Desktop-Info-Panel ein-/ausgeklappt |
+
+Fürs **Hosting** gibt es genau ein Muss: der Webserver muss
+`Permissions-Policy: geolocation=(self)` **auf dem HTML-Dokument** setzen — bei nginx auch im
+`location = /index.html`-Block, weil das `try_files`-Fallback die Server-Header dort sonst
+verwirft (Details in [CLAUDE.md](CLAUDE.md)).
 
 ### Kiez-Daten neu erzeugen
 
@@ -160,8 +150,7 @@ npx mapshaper public/data/kieze.geojson -each 'id=plr_id.substring(0,6)' -dissol
 #    Komponente gruppiert (shared-vertex Adjazenz) und per `-dissolve gid` verschmolzen.
 #    Ergebnis: kieze.geojson bekommt gid+kiez je Planungsraum, kiez-areas.geojson = eine
 #    Fläche je Kiez (355 aus 542). Quarter ist nicht flächendeckend → ~78 % Abdeckung,
-#    der Rest bleibt sein eigener Planungsraum. (Build-Skripte: siehe git-Historie /
-#    `/tmp/rev-all.mjs` + `/tmp/build-kiez-areas.mjs`.)
+#    der Rest bleibt sein eigener Planungsraum. (Build-Skripte: siehe git-Historie.)
 
 # 6) OSM-Kiez-Namen (Punkt-Labels) via Overpass → kiez-names.geojson
 #    node-Query: place=quarter|neighbourhood in Berlin → 537 Punkte
@@ -177,11 +166,66 @@ node tools/build-streets.js streets-raw.json
 #    eigenem Point-in-Polygon. Kompaktformat [name, bezIdx, cx, cy, bbox×4] → 833 KB.
 ```
 
+### Screenshots neu erzeugen
+
+```bash
+npm run build && npm run preview -- --port 4190   # Terminal 1
+node tools/screenshots.cjs                        # Terminal 2 (braucht Playwright + Chrome)
+```
+
+## Tests ausführen
+
+```bash
+npm test                                          # 56 Unit-Tests, Nodes eingebauter Runner, null Test-Dependencies
+node --test --experimental-test-coverage tests/   # dito + Coverage-Report
+```
+
+Getestet wird die **abhängigkeitsfreie Pure-Logik** — Stand heute **56 Tests, 100 % Line-Coverage**
+auf allen drei unit-testbaren Modulen (96 % Branch):
+
+| Modul | Was abgesichert ist |
+|---|---|
+| `src/kiez.js` | Point-in-Polygon-Klassifizierung (Löcher, MultiPolygon), Hierarchie-Ableitung (`featureForLevel`, `levelName`), `findOsmKiez`-Nesting (kleinste Fläche gewinnt), `kiezAreaFor`-Fallbacks — und die **Loader per fetch-Mock**: Memoisierung, optionale Datensätze fehlen sauber, Kern-Datensatz-Fehler wird als Fehler gemeldet (nie als „nicht in Berlin"), `loadWall`/`loadStreets` **Fail → Reset → Retry** |
+| `src/search.js` | Umlaut-/ß-/„straße"-Faltung, Multi-Tier-Scoring, Typ-Priorität, Dedup, Straßen-Einträge |
+| `src/prefs.js` | `localStorage`-Persistenz-Semantik (Defaults, Garbage-Fallback, werfende Storage) |
+
+`main.js`/`map.js` hängen an DOM + MapLibre/WebGL und sind bewusst nicht unit-getestet — testwürdige
+Logik wird stattdessen in maplibre-freie Module extrahiert (so entstand `prefs.js`). Die CI
+(GitHub Actions, Node 20 + 22) führt Tests + Coverage + Production-Build bei jedem Push aus.
+
+## Tech-Stack
+
+| Schicht | Wahl | Warum |
+|---|---|---|
+| Build | **Vite 6** | Eine kleine JS-Insel, gehashte Assets, PWA-Plugin |
+| Karte | **MapLibre GL JS 4** | Vektor-Tiles, weiche `flyTo`-Physik, Polygon-Layer |
+| Tiles | **CARTO dark-matter / positron** | keyless, kostenlos, dunkel |
+| Geocoding | **Nominatim (OSM)** | nur für die Adresszeile (gecacht, 1 req/s-Policy) |
+| Motion | eigener **MD3-Feder-Integrator** | echte Spring-Physik (`stiffness`/`damping`), nicht CSS-Fades |
+| Fonts | **Space Grotesk + Inter** (variable, self-hosted) | Display vs. Body, keine externen Requests |
+| Tests | **`node --test`** | Nodes eingebauter Runner — null Test-Dependencies |
+| UI | **Vanilla JS** | maximal klein, volle Kontrolle über jeden Frame |
+
+### Motion-System
+
+CSS kennt keine Federn — deshalb fährt die räumliche Bewegung (Position/Größe/Reveal, mit Overshoot)
+über einen winzigen semi-impliziten Euler-Spring-Integrator (`src/motion.js`). Die Konstanten sind die
+**M3-*Expressive*-Tokens** wörtlich:
+
+| Spring | stiffness | damping | Einsatz |
+|---|---|---|---|
+| spatial-fast | 800 | 0.6 | Signatur-Bounce |
+| spatial-default | 380 | 0.8 | Karten-/Listen-Reveal |
+| spatial-slow | 200 | 0.8 | Kiez-Grenze zeichnet sich ein |
+
+Opazität & Farbe („effects") bleiben auf MD3-Easing (`cubic-bezier(0.2,0,0,1)`) — ein überschwingender
+Fade sieht kaputt aus. Ein Timing-System, überall wiederverwendet.
+
 ## Deploy
 
 Statischer Build → `rsync` auf den celox.io-VPS, TLS via Let's Encrypt (certbot). Die Nginx-Config
-muss `Permissions-Policy: geolocation=(self)` auf dem HTML-Dokument setzen (sonst blockt der Browser
-die Standortabfrage):
+muss `Permissions-Policy: geolocation=(self)` auf dem HTML-Dokument setzen (siehe
+[Konfiguration](#konfiguration)):
 
 ```bash
 npm run build
@@ -191,6 +235,7 @@ rsync -avz --delete dist/ root@<vps>:/var/www/kiezfinder.celox.io/
 ## Datenquellen
 
 - **Kiez-Grenzen:** LOR 2021 Planungsräume — *Geoportal Berlin / Amt für Statistik Berlin-Brandenburg* (CC-BY-3.0 DE)
+- **Mauerverlauf:** „Verlauf der Berliner Mauer, 1989" — *Geoportal Berlin*
 - **Straßen:** © OpenStreetMap-Mitwirkende via Overpass API (ODbL)
 - **Karten:** © OpenStreetMap-Mitwirkende, © CARTO
 - **Adresse:** Nominatim / OpenStreetMap
@@ -198,9 +243,12 @@ rsync -avz --delete dist/ root@<vps>:/var/www/kiezfinder.celox.io/
 ## Mitmachen
 
 Issues und PRs willkommen. Die App ist bewusst klein und abhängigkeitsarm — bitte halte sie so.
+Vor einem PR: `npm test` (die CI läuft mit Node 20 + 22).
 
 ## Lizenz
 
-[MIT](LICENSE) © [pepperonas](https://github.com/pepperonas)
+[MIT](LICENSE) © Martin Pfeffer ([pepperonas](https://github.com/pepperonas))
 
-<div align="center"><sub>Made with ❤️ in Berlin · <a href="https://celox.io">celox.io</a></sub></div>
+---
+
+<div align="center"><sub>Made with ❤️ in Berlin · © 2026 Martin Pfeffer | <a href="https://celox.io">celox.io</a></sub></div>
