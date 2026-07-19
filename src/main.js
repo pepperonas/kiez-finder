@@ -928,7 +928,12 @@ function applyAreaChip() {
 // timing involved, so no retry loop needed).
 function applyWallChip() {
   if (!state.map || !state.wallData || !state.wallData.west) { areaChip.hidden = true; return }
-  const [lon, lat] = state.map.centerLngLat()
+  // Die Plakette zeigt die Seite des MARKERS (Standort/ausgewählter Punkt) —
+  // wie der Sektor-Stempel in der Card (beide nutzen state.pos). Vorher las
+  // sie die Kartenmitte: nach Lock-on/Fit verschiebt das Panel-/Sheet-Padding
+  // die Mitte vom Marker weg, nahe der Mauer auf die FALSCHE Seite → Plakette
+  // widersprach Stempel und Marker. Ohne Marker (Boot/Fehler) Fallback: Mitte.
+  const [lon, lat] = state.pos ? [state.pos.lon, state.pos.lat] : state.map.centerLngLat()
   const west = pointInGeometry(state.wallData.west.geometry, lon, lat)
   // precise Ost polygon (Berlin minus wall ring — correctly puts the DDR-run
   // West-Staaken exclave in the East); fallback: any Kiez hit = within Berlin

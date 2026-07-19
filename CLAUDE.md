@@ -268,7 +268,11 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   Wall mode and the colour overlay are
   mutually exclusive (`applyWall`/`applyOverlay` switch each other off; previous overlay is
   restored on exit). The area chip becomes an Ost/West readout (`applyWallChip`,
-  pointInGeometry against the west polygon). Persisted as `localStorage 'kf-wall'`.
+  pointInGeometry against the west polygon) — for the MARKER position (`state.pos`,
+  same source as the card's sector stamp; centre only as no-marker fallback). It used
+  to read the map centre: the panel/sheet fit-padding shifts the centre away from the
+  marker, near the wall onto the WRONG side → chip contradicted stamp+marker.
+  Persisted as `localStorage 'kf-wall'`.
   **Full-page restyle:** `#app.wall-mode` overrides the design tokens (accent/surface/outline
   per theme → ink-on-charcoal / ink-on-paper) plus `--font-display`/`--font-body` → system
   Courier stack; `font-family: var(--font-body)` on `#app.wall-mode` re-roots inheritance
