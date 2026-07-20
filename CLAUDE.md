@@ -21,7 +21,7 @@ npm test         # unit tests (Node's built-in runner, no deps) — tests/*.test
 ```
 No linter configured. Geolocation needs a secure context (localhost or HTTPS).
 
-**Tests** (`tests/`, `node --test`, zero dependencies — 139 tests, 100% line coverage on
+**Tests** (`tests/`, `node --test`, zero dependencies — 143 tests, 100% line coverage on
 the eight unit-testable modules) cover the dependency-light pure logic: `search.js`
 (norm folding + the multi-tier scorer / type-priority / dedup), `kiez.js` (point-in-polygon
 classification incl. holes + MultiPolygon, `bezirkName`, `kmFromBerlin`, `bboxOf`,
@@ -253,9 +253,15 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   `nearestPois`+`fmtDist` (for the **162 of 427 kieze that contain no POI** — the card shows nearest
   targets instead of an empty section), `markVisited` (idempotent — FIRST visit wins), `mergeProgress`
   (commutative/idempotent union, earlier timestamp wins → a later account sync is conflict-free by
-  construction), `scopeProgress`/`completedAreas`/`rankFor`. **Discovery is geolocation-only** (≤150 m
+  construction), `scopeProgress`/`completedAreas`/`rankFor`; `unmarkVisited` (immutable, returns `prevTs` so an undo
+  restores the exact original visit). **Discovery is geolocation-only** (≤150 m
   at check-in); tapping a POI merely shows it — otherwise it's a checklist, not a hunt.
-  map.js: `setPoiData`/`setVisited` (feature-state via `promoteId: 'qid'` — a visit doesn't re-upload
+  main.js: `openPoiBrowser`/`renderPoiBrowser` = a searchable, filterable list (scope near/kiez/all ×
+  status all/open/done) reachable via „Alle Orte durchstöbern" in the hunt section; both the list rows
+  and the POI detail card can set/UNSET a visit manually (`setPoiVisited`) with an undo snackbar. Because
+  the server sync was a pure union, un-marking could never stick for logged-in users → `PUT /api/progress`
+  now REPLACES the user’s set authoritatively (delete-missing + upsert in one tx; the client holds the
+  full post-login union, so replace is safe and lets deletions propagate). map.js: `setPoiData`/`setVisited` (feature-state via `promoteId: 'qid'` — a visit doesn't re-upload
   1000 features)/`setPoiVisibility`/`onPoiClick`/`flyToPoi`. The general map-click handler calls
   `_poiAtPoint(e.point)` FIRST: a ~15px tolerance box via `queryRenderedFeatures` over poi-dot+label
   → opens that POI, else falls through to a normal locate. The dots are only 4–9px, so an exact hit

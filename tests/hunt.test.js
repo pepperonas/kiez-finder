@@ -7,7 +7,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   loadPois, poisData,
-  RADIUS_M, decodePoi, poiUrl, distanceM, poisNear, nearestPois, fmtDist,
+  RADIUS_M, decodePoi, poiUrl, distanceM, poisNear, nearestPois, fmtDist, unmarkVisited,
   emptyProgress, readProgress, writeProgress, markVisited, mergeProgress,
   isVisited, overallProgress, scopeProgress, completedAreas, rankFor, RANKS,
 } from '../src/hunt.js'
@@ -132,6 +132,22 @@ test('markVisited ist idempotent — der ERSTE Besuch zählt', () => {
   const r2 = markVisited(r1.progress, 82425, 9999)
   assert.equal(r2.changed, false)
   assert.equal(r2.progress.visited[82425], 1000, 'späterer Besuch überschreibt nicht')
+})
+
+test('unmarkVisited nimmt einen Besuch zurück (Fehleingabe) — immutable, idempotent', () => {
+  const p = { v: 1, visited: { 82425: 1000, 156721: 2000 } }
+  const r = unmarkVisited(p, 82425)
+  assert.equal(r.changed, true)
+  assert.equal(r.prevTs, 1000, 'liefert den alten Zeitstempel fürs Rückgängigmachen')
+  assert.deepEqual(r.progress.visited, { 156721: 2000 })
+  assert.deepEqual(p.visited, { 82425: 1000, 156721: 2000 }, 'Original unangetastet')
+  // idempotent: nicht besuchter POI → kein Change
+  const r2 = unmarkVisited(r.progress, 82425)
+  assert.equal(r2.changed, false)
+  assert.equal(r2.prevTs, null)
+  // Undo-Runde: markVisited mit prevTs stellt den Originalbesuch wieder her
+  const back = markVisited(r.progress, 82425, r.prevTs)
+  assert.equal(back.progress.visited[82425], 1000)
 })
 
 // ── Merge (Server-Sync-Vorbereitung) ─────────────────────────────────────────

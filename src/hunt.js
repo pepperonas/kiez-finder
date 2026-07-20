@@ -108,6 +108,17 @@ export function markVisited(progress, qid, ts = Date.now()) {
   return { changed: true, progress: { ...progress, visited: { ...progress.visited, [qid]: ts } } }
 }
 
+/** Besuch zurücknehmen (Fehleingabe rückgängig). Immutable; idempotent, wenn
+ *  der POI gar nicht als besucht galt. Gibt den vorigen Zeitstempel zurück,
+ *  damit ein „Rückgängig" den ursprünglichen Besuch exakt wiederherstellen kann. */
+export function unmarkVisited(progress, qid) {
+  if (!progress.visited[qid]) return { changed: false, progress, prevTs: null }
+  const prevTs = progress.visited[qid]
+  const visited = { ...progress.visited }
+  delete visited[qid]
+  return { changed: true, progress: { ...progress, visited }, prevTs }
+}
+
 /**
  * Union-Merge zweier Fortschritte (lokal ↔ Server): jeder je besuchte POI
  * bleibt besucht, bei Dopplung gewinnt der FRÜHERE Zeitstempel (der echte

@@ -60,12 +60,21 @@ const q = {
   upsertUser: db.prepare(`INSERT INTO users (sub,name,created,seen) VALUES (?,?,?,?)
     ON CONFLICT(sub) DO UPDATE SET name=excluded.name, seen=excluded.seen`),
   getVisits: db.prepare('SELECT qid, ts FROM visits WHERE sub = ?'),
-  // Union-Merge: der FRÜHERE Erstbesuch gewinnt
+  // je Besuch: früherer Erstbesuch gewinnt (dedupt innerhalb eines Uploads)
   putVisit: db.prepare(`INSERT INTO visits (sub,qid,ts) VALUES (?,?,?)
     ON CONFLICT(sub,qid) DO UPDATE SET ts = MIN(ts, excluded.ts)`),
+  delMissing: db.prepare('DELETE FROM visits WHERE sub = ? AND qid NOT IN (SELECT value FROM json_each(?))'),
+  delAll: db.prepare('DELETE FROM visits WHERE sub = ?'),
   countVisits: db.prepare('SELECT COUNT(*) n FROM visits WHERE sub = ?'),
 }
+// AUTORITATIVES ERSETZEN (nicht Union): der Client hält nach dem Login-Union
+// den vollständigen Stand, also ist sein Payload maßgeblich — nur so kann ein
+// zurückgenommener Besuch (Fehleingabe) den Server auch wirklich verlassen.
+// Fehlende qids werden gelöscht, vorhandene upsertet.
 const putVisits = db.transaction((sub, visited) => {
+  const qids = Object.keys(visited).map(Number)
+  if (qids.length) q.delMissing.run(sub, JSON.stringify(qids))
+  else q.delAll.run(sub)
   for (const [qid, ts] of Object.entries(visited)) q.putVisit.run(sub, Number(qid), ts)
 })
 

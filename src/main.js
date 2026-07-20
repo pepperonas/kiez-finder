@@ -12,13 +12,13 @@ import { KiezMap } from './map.js'
 import { loadKieze, loadOutline, loadLevels, levelFC, loadKiezNames, loadWall, loadStreets,
   findKiez, bezirkName, kmFromBerlin, featureForLevel, levelName, kiezAreaFor, kiezeFC,
   kiezAreasFC, osmKiezeFC, findOsmKiez, pointInGeometry } from './kiez.js'
-import { buildSearchIndex, search } from './search.js'
+import { buildSearchIndex, search, norm } from './search.js'
 import { readBoolPref, writeBoolPref } from './prefs.js'
 import { loadStats, loadKiezInfo, statsData, infoData, selectorFor, selectorForFeature,
   aggregate, ranksFor, geodesicAreaM2, infoFor, infoForBezirk, kiezFallbackText, plrIdsFor,
   fmtInt, fmtKm2, fmtDichte, fmtAlter, fmtAnteil, fmtEuroM2 } from './stats.js'
-import { loadPois, poisData, poiUrl, poisNear, readProgress, writeProgress, markVisited,
-  overallProgress, scopeProgress, isVisited, rankFor, RADIUS_M, nearestPois, fmtDist, mergeProgress } from './hunt.js'
+import { loadPois, poisData, poiUrl, poisNear, readProgress, writeProgress, markVisited, unmarkVisited,
+  overallProgress, scopeProgress, isVisited, rankFor, RADIUS_M, nearestPois, fmtDist, mergeProgress, distanceM } from './hunt.js'
 import { loadPreise, preiseData, METRICS, metricByKey, standFor, buildHeatFC,
   quantileBreaks, classIndex, heatPaint, legendFor, RAMPS } from './heat.js'
 import { fetchMe, syncProgress, pushProgress, logout, loginUrl, readLoginFlag, stripLoginFlag } from './account.js'
@@ -216,7 +216,10 @@ const reopenBtn = h('button', {
 // Entdeckungs-Meldungen der Schnitzeljagd (oben zentriert, selbst-schließend)
 const toastWrap = h('div', { class: 'toasts', aria: { live: 'polite' } })
 
-app.append(mapEl, stage, topbar, heatPop, acctPop, heatLegend, areaChip, reopenBtn, toastWrap)
+// Orte-Übersicht (Schnitzeljagd): durchsuch-/filterbare POI-Liste, slide-up
+const poiBrowser = h('section', { class: 'poi-browser', hidden: true, aria: { label: 'Orte durchstöbern', modal: 'true' }, role: 'dialog' })
+
+app.append(mapEl, stage, topbar, heatPop, acctPop, heatLegend, areaChip, reopenBtn, poiBrowser, toastWrap)
 
 // ── desktop: collapse / expand the info panel ────────────────────────────────
 function setPanelCollapsed(collapsed, moveFocus = true) {
@@ -496,6 +499,20 @@ function toast(icon, title, sub) {
   setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 400) }, 4200)
 }
 
+// Snackbar MIT Aktion (z. B. „Rückgängig") — im Gegensatz zum passiven Toast
+// klickbar. Immer nur eine gleichzeitig; die Aktion schließt sofort.
+let _snackTimer = 0
+function snackbar(text, actionLabel, onAction) {
+  toastWrap.querySelectorAll('.snack').forEach((n) => n.remove())
+  clearTimeout(_snackTimer)
+  const btn = h('button', { class: 'snack-action', type: 'button', text: actionLabel })
+  const el = h('div', { class: 'toast snack' }, h('span', { class: 'toast-text' }, h('strong', { text })), btn)
+  const kill = () => { el.classList.add('out'); setTimeout(() => el.remove(), 400) }
+  btn.addEventListener('click', () => { clearTimeout(_snackTimer); onAction(); kill() })
+  toastWrap.append(el)
+  _snackTimer = setTimeout(kill, 6000)
+}
+
 let _pushTimer = 0
 function saveHunt() {
   try { writeProgress(localStorage, state.hunt) } catch (e) {}
@@ -524,6 +541,149 @@ function discoverAt(pos) {
     if (now.title !== was.title) toast('🏅', 'Neuer Rang: ' + now.title, `${before + found.length} POIs entdeckt`)
   }
   return found
+}
+
+// Einen POI-Besuch manuell setzen/zurücknehmen — mit sofortiger Undo-Snackbar,
+// damit ein Fehlklick reibungslos umkehrbar ist. `mark` true = besichtigt,
+// false = zurücknehmen. onDone erlaubt der aufrufenden View, ihre Zeile/Karte
+// zu aktualisieren. Aktualisiert Speicher, Karte, Server (via saveHunt), Sektion.
+function setPoiVisited(qid, mark, onDone, { undoable = true } = {}) {
+  const r = mark ? markVisited(state.hunt, qid) : unmarkVisited(state.hunt, qid)
+  if (!r.changed) { onDone && onDone(); return }
+  const prevTs = r.prevTs // nur beim Zurücknehmen gesetzt
+  state.hunt = r.progress
+  if (state.map) state.map.setPoiVisitedState(qid, mark)
+  saveHunt()
+  patchHunt()
+  onDone && onDone()
+  const poi = state.poiList && state.poiList.find((x) => x.qid === qid)
+  const name = poi ? poi.name : 'Ort'
+  if (!undoable) { toast(mark ? '✓' : '↩︎', mark ? 'Als besichtigt markiert' : 'Besuch zurückgenommen', name); return }
+  // Undo-Snackbar: der Gegen-Toggle stellt exakt den vorigen Stand wieder her
+  snackbar(mark ? `„${name}" als besichtigt markiert` : `„${name}" zurückgenommen`, 'Rückgängig', () => {
+    if (mark) { const u = unmarkVisited(state.hunt, qid); state.hunt = u.progress }
+    else { const m = markVisited(state.hunt, qid, prevTs || Date.now()); state.hunt = m.progress }
+    if (state.map) state.map.setPoiVisitedState(qid, !mark)
+    saveHunt(); patchHunt(); onDone && onDone()
+  })
+}
+
+// ── Orte-Übersicht: durchsuch-/filterbare Liste aller 1000 POIs ─────────────
+const browserState = { scope: 'near', status: 'all', q: '', cap: 60 }
+let _browserSel = null // aktive Auswahl (Kiez-Selektor) beim Öffnen
+
+function browserPois() {
+  const list = state.poiList || []
+  const kat = poisData() ? poisData().kat : []
+  const nq = norm(browserState.q)
+  let rows = list.map((p) => ({ p, dist: state.pos ? distanceM(state.pos.lat, state.pos.lon, p.lat, p.lon) : null }))
+  if (browserState.scope === 'kiez' && _browserSel) {
+    const ids = plrIdsFor(kiezeFC(), _browserSel)
+    rows = rows.filter((r) => ids.has(r.p.plr))
+  } else if (browserState.scope === 'near' && state.pos) {
+    rows = rows.filter((r) => r.dist <= 5000)
+  }
+  if (browserState.status === 'open') rows = rows.filter((r) => !isVisited(state.hunt, r.p.qid))
+  else if (browserState.status === 'done') rows = rows.filter((r) => isVisited(state.hunt, r.p.qid))
+  if (nq) rows = rows.filter((r) => norm(r.p.name).includes(nq) || norm(kat[r.p.kat] || '').includes(nq))
+  rows.sort(browserState.scope === 'near' && state.pos
+    ? (a, b) => a.dist - b.dist
+    : (a, b) => b.p.sl - a.p.sl || a.p.qid - b.p.qid)
+  return rows
+}
+
+function renderPoiBrowser() {
+  const kat = poisData() ? poisData().kat : []
+  const total = state.poiList ? overallProgress(state.poiList, state.hunt) : { visited: 0, total: 0 }
+
+  const chip = (group, val, label, disabled) => {
+    const on = browserState[group] === val
+    const b = h('button', { class: 'pb-chip' + (on ? ' is-on' : ''), type: 'button',
+      aria: { pressed: on ? 'true' : 'false' }, disabled: disabled || false, text: label })
+    if (!disabled) b.addEventListener('click', () => { browserState[group] = val; browserState.cap = 60; renderPoiBrowser() })
+    return b
+  }
+
+  const search = h('input', { class: 'pb-search', type: 'search', placeholder: 'Ort oder Kategorie suchen …',
+    value: browserState.q, autocomplete: 'off', 'aria-label': 'Orte durchsuchen' })
+  search.addEventListener('input', () => { browserState.q = search.value; browserState.cap = 60; renderList() })
+
+  const listEl = h('div', { class: 'pb-list', role: 'list' })
+  const countEl = h('span', { class: 'pb-count' })
+
+  function row(r) {
+    const done = isVisited(state.hunt, r.p.qid)
+    const check = h('button', { class: 'pb-check' + (done ? ' is-done' : ''), type: 'button',
+      aria: { pressed: done ? 'true' : 'false', label: done ? `„${r.p.name}" als nicht besichtigt` : `„${r.p.name}" als besichtigt markieren` },
+      text: done ? '✓' : '' })
+    check.addEventListener('click', (e) => { e.stopPropagation(); setPoiVisited(r.p.qid, !isVisited(state.hunt, r.p.qid), renderList) })
+    const sub = [kat[r.p.kat], r.dist != null ? fmtDist(r.dist) : null].filter(Boolean).join(' · ')
+    const go = h('button', { class: 'pb-go', type: 'button', aria: { label: `${r.p.name} auf der Karte zeigen` } },
+      h('span', { class: 'pb-name', text: r.p.name }),
+      h('span', { class: 'pb-sub', text: sub }))
+    go.addEventListener('click', () => { closePoiBrowser(); state.map && state.map.flyToPoi(r.p.lon, r.p.lat); renderPoi(r.p.qid) })
+    return h('div', { class: 'pb-row' + (done ? ' is-done' : ''), role: 'listitem' }, check, go)
+  }
+  function renderList() {
+    const rs = browserPois()
+    const sh = rs.slice(0, browserState.cap)
+    countEl.textContent = `${rs.length} Orte`
+    const nodes = sh.map(row)
+    if (rs.length > sh.length) {
+      const more = h('button', { class: 'pb-more', type: 'button', text: `${rs.length - sh.length} weitere laden` })
+      more.addEventListener('click', () => { browserState.cap += 120; renderList() })
+      nodes.push(more)
+    }
+    if (!nodes.length) nodes.push(h('p', { class: 'pb-empty', text: 'Keine Orte für diese Filter.' }))
+    listEl.replaceChildren(...nodes)
+  }
+
+  const close = h('button', { class: 'pb-close', type: 'button', title: 'Schließen', aria: { label: 'Orte-Übersicht schließen' }, html: ICONS.x })
+  close.addEventListener('click', closePoiBrowser)
+
+  poiBrowser.replaceChildren(
+    h('div', { class: 'pb-head' },
+      h('div', { class: 'pb-title' },
+        h('strong', { text: 'Orte durchstöbern' }),
+        h('span', { class: 'pb-progress', text: `${total.visited}/${total.total} besichtigt · ${rankFor(total.visited).title}` })),
+      close),
+    h('div', { class: 'pb-search-wrap' }, h('span', { class: 'search-icon', 'aria-hidden': 'true', html: ICONS.search }), search),
+    h('div', { class: 'pb-filters' },
+      chip('scope', 'near', 'In der Nähe', !state.pos),
+      _browserSel ? chip('scope', 'kiez', 'Dieser Kiez') : null,
+      chip('scope', 'all', 'Ganz Berlin'),
+      h('span', { class: 'pb-sep' }),
+      chip('status', 'all', 'Alle'),
+      chip('status', 'open', 'Offen'),
+      chip('status', 'done', 'Besichtigt')),
+    h('div', { class: 'pb-count-row' }, countEl),
+    listEl)
+  renderList()
+}
+
+function openPoiBrowser(sel) {
+  if (!state.poiList) return
+  _browserSel = sel || null
+  browserState.scope = state.pos ? 'near' : (sel ? 'kiez' : 'all')
+  browserState.cap = 60
+  renderPoiBrowser()
+  poiBrowser.hidden = false
+  requestAnimationFrame(() => poiBrowser.classList.add('open'))
+  poiBrowser.querySelector('.pb-search')?.focus({ preventScroll: true })
+}
+function closePoiBrowser() {
+  poiBrowser.classList.remove('open')
+  setTimeout(() => { poiBrowser.hidden = true }, 260)
+}
+window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !poiBrowser.hidden) closePoiBrowser() })
+
+// „Alle Orte"-Einstieg in die Übersicht
+function browseRow(sel) {
+  const b = h('button', { class: 'browse-btn', type: 'button' },
+    h('span', { text: '🎯 Alle 1000 Orte durchstöbern' }),
+    h('span', { class: 'browse-chev', 'aria-hidden': 'true', html: ICONS.chevronR }))
+  b.addEventListener('click', () => openPoiBrowser(sel))
+  return b
 }
 
 // POI-Liste eines Bereichs für die Card
@@ -626,6 +786,7 @@ function huntSection(sel) {
     return h('section', { class: 'hunt', 'data-reveal': '' },
       h('p', { class: 'stats-head' }, 'Schnitzeljagd',
         h('span', { class: 'stats-scope', text: 'in der Nähe' })),
+      browseRow(sel),
       accountRow(),
       h('p', { class: 'poi-more', text: 'In diesem Kiez liegt keiner der 1000 Orte — die nächsten:' }),
       list,
@@ -648,6 +809,7 @@ function huntSection(sel) {
     h('p', { class: 'stats-head' }, 'Schnitzeljagd',
       h('span', { class: 'stats-scope', text: `${scope.visited}/${scope.total} entdeckt` })),
     bar,
+    browseRow(sel),
     accountRow(),
     list,
     scope.pois.length > 12 ? h('p', { class: 'poi-more', text: `… und ${scope.pois.length - 12} weitere` }) : null,
@@ -1020,29 +1182,41 @@ async function locateAt(pos, { fly = false } = {}) {
 function renderPoi(qid) {
   const p = state.poiList && state.poiList.find((x) => x.qid === qid)
   if (!p) return
-  const done = isVisited(state.hunt, p.qid)
   const kat = (poisData() && poisData().kat[p.kat]) || 'Ort'
-  const back = h('button', { class: 'btn btn-filled', type: 'button', 'data-reveal': '' },
-    h('span', { class: 'btn-icon', html: ICONS.loc }), 'Mein Standort')
-  back.addEventListener('click', () => checkIn())
   const show = h('button', { class: 'btn btn-tonal', type: 'button', 'data-reveal': '' },
     h('span', { class: 'btn-icon', html: ICONS.target }), 'Auf Karte zentrieren')
   show.addEventListener('click', () => state.map && state.map.flyToPoi(p.lon, p.lat))
+  // Besichtigt-Toggle: manuelles Setzen UND Zurücknehmen (Fehleingabe)
+  const visitBtn = h('button', { class: 'btn btn-filled visit-btn', type: 'button', 'data-reveal': '' })
+  const paint = () => {
+    const done = isVisited(state.hunt, p.qid)
+    visitBtn.classList.toggle('is-done', done)
+    visitBtn.replaceChildren(h('span', { class: 'btn-icon', text: done ? '↩︎' : '✓' }),
+      done ? 'Besuch zurücknehmen' : 'Als besichtigt markieren')
+    const eb = passScroll.querySelector('.eyebrow')
+    if (eb) eb.textContent = (done ? '✓ Besichtigt · ' : 'Schnitzeljagd · ') + kat
+    const hint = passScroll.querySelector('.poi-hint')
+    if (hint) hint.textContent = done ? 'Diesen Ort hast du besucht.'
+      : `Automatisch entdeckt wird er, sobald du beim Einchecken ≤ ${RADIUS_M} m entfernt bist — oder markiere ihn manuell.`
+  }
+  visitBtn.addEventListener('click', () => setPoiVisited(p.qid, !isVisited(state.hunt, p.qid), paint))
+  const done0 = isVisited(state.hunt, p.qid)
   setCard(
     h('div', { class: 'pass-body pass-found' },
-      h('div', { class: 'stamp' + (done ? '' : ' stamp--void'), 'aria-hidden': 'true' },
+      h('div', { class: 'stamp' + (done0 ? '' : ' stamp--void'), 'aria-hidden': 'true' },
         h('span', { class: 'stamp-ring' }), h('span', { class: 'stamp-pin', html: ICONS.pin })),
-      h('p', { class: 'eyebrow', 'data-reveal': '', text: (done ? '✓ Entdeckt · ' : 'Schnitzeljagd · ') + kat }),
+      h('p', { class: 'eyebrow', 'data-reveal': '', text: (done0 ? '✓ Besichtigt · ' : 'Schnitzeljagd · ') + kat }),
       h('h1', { class: 'kiez-name', 'data-reveal': '', text: p.name }),
       p.desc ? h('p', { class: 'muted', 'data-reveal': '', text: p.desc }) : null,
-      h('p', { class: 'hint', 'data-reveal': '', text: done
-        ? 'Diesen Ort hast du bereits besucht.'
-        : `Noch nicht entdeckt — komm auf ${RADIUS_M} m heran und checke ein.` }),
-      h('div', { class: 'actions' }, back, show),
+      h('p', { class: 'hint poi-hint', 'data-reveal': '', text: done0
+        ? 'Diesen Ort hast du besucht.'
+        : `Automatisch entdeckt wird er, sobald du beim Einchecken ≤ ${RADIUS_M} m entfernt bist — oder markiere ihn manuell.` }),
+      h('div', { class: 'actions' }, visitBtn, show),
       h('p', { class: 'source', 'data-reveal': '', html:
         'POI-Auswahl: Wikidata (CC0) · Beschreibung: Wikidata' }),
     )
   )
+  paint()
   const meta = passScroll.querySelector('.source')
   if (meta) meta.append(' · ', h('a', { class: 'about-a', href: poiUrl(p), target: '_blank', rel: 'noopener', text: 'Wikipedia' }))
 }

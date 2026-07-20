@@ -453,6 +453,11 @@ export class KiezMap {
       try { this.map.setFeatureState({ source: 'pois', id: qid }, { visited: true }) } catch (e) {}
     }
   }
+  /** Einen einzelnen POI-Zustand setzen ODER löschen (fürs Zurücknehmen). */
+  setPoiVisitedState(qid, on) {
+    if (!this.map.getSource('pois')) return
+    try { this.map.setFeatureState({ source: 'pois', id: Number(qid) }, { visited: !!on }) } catch (e) {}
+  }
   setPoiVisibility(on) {
     this._poiOn = on
     for (const id of ['poi-dot', 'poi-label']) {
