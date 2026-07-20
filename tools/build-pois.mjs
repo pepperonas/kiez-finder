@@ -21,8 +21,9 @@
 //    Implementierung, wie src/kiez.js) → Fortschritt je Kiez/Bezirk zählbar.
 //
 // Format (kompakt, ~200 KB):
-//   { stand, quelle, kat: [...Kategorienamen], pois: [[qid, name, desc, lon, lat, katIdx, plr_id, sitelinks, artikel|0], ...] }
-//   qid = Wikidata-Nummer ohne "Q"; artikel = abweichender de-Wikipedia-Titel oder 0
+//   { stand, quelle, kat: [...Kategorienamen], pois: [[qid, name, desc, lon, lat, katIdx, plr_id, sitelinks, artikel|0, facts], ...] }
+//   qid = Wikidata-Nummer ohne "Q"; artikel = abweichender de-Wikipedia-Titel oder 0;
+//   facts = 0–2 Eckdaten, angehängt von tools/build-poi-facts.mjs (danach ausführen)
 //
 // Usage: node tools/build-pois.mjs   (ein SPARQL-Request, ~20 s)
 import { readFileSync, writeFileSync } from 'node:fs'

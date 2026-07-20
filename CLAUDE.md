@@ -244,8 +244,11 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   (`applyHeatChip`, dot = class colour). Legend: bottom-right on desktop (left is the panel's),
   above the peeked sheet on mobile. Covered by `tests/heat.test.js`.
 - `src/hunt.js` — **Schnitzeljagd** (maplibre-free pure core + thin `loadPois`). Data:
-  `public/data/pois.json` (1000 POIs, compact arrays `[qid,name,desc,lon,lat,katIdx,plr_id,sitelinks,article|0]`,
-  built by `tools/build-pois.mjs` from ONE Wikidata SPARQL query: sight-like classes under
+  `public/data/pois.json` (1000 POIs, compact arrays `[qid,name,desc,lon,lat,katIdx,plr_id,sitelinks,article|0,facts]`,
+  built by `tools/build-pois.mjs`, then enriched with 1–2 Eckdaten (`facts`, field [9]) by
+  `tools/build-poi-facts.mjs` (one Wikidata SPARQL POST for inception/opening/architect/height/style/
+  heritage over all 1000 QIDs — 853/1000 get ≥1 fact; shown as chips in the POI card + first fact in
+  the browser row) from ONE Wikidata SPARQL query: sight-like classes under
   Q811979/Q2065736/Q570116/Q22698/Q33506/Q4989906/Q839954/Q39614, ranked by `wikibase:sitelinks`.
   Two correctives make it playable: a **district quota** (≥45/Bezirk — else 2/3 land in Mitte) and a
   **category cap** (13 % — uncapped, 207 ordinary U-/S-Bahn stations crowded out real sights). Each POI

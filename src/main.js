@@ -617,7 +617,7 @@ function renderPoiBrowser() {
       aria: { pressed: done ? 'true' : 'false', label: done ? `„${r.p.name}" als nicht besichtigt` : `„${r.p.name}" als besichtigt markieren` },
       text: done ? '✓' : '' })
     check.addEventListener('click', (e) => { e.stopPropagation(); setPoiVisited(r.p.qid, !isVisited(state.hunt, r.p.qid), renderList) })
-    const sub = [kat[r.p.kat], r.dist != null ? fmtDist(r.dist) : null].filter(Boolean).join(' · ')
+    const sub = [kat[r.p.kat], (r.p.facts && r.p.facts[0]) || null, r.dist != null ? fmtDist(r.dist) : null].filter(Boolean).join(' · ')
     const go = h('button', { class: 'pb-go', type: 'button', aria: { label: `${r.p.name} auf der Karte zeigen` } },
       h('span', { class: 'pb-name', text: r.p.name }),
       h('span', { class: 'pb-sub', text: sub }))
@@ -1208,6 +1208,9 @@ function renderPoi(qid) {
       h('p', { class: 'eyebrow', 'data-reveal': '', text: (done0 ? '✓ Besichtigt · ' : 'Schnitzeljagd · ') + kat }),
       h('h1', { class: 'kiez-name', 'data-reveal': '', text: p.name }),
       p.desc ? h('p', { class: 'muted', 'data-reveal': '', text: p.desc }) : null,
+      p.facts && p.facts.length
+        ? h('div', { class: 'poi-facts', 'data-reveal': '' }, ...p.facts.map((f) => h('span', { class: 'poi-fact', text: f })))
+        : null,
       h('p', { class: 'hint poi-hint', 'data-reveal': '', text: done0
         ? 'Diesen Ort hast du besucht.'
         : `Automatisch entdeckt wird er, sobald du beim Einchecken ≤ ${RADIUS_M} m entfernt bist — oder markiere ihn manuell.` }),

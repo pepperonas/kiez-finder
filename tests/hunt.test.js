@@ -50,6 +50,8 @@ test('decodePoi liest das kompakte Array-Format, poiUrl nutzt den Artikel-Titel'
   assert.equal(p.name, 'Brandenburger Tor')
   assert.equal(p.plr, '01011101')
   assert.equal(p.art, null) // 0 → null
+  assert.deepEqual(p.facts, []) // fehlt → leer
+  assert.deepEqual(decodePoi([1,'X','',0,0,0,'p',5,0,['Erbaut 1791','26 m hoch']]).facts, ['Erbaut 1791','26 m hoch'])
   assert.equal(poiUrl(p), 'https://de.wikipedia.org/wiki/Brandenburger_Tor')
   // abweichender Artikel-Titel gewinnt
   assert.equal(poiUrl({ name: 'Zoo', art: 'Zoologischer Garten Berlin' }),

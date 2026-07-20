@@ -27,9 +27,11 @@ export function loadPois() {
 }
 export const poisData = () => _pois
 
-/** Kompaktes Array-Format → benanntes Objekt. */
+/** Kompaktes Array-Format → benanntes Objekt. `facts` = 0–2 Eckdaten (Feld [9],
+ *  fehlt in älteren pois.json → leer). */
 export function decodePoi(a) {
-  return { qid: a[0], name: a[1], desc: a[2], lon: a[3], lat: a[4], kat: a[5], plr: a[6], sl: a[7], art: a[8] || null }
+  return { qid: a[0], name: a[1], desc: a[2], lon: a[3], lat: a[4], kat: a[5], plr: a[6], sl: a[7], art: a[8] || null,
+    facts: Array.isArray(a[9]) ? a[9] : [] }
 }
 /** Wikipedia-Link eines POI (Artikel-Titel weicht selten vom Namen ab). */
 export const poiUrl = (p) => 'https://de.wikipedia.org/wiki/' + encodeURIComponent((p.art || p.name).replace(/ /g, '_'))

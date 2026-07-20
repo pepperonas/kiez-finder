@@ -1063,3 +1063,11 @@ html.theme-transition * {
 .pb-more { width: calc(100% - .8rem); margin: .5rem .4rem; padding: .6rem; border-radius: var(--r-m); cursor: pointer; font: inherit; font-weight: 700; color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); border: 1px solid var(--outline-faint); }
 .pb-empty { padding: 1.5rem 1rem; text-align: center; color: var(--on-surface-var); }
 @media (prefers-reduced-motion: reduce) { .poi-browser { transition: none; } }
+
+/* ── POI-Eckdaten (Detail-Card) ── */
+.poi-facts { display: flex; flex-wrap: wrap; gap: .4rem; margin: .1rem 0 .2rem; }
+.poi-fact {
+  padding: .28rem .6rem; border-radius: var(--r-full); font-size: .78rem; font-weight: 600;
+  color: var(--on-surface); background: color-mix(in srgb, var(--accent) 12%, var(--sc-high));
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--outline-faint));
+}
