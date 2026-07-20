@@ -277,6 +277,10 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   `vite.config.js` is REQUIRED — OAuth redirects are navigations, and without it the SW answers them
   with `index.html` and the login dies silently (verified live: `/api/auth/google` must return an
   `opaqueredirect`, `/api/me` real JSON). Covered by `tests/server-auth.test.js`.
+  **Entry point:** the login lives on a topbar person-button (`acctBtn` + `acctPop`), NOT only in
+  the hunt section — that first attempt was invisible: without geolocation permission the hunt
+  section doesn't render at all (no login anywhere), and with it the row sat 771 px down the card.
+  The hunt section's account row stays as a secondary entry, now directly under its header.
 - `src/prefs.js` — DOM-free `readBoolPref(storage,key,dflt)` / `writeBoolPref(storage,key,on)` for
   localStorage-backed boolean preferences (storage injected → unit-testable, throwing/absent storage
   falls back to the default). Backs the Auto-Zoom toggle (`kf-autozoom`); `main.js` passes the real

@@ -50,6 +50,8 @@ const ICONS = {
   pin: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-6.4 7-11.3A7 7 0 0 0 5 9.7C5 14.6 12 21 12 21Z"/><circle cx="12" cy="9.6" r="2.4" fill="var(--surface)"/></svg>',
   layers: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 3.5 8 12 12.5 20.5 8 12 3.5Z" stroke-linejoin="round"/><path d="M4 12.2 12 16.5l8-4.3M4 15.9 12 20.2l8-4.3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   wall: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="13" rx="1" stroke-linejoin="round"/><path d="M3.5 9.83h17M3.5 14.17h17M9.17 5.5v4.33M14.83 5.5v4.33M6.33 9.83v4.34M12 9.83v4.34M17.67 9.83v4.34M9.17 14.17v4.33M14.83 14.17v4.33" stroke-linecap="round"/></svg>',
+  account: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.2" r="3.6"/><path d="M4.8 20c.6-3.7 3.6-5.9 7.2-5.9s6.6 2.2 7.2 5.9" stroke-linecap="round"/></svg>',
+  accountOk: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.2" r="3.6"/><path d="M4.8 20c.5-3.2 2.8-5.3 5.8-5.8" stroke-linecap="round"/><path d="M14.5 18.2l2.1 2.1 4.2-4.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   heat: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13.8V5.2a2 2 0 1 1 4 0v8.6a4.6 4.6 0 1 1-4 0Z" stroke-linejoin="round"/><path d="M12 9.2v7.3" stroke-linecap="round"/><circle cx="12" cy="17.4" r="1.4" fill="currentColor" stroke="none"/></svg>',
   search: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5" stroke-linecap="round"/></svg>',
   x: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke-linecap="round"/></svg>',
@@ -137,6 +139,16 @@ const heatLegend = h('div', { class: 'heat-legend', hidden: true, aria: { live: 
   legendTitle, legendBar,
   h('div', { class: 'legend-range' }, legendMin, legendMax), legendStand)
 
+// Konto: der Login MUSS immer erreichbar sein — in der Jagd-Sektion allein war
+// er unsichtbar (ohne Standort-Freigabe gar nicht vorhanden, sonst 771 px tief).
+const acctBtn = h('button', {
+  class: 'icon-btn acct-btn', type: 'button',
+  title: 'Fortschritt sichern (Google-Login)',
+  aria: { label: 'Konto: Fortschritt sichern', haspopup: 'true', expanded: 'false' },
+  html: ICONS.account,
+})
+const acctPop = h('div', { class: 'heat-pop acct-pop', hidden: true, role: 'dialog', aria: { label: 'Konto' } })
+
 // Auto-Zoom beim Antippen der Karte — an (Default) = Tap rahmt den Kiez; aus =
 // Kamera bleibt stehen (nur markieren). Active-Look = an, wie beim Mauer-Button.
 const autoZoomBtn = h('button', {
@@ -165,7 +177,7 @@ const topbar = h('header', { class: 'topbar' },
     h('span', { class: 'brand-name' },
       h('strong', { text: 'Kiez' }), h('span', { text: '-Finder' }))),
   searchBox,
-  h('div', { class: 'topbar-actions' }, installBtn, overlayBtn, heatBtn, wallBtn, autoZoomBtn, themeBtn),
+  h('div', { class: 'topbar-actions' }, installBtn, overlayBtn, heatBtn, wallBtn, autoZoomBtn, acctBtn, themeBtn),
 )
 
 // floating "current area" chip — names the coloured region under the map centre
@@ -204,7 +216,7 @@ const reopenBtn = h('button', {
 // Entdeckungs-Meldungen der Schnitzeljagd (oben zentriert, selbst-schließend)
 const toastWrap = h('div', { class: 'toasts', aria: { live: 'polite' } })
 
-app.append(mapEl, stage, topbar, heatPop, heatLegend, areaChip, reopenBtn, toastWrap)
+app.append(mapEl, stage, topbar, heatPop, acctPop, heatLegend, areaChip, reopenBtn, toastWrap)
 
 // ── desktop: collapse / expand the info panel ────────────────────────────────
 function setPanelCollapsed(collapsed, moveFocus = true) {
@@ -534,6 +546,54 @@ function poiItem(p, distM) {
   return item
 }
 
+function renderAcctPop() {
+  const authed = state.account.authed
+  const kids = [h('p', { class: 'heat-pop-title', text: 'Fortschritt sichern' })]
+  if (authed) {
+    kids.push(h('p', { class: 'acct-state', text: `Angemeldet als ${state.account.name || 'dir'}` }))
+    const total = state.poiList ? overallProgress(state.poiList, state.hunt) : null
+    if (total) kids.push(h('p', { class: 'acct-sub', text: `${total.visited} von ${total.total} Orten entdeckt · ${rankFor(total.visited).title}` }))
+    const out = h('button', { class: 'heat-item', type: 'button', text: 'Abmelden' })
+    out.addEventListener('click', async () => {
+      closeAcctPop()
+      await logout()
+      state.account = { authed: false }
+      updateAccountUI(); patchHunt()
+      toast('👋', 'Abgemeldet', 'Dein Fortschritt bleibt auf diesem Gerät.')
+    })
+    kids.push(out)
+  } else {
+    kids.push(h('p', { class: 'acct-sub', text: 'Dein Jagd-Fortschritt liegt derzeit nur auf diesem Gerät. Mit einem Google-Konto bleibt er auf allen Geräten erhalten.' }))
+    kids.push(h('a', { class: 'heat-item acct-login', href: loginUrl() },
+      h('span', { class: 'heat-dot', 'aria-hidden': 'true' }), 'Mit Google anmelden'))
+    kids.push(h('p', { class: 'acct-sub small', text: 'Gespeichert werden nur eine anonyme Konto-ID, dein Vorname und die besuchten Orte — keine E-Mail.' }))
+  }
+  acctPop.replaceChildren(...kids)
+}
+function openAcctPop() {
+  renderAcctPop()
+  const r = acctBtn.getBoundingClientRect()
+  acctPop.style.top = (r.bottom + 8) + 'px'
+  acctPop.style.right = Math.max(8, innerWidth - r.right) + 'px'
+  acctPop.hidden = false
+  acctBtn.setAttribute('aria-expanded', 'true')
+}
+function closeAcctPop() { acctPop.hidden = true; acctBtn.setAttribute('aria-expanded', 'false') }
+acctBtn.addEventListener('click', () => (acctPop.hidden ? openAcctPop() : closeAcctPop()))
+document.addEventListener('click', (e) => {
+  if (!acctPop.hidden && !acctPop.contains(e.target) && !acctBtn.contains(e.target)) closeAcctPop()
+})
+window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !acctPop.hidden) closeAcctPop() })
+
+/** Topbar-Button spiegelt den Anmeldezustand. */
+function updateAccountUI() {
+  const authed = state.account.authed
+  acctBtn.innerHTML = authed ? ICONS.accountOk : ICONS.account
+  acctBtn.classList.toggle('is-active', authed)
+  acctBtn.setAttribute('title', authed ? `Angemeldet als ${state.account.name || 'dir'}` : 'Fortschritt sichern (Google-Login)')
+  if (!acctPop.hidden) renderAcctPop()
+}
+
 // Konto-Zeile: sichert den Fortschritt geräteübergreifend — rein optional.
 function accountRow() {
   if (state.account.authed) {
@@ -566,9 +626,9 @@ function huntSection(sel) {
     return h('section', { class: 'hunt', 'data-reveal': '' },
       h('p', { class: 'stats-head' }, 'Schnitzeljagd',
         h('span', { class: 'stats-scope', text: 'in der Nähe' })),
+      accountRow(),
       h('p', { class: 'poi-more', text: 'In diesem Kiez liegt keiner der 1000 Orte — die nächsten:' }),
       list,
-      accountRow(),
       h('p', { class: 'stats-note', text: `Ein POI zählt als entdeckt, wenn du beim Einchecken höchstens ${RADIUS_M} m entfernt bist.` }))
   }
   const list = h('ul', { class: 'poi-list' })
@@ -588,9 +648,9 @@ function huntSection(sel) {
     h('p', { class: 'stats-head' }, 'Schnitzeljagd',
       h('span', { class: 'stats-scope', text: `${scope.visited}/${scope.total} entdeckt` })),
     bar,
+    accountRow(),
     list,
     scope.pois.length > 12 ? h('p', { class: 'poi-more', text: `… und ${scope.pois.length - 12} weitere` }) : null,
-    accountRow(),
     h('p', { class: 'stats-note', text: `Ein POI zählt als entdeckt, wenn du beim Einchecken höchstens ${RADIUS_M} m entfernt bist.` }))
 }
 
@@ -1597,6 +1657,7 @@ async function boot() {
   fetchMe().then(async (me) => {
     if (!me.authed) return
     state.account = me
+    updateAccountUI()
     const merged = await syncProgress(state.hunt, mergeProgress)
     if (merged) {
       const before = Object.keys(state.hunt.visited).length

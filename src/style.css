@@ -966,3 +966,12 @@ html.theme-transition * {
   color: var(--accent); cursor: pointer; text-decoration: none;
 }
 .acct-link:hover { text-decoration: underline; }
+
+/* Konto-Popover (Topbar) — der Login muss immer erreichbar sein */
+.acct-pop { min-width: 250px; max-width: min(88vw, 300px); }
+.acct-state { margin: .1rem .55rem .2rem; font-size: .86rem; font-weight: 700; }
+.acct-sub { margin: .1rem .55rem .45rem; font-size: .74rem; line-height: 1.45; color: var(--on-surface-var); }
+.acct-sub.small { font-size: .68rem; opacity: .85; margin-top: .4rem; margin-bottom: .1rem; }
+.acct-login { color: var(--accent); font-weight: 700; text-decoration: none; }
+.acct-login .heat-dot { background: var(--accent); }
+.acct-btn.is-active { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, var(--outline)); background: color-mix(in srgb, var(--accent) 14%, var(--sc-high)); }
