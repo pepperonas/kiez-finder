@@ -18,9 +18,10 @@ import { loadStats, loadKiezInfo, statsData, infoData, selectorFor, selectorForF
   aggregate, ranksFor, geodesicAreaM2, infoFor, infoForBezirk, kiezFallbackText, plrIdsFor,
   fmtInt, fmtKm2, fmtDichte, fmtAlter, fmtAnteil, fmtEuroM2 } from './stats.js'
 import { loadPois, poisData, poiUrl, poisNear, readProgress, writeProgress, markVisited,
-  overallProgress, scopeProgress, isVisited, rankFor, RADIUS_M, nearestPois, fmtDist } from './hunt.js'
+  overallProgress, scopeProgress, isVisited, rankFor, RADIUS_M, nearestPois, fmtDist, mergeProgress } from './hunt.js'
 import { loadPreise, preiseData, METRICS, metricByKey, standFor, buildHeatFC,
   quantileBreaks, classIndex, heatPaint, legendFor, RAMPS } from './heat.js'
+import { fetchMe, syncProgress, pushProgress, logout, loginUrl, readLoginFlag, stripLoginFlag } from './account.js'
 import { getPosition, reverseGeocode } from './geo.js'
 import { revealStagger, tweenNumber, spring, SPRINGS, reduceMotion, finePointer, damdamper } from './motion.js'
 
@@ -84,6 +85,7 @@ const state = {
   // späteren Konto-Sync (siehe hunt.js `mergeProgress`)
   hunt: (() => { try { return readProgress(localStorage) } catch (e) { return { v: 1, visited: {} } } })(),
   poiList: null,
+  account: { authed: false }, // { authed, name } — rein additiv, App läuft ohne
   heat: 'off',      // heatmap metric key (dichte/alter/u18/o65/miete/brw) or 'off'
   heatFC: null,     // built heat FeatureCollection (kieze geometry + metric props)
   heatBreaks: null, // active metric's quantile breaks (chip dot colour)
@@ -482,9 +484,15 @@ function toast(icon, title, sub) {
   setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 400) }, 4200)
 }
 
+let _pushTimer = 0
 function saveHunt() {
   try { writeProgress(localStorage, state.hunt) } catch (e) {}
   if (state.map) state.map.setVisited(new Set(Object.keys(state.hunt.visited).map(Number)))
+  // angemeldet? gebündelt hochladen — scheitert das, bleibt alles lokal gültig
+  if (state.account.authed) {
+    clearTimeout(_pushTimer)
+    _pushTimer = setTimeout(() => { pushProgress(state.hunt) }, 1500)
+  }
 }
 
 /** Nach einem Check-in: alle POIs im Umkreis als besucht eintragen. */
@@ -526,6 +534,24 @@ function poiItem(p, distM) {
   return item
 }
 
+// Konto-Zeile: sichert den Fortschritt geräteübergreifend — rein optional.
+function accountRow() {
+  if (state.account.authed) {
+    const out = h('button', { class: 'acct-link', type: 'button', text: 'abmelden' })
+    out.addEventListener('click', async () => {
+      await logout()
+      state.account = { authed: false }
+      toast('👋', 'Abgemeldet', 'Dein Fortschritt bleibt auf diesem Gerät.')
+      patchHunt()
+    })
+    return h('p', { class: 'acct' },
+      h('span', { text: `✓ Als ${state.account.name || 'angemeldet'} gesichert · ` }), out)
+  }
+  const login = h('a', { class: 'acct-link', href: loginUrl(), text: 'Mit Google anmelden' })
+  return h('p', { class: 'acct' },
+    h('span', { text: 'Fortschritt nur auf diesem Gerät · ' }), login)
+}
+
 function huntSection(sel) {
   if (!state.poiList || !sel) return null
   const scope = scopeProgress(state.poiList, state.hunt, plrIdsFor(kiezeFC(), sel))
@@ -542,6 +568,7 @@ function huntSection(sel) {
         h('span', { class: 'stats-scope', text: 'in der Nähe' })),
       h('p', { class: 'poi-more', text: 'In diesem Kiez liegt keiner der 1000 Orte — die nächsten:' }),
       list,
+      accountRow(),
       h('p', { class: 'stats-note', text: `Ein POI zählt als entdeckt, wenn du beim Einchecken höchstens ${RADIUS_M} m entfernt bist.` }))
   }
   const list = h('ul', { class: 'poi-list' })
@@ -563,6 +590,7 @@ function huntSection(sel) {
     bar,
     list,
     scope.pois.length > 12 ? h('p', { class: 'poi-more', text: `… und ${scope.pois.length - 12} weitere` }) : null,
+    accountRow(),
     h('p', { class: 'stats-note', text: `Ein POI zählt als entdeckt, wenn du beim Einchecken höchstens ${RADIUS_M} m entfernt bist.` }))
 }
 
@@ -1562,6 +1590,25 @@ async function boot() {
   loadStats()
   loadKiezInfo()
   loadPreise()
+  // Konto (optional): Login-Rückmeldung auswerten, dann Fortschritt mergen.
+  // Alles fehlertolerant — ohne Backend bleibt die Jagd rein lokal.
+  const flag = readLoginFlag()
+  if (flag) { stripLoginFlag(); if (flag === 'fehler') toast('⚠️', 'Anmeldung fehlgeschlagen', 'Der Fortschritt bleibt lokal gespeichert.') }
+  fetchMe().then(async (me) => {
+    if (!me.authed) return
+    state.account = me
+    const merged = await syncProgress(state.hunt, mergeProgress)
+    if (merged) {
+      const before = Object.keys(state.hunt.visited).length
+      state.hunt = { v: 1, visited: merged.visited }
+      try { writeProgress(localStorage, state.hunt) } catch (e) {}
+      if (state.map) state.map.setVisited(new Set(Object.keys(state.hunt.visited).map(Number)))
+      const after = Object.keys(state.hunt.visited).length
+      if (flag === 'ok') toast('☁️', `Angemeldet als ${me.name || 'dir'}`, `${after} Orte entdeckt${after > before ? ` (+${after - before} von anderen Geräten)` : ''}`)
+    }
+    patchHunt()
+  }).catch(() => null)
+
   // Schnitzeljagd-POIs (nicht-blockierend; ohne sie fehlt nur die Jagd)
   loadPois().then((d) => {
     if (!d || !state.map) return

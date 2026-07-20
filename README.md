@@ -45,6 +45,7 @@ Kamera fliegt zu dir, dann zeichnet sich deine Kiez-Grenze selbst ein) und der L
 - 🧅 **Wählbare LOR-Ebenen** — tippe in der Card auf **Kiez · Bezirksregion · Bezirk**, und die zugehörige Fläche wird hervorgehoben (Auto-Zoom auf ihre Ausdehnung)
 - 📊 **Bereichs-Statistik in der Card** — für die gewählte Einheit (Kiez · Bezirksregion · Prognoseraum · Bezirk, auch aus der Suche): **Einwohnerzahl** aus der amtlichen **Einwohnerregisterstatistik** (je LOR-Planungsraum, Stand 31.12.2025, exakt auf die Einheit aufsummiert), **amtliche Fläche** (Geoportal `finhalt`), **Dichte** (Einw./km²), **Altersstruktur** (Ø-Alter ≈ aus Altersband-Mitten — Berlin-Kontrolle: 42,9 vs. amtlich 42,8 — plus exakte U18-/65+-Anteile) , **Ø-Angebotsmiete + Ø-Bodenrichtwert** (einwohnergewichtete Mittel der Mitglieds-Planungsräume — ungewichtete Mittel würden leere Randlagen überbetonen) und **Ränge** („№ 53 von 427 nach Einwohnern · № 6 nach Dichte" — der Reuterkiez ist wirklich der sechst­dichteste Kiez Berlins). Die Stats **folgen der Ebenen-Auswahl live**; SAFE-anonymisierte Planungsräume werden ehrlich ausgewiesen („≥"-Untergrenze bzw. „k. A."), feine OSM-Kieze zeigen ihre geodätisch berechnete Fläche statt erfundener Amtszahlen; auch die **Straßensuche** zeigt die Stats des aufgelösten Kiezes. Alles offline (3 statische JSONs, ~78 KB, precached)
 - 🎯 **Schnitzeljagd — die 1000 interessantesten Orte Berlins** — recherchiert aus **Wikidata** (CC0): Kandidaten sind Bauwerke, Kulturgüter, Museen, Denkmäler, Parks, Kirchen, Friedhöfe & Touristenziele *innerhalb* Berlins; „interessant" misst sich an der Zahl der Wikipedia-Sprachversionen (Brandenburger Tor 85, Reichstag 74, Fernsehturm 58). Zwei Korrekturen halten die Auswahl spielbar: eine **Bezirks-Quote** (mind. 45 je Bezirk — sonst lägen zwei Drittel in Mitte) und ein **Kategorie-Deckel** (13 % — ungedeckelt verdrängten 207 gewöhnliche U-/S-Bahnhöfe die echten Sehenswürdigkeiten). Auf der Karte erscheinen alle 1000 als Punkte (Größe nach Prominenz, Namen ab z14); **entdeckt wird per Standort**: liegt ein Ort beim Einchecken höchstens **150 m** entfernt, zählt er — mit Jubel-Toast und Rang-Aufstieg (*Neu in der Stadt → Tourist → Zugezogen → Kiezgänger → Stadtbekannt → Urgestein → Berlin-Legende*). Antippen zeigt einen Ort nur an; das ist Absicht, sonst wäre es eine Checkliste statt einer Jagd. Die Card zeigt den Fortschritt des aktuellen Bereichs („3/86 entdeckt" + Balken + Liste) — und in den 162 Kiezen ohne eigenen POI stattdessen die **nächstgelegenen Ziele mit Entfernung**. Fortschritt wird lokal gespeichert (`kf-hunt`) und ist konfliktfrei mergebar (vorbereitet für späteren Konto-Sync)
+- ☁️ **Optionaler Konto-Sync (Google)** — der Jagd-Fortschritt lebt standardmäßig **nur lokal**; wer will, sichert ihn per Google-Login geräteübergreifend. Bewusst datensparsam: gespeichert werden **Google-`sub` (stabile ID), Anzeigename und besuchte POI-IDs** — *keine E-Mail* (der `email`-Scope wird gar nicht angefordert), keine Google-Tokens, kein Tracking. Der Abgleich ist ein **Union-Merge** (lokal ∪ Server, früherer Erstbesuch gewinnt) — kommutativ und idempotent, also können mehrere Geräte parallel sammeln, ohne sich zu überschreiben. **Die App bleibt vollständig offline-fähig**: fällt das Backend aus, ist man nicht angemeldet oder ist das Gerät offline, läuft alles unverändert lokal weiter
 - 📖 **„Über diesen Kiez" — für JEDEN Bereich** — gestuft aus mehreren Quellen: ① **Wikipedia**-Kurztext, autoritativ verknüpft über die `wikipedia`/`wikidata`-Tags aus **OpenStreetMap** (statt Namensraten — findet Artikel, die reines Namensmatching verfehlt, und kann nicht auf ein fremdes Redirect-Ziel driften), ② Namenssuche mit Relevanz-Regel, ③ **Wikidata**-Kurzbeschreibung (CC0), ④ OSM-`description`. **175 recherchierte Texte** — und wo es beim besten Willen keinen gibt (rund zwei Drittel der Kieze haben schlicht keinen Artikel), erzeugt die App zur Laufzeit eine **Faktenzeile aus den amtlichen Zahlen** („Kiez im Bezirk Neukölln, Teil der Bezirksregion Reuterstraße. Hier leben rund 14.700 Menschen auf 0,51 km². Das Durchschnittsalter liegt bei etwa 40,6 Jahren."). So steht **überall** Kontext, ohne dass ein einziger Satz erfunden wird; jede Karte weist ihre Quelle und Lizenz aus
 - 🖱️ **Karte ist anklickbar** — tippe irgendwohin in Berlin, und die Card springt auf den Kiez dieses Punkts (inkl. neuer Adresse)
 - ⛶ **Auto-Zoom-Schalter** (Topbar) — legt fest, ob ein **Karten-Tap** automatisch auf den getroffenen Kiez heranzoomt (Standard: an). Ausgeschaltet wird die Fläche zwar markiert, die Kamera bleibt aber stehen — praktisch zum Erkunden benachbarter Kieze, ohne dass die Karte bei jedem Tipp springt. Betrifft nur den Tap; „Auf Karte zentrieren", die Ebenen-Auswahl, die Suche und der Geo-Check-in rahmen weiterhin. Zustand wird gemerkt
@@ -136,6 +137,9 @@ automatisch in `localStorage` persistiert:
 | `kf-hunt` | JSON | Schnitzeljagd-Fortschritt (besuchte POI-IDs + Zeitstempel) |
 | `kf-heat` | `off` \| `dichte` \| `alter` \| `u18` \| `o65` \| `miete` \| `brw` | aktive Heatmap-Metrik |
 
+Der **optionale Konto-Sync** braucht als Einziges ein Backend (`server/`, s. [Deploy](#deploy)) —
+ohne es fehlt nur der Login; die App selbst bleibt statisch und offline-fähig.
+
 Fürs **Hosting** gibt es genau ein Muss: der Webserver muss
 `Permissions-Policy: geolocation=(self)` **auf dem HTML-Dokument** setzen — bei nginx auch im
 `location = /index.html`-Block, weil das `try_files`-Fallback die Server-Header dort sonst
@@ -211,12 +215,12 @@ node tools/screenshots.cjs                        # Terminal 2 (braucht Playwrig
 ## Tests ausführen
 
 ```bash
-npm test                                                        # 125 Unit-Tests, Nodes eingebauter Runner, null Test-Dependencies
+npm test                                                        # 139 Unit-Tests, Nodes eingebauter Runner, null Test-Dependencies
 node --test --experimental-test-coverage tests/*.test.js        # dito + Coverage-Report
 node tools/check-doc-sync.mjs                                   # dito + prüft, dass diese Doku-Zahlen der Messung entsprechen
 ```
 
-Getestet wird die **abhängigkeitsfreie Pure-Logik** — Stand heute **125 Tests, 100 % Line-Coverage**
+Getestet wird die **abhängigkeitsfreie Pure-Logik** — Stand heute **139 Tests, 100 % Line-Coverage**
 auf allen acht unit-testbaren Modulen (~97 % Branch):
 
 | Modul | Was abgesichert ist |
@@ -227,6 +231,7 @@ auf allen acht unit-testbaren Modulen (~97 % Branch):
 | `src/motion.js` | **Spring-Physik** mit Fake-Clock + deterministischem rAF: exakte Konvergenz, **Overshoot bei damping 0.6** (der Signature-Bounce), kein Overshoot bei 0.8, Cancel mid-flight, `reduced-motion`-Sofortpfade, Stagger-Reveal, Pointer-Damper |
 | `src/stats.js` | Bereichs-Statistik: gid-/Präfix-**Selektoren**, PLR-**Aggregation** (inkl. „≥"-Untergrenzen bei SAFE-anonymisierten Räumen), **Ränge** je Ebene, geodätische Fläche (OSM-Kieze), Wikipedia-Lookups, de-DE-Formatierung |
 | `src/hunt.js` | Schnitzeljagd: Haversine-Distanz + Umkreis, nächstgelegene Ziele, robustes Lesen/Schreiben des Fortschritts, **idempotentes** Besuchen, **kommutativer Union-Merge** (Sync-Vorbereitung), Auswertung je Bereich, Ränge |
+| `server/lib/*` | Backend-Sicherheit: HMAC-Session (fremd signiert / manipuliert / abgelaufen / Müll ⇒ abgewiesen), Cookie-Parsing inkl. Shadowing, Upload-Validierung (QID-/Zeitstempel-Plausibilität, Mengendeckel), Union-Merge |
 | `src/heat.js` | Heatmap-Kern: Metrik-Katalog, **Heat-FC-Join** (fehlende Werte werden weggelassen, nicht genullt), **Quantil-Klassengrenzen** (Schiefe, Duplikat-Dedup), Klassenindex, MapLibre-**Paint-Expression** (`has`→`step`), Legenden-Daten, Farbrampen |
 | `src/prefs.js` | `localStorage`-Persistenz-Semantik (Defaults, Garbage-Fallback, werfende Storage) |
 
@@ -274,6 +279,24 @@ muss `Permissions-Policy: geolocation=(self)` auf dem HTML-Dokument setzen (sieh
 npm run build
 rsync -avz --delete dist/ root@<vps>:/var/www/kiezfinder.celox.io/
 ```
+
+### Backend für den Konto-Sync (optional)
+
+```bash
+rsync -avz --exclude node_modules --exclude data --exclude .env \
+  server/ root@<vps>:/opt/kiezfinder-api/
+ssh root@<vps> 'cd /opt/kiezfinder-api && npm install --omit=dev && systemctl restart kiezfinder-api'
+```
+
+Einmalig: `.env` nach dem Muster `server/.env.example` unter `/opt/kiezfinder-api/.env` anlegen
+(**mode 640, root:www-data — Secrets gehören nie ins Repo**), `kiezfinder-api.service` nach
+`/etc/systemd/system/` kopieren + `systemctl enable --now kiezfinder-api`, und im nginx-Block eine
+`location /api/ { proxy_pass http://127.0.0.1:4251; … }` ergänzen. In der Google Cloud Console muss
+`https://kiezfinder.celox.io/api/auth/google/callback` als autorisierte Redirect-URI eingetragen sein.
+
+> **PWA-Falle:** Der `navigateFallback` des Service Workers muss `/api/` ausnehmen
+> (`navigateFallbackDenylist` in `vite.config.js`) — sonst beantwortet der SW den OAuth-Redirect
+> mit `index.html` und der Login bricht wortlos ab.
 
 ## Datenquellen
 

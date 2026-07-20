@@ -1,0 +1,21 @@
+[Unit]
+Description=kiezfinder-api (Schnitzeljagd-Konto-Sync)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/kiezfinder-api
+ExecStart=/usr/bin/node server.js
+Restart=always
+RestartSec=3
+User=www-data
+Group=www-data
+Environment=NODE_ENV=production
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/kiezfinder-api/data
+
+[Install]
+WantedBy=multi-user.target

@@ -21,7 +21,7 @@ npm test         # unit tests (Node's built-in runner, no deps) — tests/*.test
 ```
 No linter configured. Geolocation needs a secure context (localhost or HTTPS).
 
-**Tests** (`tests/`, `node --test`, zero dependencies — 125 tests, 100% line coverage on
+**Tests** (`tests/`, `node --test`, zero dependencies — 139 tests, 100% line coverage on
 the eight unit-testable modules) cover the dependency-light pure logic: `search.js`
 (norm folding + the multi-tier scorer / type-priority / dedup), `kiez.js` (point-in-polygon
 classification incl. holes + MultiPolygon, `bezirkName`, `kmFromBerlin`, `bboxOf`,
@@ -260,6 +260,23 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   `__poi` so tapping a dot opens its card instead of re-locating. main.js: `discoverAt` on the real
   check-in only, toasts (`pointer-events: none` — they used to swallow topbar clicks), `huntSection`/
   `patchHunt` in the card. Covered by `tests/hunt.test.js`.
+- `src/account.js` + `server/` — **optional account sync** (Google OAuth). The ONLY server-side piece
+  of an otherwise fully static app; the static core keeps working without it — every call in
+  `account.js` returns a harmless value on failure instead of throwing, so offline / backend-down /
+  logged-out all degrade to purely local progress. Backend: `server/server.js` (node:http +
+  better-sqlite3, NO express — one dependency total), systemd `kiezfinder-api`, **port 4251
+  loopback**, nginx `location /api/` in the kiezfinder vhost. Auth = authorization-code flow with a
+  CSRF `state` cookie; the `id_token` comes from a direct TLS exchange with Google using our client
+  secret, so its payload is trustworthy without a separate signature check (`aud` is still verified).
+  Session = stateless HMAC cookie (`server/lib/session.js`), 180 days. **Data minimalism: only Google
+  `sub`, display name and visited POI ids — the `email` scope is never requested.** Sync = union-merge
+  over `(sub, qid)` with `MIN(ts)` in SQL, mirroring `hunt.js mergeProgress` → commutative +
+  idempotent, so parallel devices can't clobber each other. Secrets live ONLY in
+  `/opt/kiezfinder-api/.env` (640, root:www-data) — never in the repo (`.gitignore` covers
+  `server/.env` + `server/data/`). **PWA gotcha:** `navigateFallbackDenylist: [/^\/api\//]` in
+  `vite.config.js` is REQUIRED — OAuth redirects are navigations, and without it the SW answers them
+  with `index.html` and the login dies silently (verified live: `/api/auth/google` must return an
+  `opaqueredirect`, `/api/me` real JSON). Covered by `tests/server-auth.test.js`.
 - `src/prefs.js` — DOM-free `readBoolPref(storage,key,dflt)` / `writeBoolPref(storage,key,on)` for
   localStorage-backed boolean preferences (storage injected → unit-testable, throwing/absent storage
   falls back to the default). Backs the Auto-Zoom toggle (`kf-autozoom`); `main.js` passes the real

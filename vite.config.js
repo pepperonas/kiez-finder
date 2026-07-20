@@ -19,6 +19,10 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,woff2,geojson,json}'],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         navigateFallback: '/index.html',
+        // /api/* sind ECHTE Server-Routen (OAuth-Redirects sind Navigationen!) —
+        // ohne diese Ausnahme liefert der SW dafür index.html aus und der Login
+        // bricht wortlos ab.
+        navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/[a-d]?\.?basemaps\.cartocdn\.com\/.*/i,

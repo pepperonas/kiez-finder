@@ -5,3 +5,7 @@ dist
 .vite
 
 .playwright-mcp
+
+# Backend-Secrets + lokale DB (nur auf dem VPS)
+server/.env
+server/data/

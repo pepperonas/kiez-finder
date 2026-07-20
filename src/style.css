@@ -958,3 +958,11 @@ html.theme-transition * {
   .radar-sweep, .radar-ring, .stamp-ring, .beacon-ring { animation: none; }
   [data-reveal] { opacity: 1 !important; transform: none !important; }
 }
+
+/* ── Konto-Zeile der Schnitzeljagd (optionaler Fortschritts-Sync) ── */
+.acct { margin: .6rem 0 0; font-size: .74rem; color: var(--on-surface-var); }
+.acct-link {
+  border: 0; background: none; padding: 0; font: inherit; font-weight: 700;
+  color: var(--accent); cursor: pointer; text-decoration: none;
+}
+.acct-link:hover { text-decoration: underline; }
