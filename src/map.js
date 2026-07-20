@@ -306,6 +306,8 @@ export class KiezMap {
     this._pickCb = null
     this.map.getCanvas().style.cursor = 'crosshair'
     this.map.on('click', (e) => {
+      // Klick auf einen POI-Punkt öffnet dessen Karte statt neu zu verorten
+      if (e.originalEvent && e.originalEvent.__poi) return
       if (this._pickCb) this._pickCb(e.lngLat.lng, e.lngLat.lat)
     })
     this._ready = new Promise((res) => this.map.on('load', res)).then(() => this._onLoad())
@@ -349,6 +351,96 @@ export class KiezMap {
     const pt = this.map.project(this.map.getCenter())
     const f = this.map.queryRenderedFeatures(pt, { layers: ['heat-fill'] })[0]
     return f ? { name: f.properties.name, props: f.properties } : null
+  }
+
+  // ── Schnitzeljagd-POIs ──────────────────────────────────────────────────────
+  /** POI-Punkte einmal setzen; `visited` läuft danach über feature-state
+   *  (promoteId), damit ein Besuch nicht 1000 Features neu hochlädt. */
+  async setPoiData(fc) {
+    await this._ready
+    this._poiRaw = fc
+    this._addPoiLayers()
+  }
+
+  _addPoiLayers() {
+    if (!this._poiRaw) return
+    const src = this.map.getSource('pois')
+    if (src) src.setData(this._poiRaw)
+    else this.map.addSource('pois', { type: 'geojson', data: this._poiRaw, promoteId: 'qid' })
+    const dark = this.theme === 'dark'
+    // unentdeckt = gedämpfter Ring, entdeckt = leuchtender Volltreffer
+    const open = dark ? '#8fa6d8' : '#4a5f96'
+    const done = dark ? '#ffc857' : '#c8860d'
+    if (!this.map.getLayer('poi-dot')) {
+      this.map.addLayer({
+        id: 'poi-dot', type: 'circle', source: 'pois', minzoom: 11,
+        paint: {
+          // Prominente POIs (viele Sprachversionen) sind früh größer sichtbar
+          'circle-radius': ['interpolate', ['linear'], ['zoom'],
+            11, ['interpolate', ['linear'], ['get', 'sl'], 2, 2, 60, 5],
+            14, ['interpolate', ['linear'], ['get', 'sl'], 2, 4, 60, 9],
+            17, ['interpolate', ['linear'], ['get', 'sl'], 2, 6, 60, 13]],
+          'circle-color': ['case', ['boolean', ['feature-state', 'visited'], false], done, open],
+          'circle-opacity': ['case', ['boolean', ['feature-state', 'visited'], false], 0.95, 0.55],
+          'circle-stroke-width': ['case', ['boolean', ['feature-state', 'visited'], false], 2, 1],
+          'circle-stroke-color': dark ? 'rgba(6,9,16,0.85)' : 'rgba(255,255,255,0.9)',
+        },
+      })
+    }
+    if (!this.map.getLayer('poi-label')) {
+      this.map.addLayer({
+        id: 'poi-label', type: 'symbol', source: 'pois', minzoom: 14,
+        layout: {
+          'text-field': ['get', 'name'], 'text-font': FONT_REG,
+          'text-size': ['interpolate', ['linear'], ['zoom'], 14, 10.5, 17, 13],
+          'text-offset': [0, 1.1], 'text-anchor': 'top', 'text-max-width': 9, 'text-padding': 4,
+          // prominente POIs gewinnen Kollisionen (kleine sitelink-Zahl = hoher Sort-Key)
+          'symbol-sort-key': ['-', 100, ['get', 'sl']],
+          'text-variable-anchor': ['top', 'bottom', 'left', 'right'], 'text-radial-offset': 0.8,
+        },
+        paint: {
+          'text-color': ['case', ['boolean', ['feature-state', 'visited'], false], done, dark ? '#c3cce2' : '#3a4159'],
+          'text-halo-color': dark ? 'rgba(6,9,16,0.9)' : 'rgba(255,255,255,0.92)',
+          'text-halo-width': 1.4, 'text-halo-blur': 0.3,
+        },
+      })
+    }
+    for (const [id, prop, v] of [['poi-dot', 'circle-color', ['case', ['boolean', ['feature-state', 'visited'], false], done, open]],
+      ['poi-label', 'text-color', ['case', ['boolean', ['feature-state', 'visited'], false], done, dark ? '#c3cce2' : '#3a4159']]]) {
+      if (this.map.getLayer(id)) this.map.setPaintProperty(id, prop, v) // Theme-Wechsel
+    }
+    this.setPoiVisibility(this._poiOn !== false)
+    if (this._visitedIds) this.setVisited(this._visitedIds) // nach Restyle neu setzen
+    if (!this._poiClickHook) {
+      this._poiClickHook = true
+      this.map.on('click', 'poi-dot', (e) => {
+        e.originalEvent.__poi = true // der Karten-Pick soll NICHT auch noch feuern
+        const f = e.features && e.features[0]
+        if (f && this._poiCb) this._poiCb(f.properties.qid)
+      })
+      this.map.on('mouseenter', 'poi-dot', () => { this.map.getCanvas().style.cursor = 'pointer' })
+      this.map.on('mouseleave', 'poi-dot', () => { this.map.getCanvas().style.cursor = 'crosshair' })
+    }
+  }
+
+  /** Besuchte POIs (Set von qid) als feature-state spiegeln. */
+  setVisited(qids) {
+    this._visitedIds = qids
+    if (!this.map.getSource('pois')) return
+    for (const qid of qids) {
+      try { this.map.setFeatureState({ source: 'pois', id: qid }, { visited: true }) } catch (e) {}
+    }
+  }
+  setPoiVisibility(on) {
+    this._poiOn = on
+    for (const id of ['poi-dot', 'poi-label']) {
+      if (this.map.getLayer(id)) this.map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none')
+    }
+  }
+  onPoiClick(cb) { this._poiCb = cb }
+  /** Kamera auf einen POI (Schnitzeljagd-Liste → „zeig mir das"). */
+  flyToPoi(lon, lat) {
+    this.map.flyTo({ center: [lon, lat], zoom: Math.max(this.map.getZoom(), 16), duration: reduceMotion() ? 0 : 1200, essential: true })
   }
 
   // ── Heatmap (Choroplethen je Planungsraum) ──────────────────────────────────
@@ -468,6 +560,7 @@ export class KiezMap {
     this._tuneBasemapDetails()
     if (this._overlayRaw) this._addOverlayLayers()
     if (this._heatRaw) this._addHeatLayers()
+    if (this._poiRaw) this._addPoiLayers()
     if (this._wallRaw) this._addWallLayers()
   }
 

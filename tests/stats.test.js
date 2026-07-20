@@ -7,8 +7,9 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   loadStats, loadKiezInfo, statsData, infoData,
-  selectorFor, selectorForFeature, aggregate, ranksFor, clearRankCache,
-  geodesicAreaM2, infoFor, infoForBezirk, fmtInt, fmtKm2, fmtDichte, fmtAlter, fmtAnteil, fmtEuroM2,
+  selectorFor, selectorForFeature, aggregate, ranksFor, clearRankCache, plrIdsFor,
+  geodesicAreaM2, infoFor, infoForBezirk, kiezFallbackText,
+  fmtInt, fmtKm2, fmtDichte, fmtAlter, fmtAnteil, fmtEuroM2,
 } from '../src/stats.js'
 
 // ── Fixture: 5 PLRs — 4 Kiez-Gruppen, 2 Bezirke, ein NA (SAFE-anonymisiert) ──
@@ -203,6 +204,42 @@ test('infoFor / infoForBezirk: Treffer, Miss und fehlende Daten', () => {
   assert.equal(infoFor(info, 'Gibtsnichtkiez'), null)
   assert.equal(infoFor(null, 'Reuterkiez'), null)
   assert.equal(infoFor(info, null), null)
+})
+
+test('plrIdsFor sammelt die Planungsräume einer Auswahl (Basis der POI-Zählung)', () => {
+  assert.deepEqual([...plrIdsFor(FC, { kind: 'gid', v: 'k1' })].sort(), ['08010101', '08010102'])
+  assert.deepEqual([...plrIdsFor(FC, { kind: 'prefix', v: '01' })].sort(), ['01011101', '01011102'])
+  assert.deepEqual([...plrIdsFor(FC, { kind: 'plr', v: '08020201' })], ['08020201'])
+  assert.equal(plrIdsFor(FC, null).size, 0)
+  assert.equal(plrIdsFor(null, { kind: 'gid', v: 'k1' }).size, 0)
+})
+
+// ── Fallback-Text (garantierte Info ohne Wikipedia-Artikel) ─────────────────
+const PLR_FEAT = { properties: { bez: '08 - Neukölln', bzr_name: 'Reuterstraße', plr_name: 'Reuterplatz', kiez: 'Reuterkiez' } }
+
+test('kiezFallbackText baut einen Satz aus Hierarchie + amtlichen Zahlen', () => {
+  const t = kiezFallbackText({ level: 'kiez', plr: PLR_FEAT,
+    agg: { pop: 14658, m2: 510000, avgAge: 40.6, partial: false } })
+  assert.match(t, /^Kiez im Bezirk Neukölln, Teil der Bezirksregion Reuterstraße\./)
+  assert.match(t, /Hier leben rund 14\.700 Menschen auf 0,51 km²\./) // auf 100 gerundet
+  assert.match(t, /Durchschnittsalter liegt bei etwa 40,6 Jahren\./)
+})
+
+test('kiezFallbackText: Ebenen-Nomen, „mindestens" bei Teil-Anonymisierung, keine Doppelnennung', () => {
+  assert.match(kiezFallbackText({ level: 'bzr', plr: PLR_FEAT, agg: null }), /^Bezirksregion im Bezirk Neukölln\./)
+  assert.match(kiezFallbackText({ level: 'pgr', plr: PLR_FEAT, agg: null }), /^Prognoseraum im Bezirk Neukölln\./)
+  assert.match(kiezFallbackText({ level: 'bez', plr: PLR_FEAT, agg: null }), /^Berliner Bezirk\./)
+  // Bezirksregion == Bezirksname → wird nicht doppelt genannt
+  const same = kiezFallbackText({ level: 'kiez', plr: { properties: { bez: '08 - Neukölln', bzr_name: 'Neukölln' } }, agg: null })
+  assert.equal(same, 'Kiez im Bezirk Neukölln.')
+  const partial = kiezFallbackText({ level: 'kiez', plr: PLR_FEAT, agg: { pop: 80659, m2: 15000000, partial: true, avgAge: null } })
+  assert.match(partial, /mindestens 80\.700 Menschen/)
+})
+
+test('kiezFallbackText bleibt ohne Daten sinnvoll', () => {
+  assert.equal(kiezFallbackText({}), 'Bereich in Berlin.')
+  assert.match(kiezFallbackText({ level: 'kiez', plr: PLR_FEAT, agg: { pop: null, m2: 510000 } }),
+    /Die Fläche beträgt 0,51 km²\.$/) // ohne Einwohner: nur die Fläche
 })
 
 // ── Formatierung ─────────────────────────────────────────────────────────────

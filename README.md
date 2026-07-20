@@ -44,7 +44,8 @@ Kamera fliegt zu dir, dann zeichnet sich deine Kiez-Grenze selbst ein) und der L
 - 🏘️ **Feinkörnige OSM-Kieze** — benannte Kieze, die *kleiner* als ein Planungsraum sind (z.B. *Scheunenviertel*, *Möckernkiez*, *Fischerinsel*), kommen mit ihrer **exakten OSM-Grenze** (71 Polygone) — suchbar, hervorhebbar und beim Drinstehen automatisch erkannt
 - 🧅 **Wählbare LOR-Ebenen** — tippe in der Card auf **Kiez · Bezirksregion · Bezirk**, und die zugehörige Fläche wird hervorgehoben (Auto-Zoom auf ihre Ausdehnung)
 - 📊 **Bereichs-Statistik in der Card** — für die gewählte Einheit (Kiez · Bezirksregion · Prognoseraum · Bezirk, auch aus der Suche): **Einwohnerzahl** aus der amtlichen **Einwohnerregisterstatistik** (je LOR-Planungsraum, Stand 31.12.2025, exakt auf die Einheit aufsummiert), **amtliche Fläche** (Geoportal `finhalt`), **Dichte** (Einw./km²), **Altersstruktur** (Ø-Alter ≈ aus Altersband-Mitten — Berlin-Kontrolle: 42,9 vs. amtlich 42,8 — plus exakte U18-/65+-Anteile) , **Ø-Angebotsmiete + Ø-Bodenrichtwert** (einwohnergewichtete Mittel der Mitglieds-Planungsräume — ungewichtete Mittel würden leere Randlagen überbetonen) und **Ränge** („№ 53 von 427 nach Einwohnern · № 6 nach Dichte" — der Reuterkiez ist wirklich der sechst­dichteste Kiez Berlins). Die Stats **folgen der Ebenen-Auswahl live**; SAFE-anonymisierte Planungsräume werden ehrlich ausgewiesen („≥"-Untergrenze bzw. „k. A."), feine OSM-Kieze zeigen ihre geodätisch berechnete Fläche statt erfundener Amtszahlen; auch die **Straßensuche** zeigt die Stats des aufgelösten Kiezes. Alles offline (3 statische JSONs, ~78 KB, precached)
-- 📖 **„Über diesen Kiez"** — Wikipedia-Kurzbeschreibung direkt in der Card (142 Kieze + alle 12 Bezirke, de.wikipedia, CC BY-SA, mit Artikel-Link). Build-seitig kuratiert: Begriffsklärungen und Namensvettern außerhalb Berlins werden verworfen, in Berlin mehrdeutige Kiez-Namen übersprungen, und eine **Namens-Relevanz-Regel** verhindert Redirect-Drift (Donaukiez/Flughafenkiez waren Wikipedia-Redirects auf den Ortsteil-Artikel „Berlin-Neukölln" und zeigten identische Ortsteil-Texte; Artikel zählen nur, wenn Titel oder Text den Kiez-Namen bzw. sein Kiez↔Viertel-Synonym nennen — Platz-/Straßen-Artikel fliegen raus). Lieber Lücke als falscher Text
+- 🎯 **Schnitzeljagd — die 1000 interessantesten Orte Berlins** — recherchiert aus **Wikidata** (CC0): Kandidaten sind Bauwerke, Kulturgüter, Museen, Denkmäler, Parks, Kirchen, Friedhöfe & Touristenziele *innerhalb* Berlins; „interessant" misst sich an der Zahl der Wikipedia-Sprachversionen (Brandenburger Tor 85, Reichstag 74, Fernsehturm 58). Zwei Korrekturen halten die Auswahl spielbar: eine **Bezirks-Quote** (mind. 45 je Bezirk — sonst lägen zwei Drittel in Mitte) und ein **Kategorie-Deckel** (13 % — ungedeckelt verdrängten 207 gewöhnliche U-/S-Bahnhöfe die echten Sehenswürdigkeiten). Auf der Karte erscheinen alle 1000 als Punkte (Größe nach Prominenz, Namen ab z14); **entdeckt wird per Standort**: liegt ein Ort beim Einchecken höchstens **150 m** entfernt, zählt er — mit Jubel-Toast und Rang-Aufstieg (*Neu in der Stadt → Tourist → Zugezogen → Kiezgänger → Stadtbekannt → Urgestein → Berlin-Legende*). Antippen zeigt einen Ort nur an; das ist Absicht, sonst wäre es eine Checkliste statt einer Jagd. Die Card zeigt den Fortschritt des aktuellen Bereichs („3/86 entdeckt" + Balken + Liste) — und in den 162 Kiezen ohne eigenen POI stattdessen die **nächstgelegenen Ziele mit Entfernung**. Fortschritt wird lokal gespeichert (`kf-hunt`) und ist konfliktfrei mergebar (vorbereitet für späteren Konto-Sync)
+- 📖 **„Über diesen Kiez" — für JEDEN Bereich** — gestuft aus mehreren Quellen: ① **Wikipedia**-Kurztext, autoritativ verknüpft über die `wikipedia`/`wikidata`-Tags aus **OpenStreetMap** (statt Namensraten — findet Artikel, die reines Namensmatching verfehlt, und kann nicht auf ein fremdes Redirect-Ziel driften), ② Namenssuche mit Relevanz-Regel, ③ **Wikidata**-Kurzbeschreibung (CC0), ④ OSM-`description`. **175 recherchierte Texte** — und wo es beim besten Willen keinen gibt (rund zwei Drittel der Kieze haben schlicht keinen Artikel), erzeugt die App zur Laufzeit eine **Faktenzeile aus den amtlichen Zahlen** („Kiez im Bezirk Neukölln, Teil der Bezirksregion Reuterstraße. Hier leben rund 14.700 Menschen auf 0,51 km². Das Durchschnittsalter liegt bei etwa 40,6 Jahren."). So steht **überall** Kontext, ohne dass ein einziger Satz erfunden wird; jede Karte weist ihre Quelle und Lizenz aus
 - 🖱️ **Karte ist anklickbar** — tippe irgendwohin in Berlin, und die Card springt auf den Kiez dieses Punkts (inkl. neuer Adresse)
 - ⛶ **Auto-Zoom-Schalter** (Topbar) — legt fest, ob ein **Karten-Tap** automatisch auf den getroffenen Kiez heranzoomt (Standard: an). Ausgeschaltet wird die Fläche zwar markiert, die Kamera bleibt aber stehen — praktisch zum Erkunden benachbarter Kieze, ohne dass die Karte bei jedem Tipp springt. Betrifft nur den Tap; „Auf Karte zentrieren", die Ebenen-Auswahl, die Suche und der Geo-Check-in rahmen weiterhin. Zustand wird gemerkt
 - 🗺️ **Sektoren-Overlay** (4-Stufen-Button) — *aus · Bezirke (L) · Regionen (M) · Kieze (S)*, von grob nach fein. Färbt die jeweilige Ebene **nachbarschafts-bewusst** (Distanz-2-Graph-Coloring über geteilte Grenzen) → angrenzende **und** nahe Flächen bekommen weit auseinanderliegende Farbtöne und sind klar unterscheidbar. **Jede sichtbare Fläche wird beschriftet** — pro Region ein Label an einem sichtbaren Innenpunkt, beim Zoomen/Verschieben nachgeführt (nicht nur die Fläche, deren Mittelpunkt zufällig im Bild liegt); **kartografische Hierarchie**: Kollisionspriorität + Labelgröße folgen der Flächengröße (große Flächen gewinnen und lesen größer), bedrängte Labels weichen per variablem Anker aus statt zu verschwinden, Label-Punkte bleiben beim Verschieben stabil (Anti-Jitter-Hysterese), und die **ausgewählte Fläche trägt immer ihr eigenes akzentfarbenes Label** (höchste Priorität, keine Doppelung). Zusätzlich benennt eine schwebende **„Aktueller-Bereich"-Plakette** mit Farbpunkt live die Fläche in der Kartenmitte
@@ -56,7 +57,7 @@ Kamera fliegt zu dir, dann zeichnet sich deine Kiez-Grenze selbst ein) und der L
 - 🗺️ **Lebendige Vektorkarte** (MapLibre GL) mit `flyTo`-Lock-on und sich selbst zeichnender Kiez-Grenze; ab Kiez-Zoom erscheinen **Straßennamen und Grünflächen dezent** (gedämpfte Töne + sanftes Grün, eine Zoomstufe früher als die Basemap sie zeigen würde — sie ordnen sich den Kiez-Labels immer unter)
 - 🎨 **Material 3 Expressive** — Feder-Physik statt Easing-Fades, tonale Flächen, XL-Shapes, Shape-Morph beim Tippen
 - 🌗 **Hell/Dunkel** mit kreisförmigem View-Transition-Reveal wie auf celox.io (900 ms Desktop / 520 ms Mobile, dark-matter ↔ positron), **der auch die Karte mitzieht**: die WebGL-Karte restylt erst nach der Animation, deshalb wird sie während des Reveals per invert-Filter aufs Ziel-Theme angenähert und hinter einem eingefrorenen Standbild („Veil") umgestylt, das erst weich ausblendet, sobald die neuen Kacheln wirklich gerendert sind — kein harter Blitz, auch bei schnellem Hin-und-her-Schalten
-- 📱 **PWA + Mobile** — installierbar, **echt offline-fähig**: alle 17 Datensätze (~2,4 MB — Kieze, Bezirke, Regionen, Labels, Mauerverlauf, Straßenindex, Einwohner-Statistik, Kiez-Beschreibungen …) werden vom Service Worker **revisioniert precached** — einmal besucht, klassifiziert die App auch ohne Netz, und Daten-Updates busten den Cache automatisch beim Deploy. Schlägt der Kern-Datensatz beim allerersten Laden fehl (offline/404), zeigt die App eine ehrliche **„Daten nicht geladen"-Card mit Retry** statt fälschlich „nicht in Berlin". Die Card ist auf Mobilgeräten ein **MD3-Bottom-Sheet** mit echten **Swipe-Gesten**: vom 44-px-Griff oder der ganzen Karte hoch-/runterziehen, **Pull-down vom Listenanfang** zum Einklappen, **Tap aufs eingeklappte Sheet** zum Öffnen; geschwindigkeits- + positionsbasiertes Snapping (leichter Flick genügt), Scroll-vs-Drag korrekt getrennt, nicht-modal über der Karte, Safe-Area-Insets, `dvh`-Höhe. Auf **Desktop** lässt sich das Info-Panel ein- und ausklappen (Pfeil-Button → schiebt es zur Seite, Reopen-Tab holt es zurück; Zustand wird gemerkt)
+- 📱 **PWA + Mobile** — installierbar, **echt offline-fähig**: alle 18 Datensätze (~3,1 MB — Kieze, Bezirke, Regionen, Labels, Mauerverlauf, Straßenindex, Einwohner-Statistik, Kiez-Beschreibungen, 1000 POIs …) werden vom Service Worker **revisioniert precached** — einmal besucht, klassifiziert die App auch ohne Netz, und Daten-Updates busten den Cache automatisch beim Deploy. Schlägt der Kern-Datensatz beim allerersten Laden fehl (offline/404), zeigt die App eine ehrliche **„Daten nicht geladen"-Card mit Retry** statt fälschlich „nicht in Berlin". Die Card ist auf Mobilgeräten ein **MD3-Bottom-Sheet** mit echten **Swipe-Gesten**: vom 44-px-Griff oder der ganzen Karte hoch-/runterziehen, **Pull-down vom Listenanfang** zum Einklappen, **Tap aufs eingeklappte Sheet** zum Öffnen; geschwindigkeits- + positionsbasiertes Snapping (leichter Flick genügt), Scroll-vs-Drag korrekt getrennt, nicht-modal über der Karte, Safe-Area-Insets, `dvh`-Höhe. Auf **Desktop** lässt sich das Info-Panel ein- und ausklappen (Pfeil-Button → schiebt es zur Seite, Reopen-Tab holt es zurück; Zustand wird gemerkt)
 - ♿ **Robust** — Progressive Enhancement, `prefers-reduced-motion`, sichtbarer Fokus, Tastatur (`R` = neu einchecken), Touch-Targets ≥ 44 px
 - 🔑 **Kein API-Key** — keyless Carto-Tiles + Nominatim, keine Secrets im Code
 
@@ -75,6 +76,12 @@ Kamera fliegt zu dir, dann zeichnet sich deine Kiez-Grenze selbst ein) und der L
 <img src="docs/screenshot-kieze.png" alt="Kieze-Overlay (S): nachbarschafts-bewusst eingefärbtes Kiez-Patchwork mit Labels" width="66%"/>
 
 <sub><i>MD3-Bottom-Sheet auf Mobil · Kieze-Overlay (S): das nachbarschafts-bewusst eingefärbte Kiez-Patchwork</i></sub>
+
+<br/><br/>
+
+<img src="docs/screenshot-hunt.png" alt="Schnitzeljagd: POI-Punkte auf der Karte und Fortschritt in der Card" width="92%"/>
+
+<sub><i>Schnitzeljagd: 1000 Orte als Kartenpunkte · in Kiezen ohne eigenen POI die nächsten Ziele mit Entfernung</i></sub>
 
 <br/><br/>
 
@@ -126,6 +133,7 @@ automatisch in `localStorage` persistiert:
 | `kf-wall` | `1` \| `0` | Berliner-Mauer-Modus |
 | `kf-autozoom` | `1` \| `0` | Auto-Zoom beim Karten-Tap (Default: an) |
 | `kf-panel` | `open` \| `collapsed` | Desktop-Info-Panel ein-/ausgeklappt |
+| `kf-hunt` | JSON | Schnitzeljagd-Fortschritt (besuchte POI-IDs + Zeitstempel) |
 | `kf-heat` | `off` \| `dichte` \| `alter` \| `u18` \| `o65` \| `miete` \| `brw` | aktive Heatmap-Metrik |
 
 Fürs **Hosting** gibt es genau ein Muss: der Webserver muss
@@ -183,6 +191,7 @@ node tools/build-stats.mjs      # → public/data/stats.json (Einwohner + amtlic
                                 #   hermetisch aus tools/vendor/, validiert gegen kieze.geojson)
 node tools/build-kiez-info.mjs  # → public/data/kiez-info.json (Wikipedia-Kurztexte, ~2 min,
                                 #   Begriffsklärungs- und Berlin-Plausibilitätsfilter)
+node tools/build-pois.mjs       # → public/data/pois.json (1000 POIs aus Wikidata, ~20 s)
 node tools/build-heat-prices.mjs # → public/data/preise.json (Angebotsmieten je Prognoseraum +
                                 #   Bodenrichtwerte Wohnbauland je PLR, beide live vom Geoportal-WFS,
                                 #   dl-de-zero-2.0; validiert Abdeckung + Plausibilitäts-Median)
@@ -202,13 +211,13 @@ node tools/screenshots.cjs                        # Terminal 2 (braucht Playwrig
 ## Tests ausführen
 
 ```bash
-npm test                                                        # 106 Unit-Tests, Nodes eingebauter Runner, null Test-Dependencies
+npm test                                                        # 125 Unit-Tests, Nodes eingebauter Runner, null Test-Dependencies
 node --test --experimental-test-coverage tests/*.test.js        # dito + Coverage-Report
 node tools/check-doc-sync.mjs                                   # dito + prüft, dass diese Doku-Zahlen der Messung entsprechen
 ```
 
-Getestet wird die **abhängigkeitsfreie Pure-Logik** — Stand heute **106 Tests, 100 % Line-Coverage**
-auf allen sieben unit-testbaren Modulen (~97 % Branch):
+Getestet wird die **abhängigkeitsfreie Pure-Logik** — Stand heute **125 Tests, 100 % Line-Coverage**
+auf allen acht unit-testbaren Modulen (~97 % Branch):
 
 | Modul | Was abgesichert ist |
 |---|---|
@@ -217,6 +226,7 @@ auf allen sieben unit-testbaren Modulen (~97 % Branch):
 | `src/geo.js` | Geolocation-**Fehler-Mapping** (denied/unavailable/timeout/unknown/unsupported), Nominatim-Adresszeilen-Assemblierung, Kiez-Extraktion (`quarter`→`neighbourhood`), Koordinaten-gerundetes Caching, Best-Effort-Fehlpfade → `null` |
 | `src/motion.js` | **Spring-Physik** mit Fake-Clock + deterministischem rAF: exakte Konvergenz, **Overshoot bei damping 0.6** (der Signature-Bounce), kein Overshoot bei 0.8, Cancel mid-flight, `reduced-motion`-Sofortpfade, Stagger-Reveal, Pointer-Damper |
 | `src/stats.js` | Bereichs-Statistik: gid-/Präfix-**Selektoren**, PLR-**Aggregation** (inkl. „≥"-Untergrenzen bei SAFE-anonymisierten Räumen), **Ränge** je Ebene, geodätische Fläche (OSM-Kieze), Wikipedia-Lookups, de-DE-Formatierung |
+| `src/hunt.js` | Schnitzeljagd: Haversine-Distanz + Umkreis, nächstgelegene Ziele, robustes Lesen/Schreiben des Fortschritts, **idempotentes** Besuchen, **kommutativer Union-Merge** (Sync-Vorbereitung), Auswertung je Bereich, Ränge |
 | `src/heat.js` | Heatmap-Kern: Metrik-Katalog, **Heat-FC-Join** (fehlende Werte werden weggelassen, nicht genullt), **Quantil-Klassengrenzen** (Schiefe, Duplikat-Dedup), Klassenindex, MapLibre-**Paint-Expression** (`has`→`step`), Legenden-Daten, Farbrampen |
 | `src/prefs.js` | `localStorage`-Persistenz-Semantik (Defaults, Garbage-Fallback, werfende Storage) |
 
@@ -270,7 +280,8 @@ rsync -avz --delete dist/ root@<vps>:/var/www/kiezfinder.celox.io/
 - **Kiez-Grenzen:** LOR 2021 Planungsräume — *Geoportal Berlin / Amt für Statistik Berlin-Brandenburg* (CC-BY-3.0 DE)
 - **Einwohner:** Einwohnerregisterstatistik je LOR-Planungsraum, Stand 31.12.2025 — *Amt für Statistik Berlin-Brandenburg* (CC BY; Provenienz + Verifikation der vendorten Kopie: `tools/vendor/README.md`)
 - **Flächen:** amtliche Flächeninhalte (`finhalt`) — *Geoportal Berlin, WFS `lor_2021`*
-- **Kiez-Beschreibungen:** *Wikipedia* (de.wikipedia.org), Texte CC BY-SA 4.0, je Eintrag mit Artikel-Link
+- **Kiez-Beschreibungen:** *Wikipedia* (CC BY-SA 4.0) · *Wikidata* (CC0) · *OpenStreetMap* (ODbL) — je Eintrag mit Quelle + Link
+- **Schnitzeljagd-POIs:** *Wikidata* (CC0), Auswahl nach Wikipedia-Sprachversionen; Verortung je Planungsraum über die LOR-2021-Grenzen
 - **Angebotsmieten:** Wohnatlas Berlin (2022, €/m² netto kalt je Prognoseraum) — *SenSBW via Geoportal-WFS* (dl-de-zero-2.0)
 - **Bodenrichtwerte:** BORIS Berlin, Stichtag 01.01.2026 — *Gutachterausschuss für Grundstückswerte via Geoportal-WFS* (dl-de-zero-2.0)
 - **Mauerverlauf:** „Verlauf der Berliner Mauer, 1989" — *Geoportal Berlin*

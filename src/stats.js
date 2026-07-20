@@ -64,6 +64,14 @@ const matches = (sel, p) =>
     : sel.kind === 'plr' ? p.plr_id === sel.v
       : p.plr_id.startsWith(sel.v)
 
+/** Alle plr_ids einer Auswahl — Basis für die POI-Auswertung je Bereich. */
+export function plrIdsFor(fc, sel) {
+  const ids = new Set()
+  if (!fc || !sel) return ids
+  for (const f of fc.features) if (matches(sel, f.properties)) ids.add(f.properties.plr_id)
+  return ids
+}
+
 /**
  * Aggregat über die Mitglieds-PLRs → { pop, m2, n, partial, avgAge, u18, o65,
  * miete, brw } oder null.
@@ -188,6 +196,40 @@ export function geodesicAreaM2(geom) {
     })
   }
   return Math.max(0, total)
+}
+
+// ── Garantierter Fallback-Text aus den amtlichen Zahlen ─────────────────────
+// Für Bereiche ohne Wikipedia-/Wikidata-/OSM-Eintrag (rund zwei Drittel der
+// Kieze haben keinen eigenen Artikel). Wird zur LAUFZEIT erzeugt, nicht im
+// Build — so kann er nie von den angezeigten Zahlen abweichen. Nichts wird
+// erfunden: jeder Satzbaustein stammt aus der amtlichen Hierarchie bzw. der
+// Einwohnerregisterstatistik.
+const LEVEL_NOUN = { kiez: 'Kiez', plr: 'Planungsraum', bzr: 'Bezirksregion', pgr: 'Prognoseraum', bez: 'Berliner Bezirk' }
+// "01 - Mitte" → "Mitte" (lokal, damit stats.js importfrei bleibt)
+const bezName = (bez) => (bez || '').replace(/^\d+\s*-\s*/, '').trim()
+export function kiezFallbackText({ level, plr, agg } = {}) {
+  const p = (plr && plr.properties) || null
+  const noun = LEVEL_NOUN[level] || 'Bereich'
+  const parts = []
+  if (level === 'bez') parts.push(noun + '.')
+  else if (p) {
+    const bez = bezName(p.bez)
+    let s = `${noun} im Bezirk ${bez}`
+    // die Bezirksregion nur nennen, wenn sie zusätzliche Information trägt
+    if (level === 'kiez' && p.bzr_name && p.bzr_name !== bez) s += `, Teil der Bezirksregion ${p.bzr_name}`
+    parts.push(s + '.')
+  } else parts.push(noun + ' in Berlin.')
+
+  if (agg && agg.pop != null && agg.m2) {
+    const rund = agg.pop >= 1000 ? Math.round(agg.pop / 100) * 100 : agg.pop
+    parts.push(`Hier leben ${agg.partial ? 'mindestens ' : 'rund '}${fmtInt(rund)} Menschen auf ${fmtKm2(agg.m2)}.`)
+  } else if (agg && agg.m2) {
+    parts.push(`Die Fläche beträgt ${fmtKm2(agg.m2)}.`)
+  }
+  if (agg && agg.avgAge != null) {
+    parts.push(`Das Durchschnittsalter liegt bei etwa ${fmtAlter(agg.avgAge).replace(' J.', ' Jahren')}.`)
+  }
+  return parts.join(' ')
 }
 
 // ── Kurzbeschreibungen (Wikipedia) ───────────────────────────────────────────

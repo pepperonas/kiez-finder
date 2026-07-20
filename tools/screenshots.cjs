@@ -64,6 +64,13 @@ async function main() {
     await sleep(16000)
     await cdpShot(page, OUT + '/screenshot-desktop.png') // found card + drawn boundary
 
+    // Schnitzeljagd: Jagd-Sektion der Card + POI-Punkte auf der Karte
+    await page.evaluate(() => document.querySelector('.hunt')?.scrollIntoView({ block: 'start' }))
+    await sleep(1500)
+    await cdpShot(page, OUT + '/screenshot-hunt.png')
+    await page.evaluate(() => document.querySelector('.pass-scroll')?.scrollTo(0, 0))
+    await sleep(800)
+
     // zoom out to city overview, then Bezirke overlay
     await page.mouse.move(880, 450)
     for (let i = 0; i < 6; i++) { await page.mouse.wheel(0, 400); await sleep(350) }

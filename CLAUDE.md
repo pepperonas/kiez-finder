@@ -21,8 +21,8 @@ npm test         # unit tests (Node's built-in runner, no deps) — tests/*.test
 ```
 No linter configured. Geolocation needs a secure context (localhost or HTTPS).
 
-**Tests** (`tests/`, `node --test`, zero dependencies — 106 tests, 100% line coverage on
-the seven unit-testable modules) cover the dependency-light pure logic: `search.js`
+**Tests** (`tests/`, `node --test`, zero dependencies — 125 tests, 100% line coverage on
+the eight unit-testable modules) cover the dependency-light pure logic: `search.js`
 (norm folding + the multi-tier scorer / type-priority / dedup), `kiez.js` (point-in-polygon
 classification incl. holes + MultiPolygon, `bezirkName`, `kmFromBerlin`, `bboxOf`,
 `levelName` — plus, via a **fetch mock**, the loaders and the loaded-state functions:
@@ -37,6 +37,8 @@ imports would instead split `src/kiez.js` into one coverage row per instance), a
 `stats.js` (selectors/aggregation/ranks/formatting — pure with injected fixtures),
 `heat.js` (heat-FC join with omitted-not-nulled missing values, quantile breaks, paint
 expression shape, legend data — pure with injected fixtures),
+`hunt.js` (haversine + radius/nearest lookups, robust progress read/write, idempotent
+visits, commutative union-merge, per-scope evaluation, ranks — pure with fixtures),
 `geo.js` (error mapping, Nominatim line assembly, rounded-coordinate caching — global
 stubs for navigator/fetch/sessionStorage; the module touches globals only at call time,
 so no extraction was needed), and `motion.js` (spring physics with a fake clock + an
@@ -206,7 +208,7 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   `public/data/stats.json` (`{stand, quelle, plr: {plr_id: [einwohner|null, m2, alterssumme|null, u18|null, ab65|null]}}` (alterssumme = Σ Bandmitte×Besetzung der feinen EWR-Altersbänder, offenes Endband auf 97 gekappt → aggregierbares ≈Ø-Alter; u18/o65 exakte Bandsummen; Berlin-Ø 42,9 ≈ amtlich 42,8) — official
   Einwohnerregisterstatistik 31.12.2025 + official `finhalt` areas; built by `tools/build-stats.mjs`
   from vendored sources in `tools/vendor/`, validated 542/542 against kieze.geojson, Berlin total
-  3.913.644) and `public/data/kiez-info.json` (Wikipedia summaries, 154 entries incl. `bez:<Name>`
+  3.913.644) and `public/data/kiez-info.json` (175 entries, tiered sources — see below, incl. `bez:<Name>`
   keys for the 12 Bezirke; built by `tools/build-kiez-info.mjs` with disambiguation + Berlin-mention
   filters, ambiguous duplicate kiez names skipped, plus a **name-relevance rule**: the queried kiez
   name (or its kiez↔viertel suffix synonym — Bötzowkiez ≙ Bötzowviertel) must appear in the resolved
@@ -241,6 +243,23 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   the restyle (in `restyle().finally`); the area chip shows name + formatted metric value
   (`applyHeatChip`, dot = class colour). Legend: bottom-right on desktop (left is the panel's),
   above the peeked sheet on mobile. Covered by `tests/heat.test.js`.
+- `src/hunt.js` — **Schnitzeljagd** (maplibre-free pure core + thin `loadPois`). Data:
+  `public/data/pois.json` (1000 POIs, compact arrays `[qid,name,desc,lon,lat,katIdx,plr_id,sitelinks,article|0]`,
+  built by `tools/build-pois.mjs` from ONE Wikidata SPARQL query: sight-like classes under
+  Q811979/Q2065736/Q570116/Q22698/Q33506/Q4989906/Q839954/Q39614, ranked by `wikibase:sitelinks`.
+  Two correctives make it playable: a **district quota** (≥45/Bezirk — else 2/3 land in Mitte) and a
+  **category cap** (13 % — uncapped, 207 ordinary U-/S-Bahn stations crowded out real sights). Each POI
+  gets its Planungsraum via point-in-polygon at build time). API: `poisNear` (radius, bbox-prefiltered),
+  `nearestPois`+`fmtDist` (for the **162 of 427 kieze that contain no POI** — the card shows nearest
+  targets instead of an empty section), `markVisited` (idempotent — FIRST visit wins), `mergeProgress`
+  (commutative/idempotent union, earlier timestamp wins → a later account sync is conflict-free by
+  construction), `scopeProgress`/`completedAreas`/`rankFor`. **Discovery is geolocation-only** (≤150 m
+  at check-in); tapping a POI merely shows it — otherwise it's a checklist, not a hunt.
+  map.js: `setPoiData`/`setVisited` (feature-state via `promoteId: 'qid'` — a visit doesn't re-upload
+  1000 features)/`setPoiVisibility`/`onPoiClick`/`flyToPoi`; the map click handler skips picks flagged
+  `__poi` so tapping a dot opens its card instead of re-locating. main.js: `discoverAt` on the real
+  check-in only, toasts (`pointer-events: none` — they used to swallow topbar clicks), `huntSection`/
+  `patchHunt` in the card. Covered by `tests/hunt.test.js`.
 - `src/prefs.js` — DOM-free `readBoolPref(storage,key,dflt)` / `writeBoolPref(storage,key,on)` for
   localStorage-backed boolean preferences (storage injected → unit-testable, throwing/absent storage
   falls back to the default). Backs the Auto-Zoom toggle (`kf-autozoom`); `main.js` passes the real
@@ -316,7 +335,7 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   v4 also never fires `style.load` on setStyle. The reliable sequence (measured): wait for a
   `styledata` (swap begun) and only then accept `isStyleLoaded()===true` (checked on
   styledata/idle), with a 4 s hard-timeout + an `once('idle')` rebuild fallback.
-- **PWA/offline:** all `public/data/*` (13 geojson + `strassen.json` + `stats.json` + `kiez-info.json` + `preise.json`, ~2.4 MB) are **precached** by
+- **PWA/offline:** all `public/data/*` (13 geojson + `strassen.json` + `stats.json` + `kiez-info.json` + `preise.json` + `pois.json`, ~3.1 MB) are **precached** by
   the SW (`geojson,json` in `workbox.globPatterns`) — revisioned by content hash, so data edits bust
   the cache on deploy; the app classifies fully offline after the first visit and the **street
   search works fully offline** too (verified: preview server killed → reload → search + Kiez

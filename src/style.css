@@ -603,6 +603,76 @@ body {
 .about-meta a:hover { text-decoration: underline; }
 .stats-note { margin: .55rem 0 0; font-size: .68rem; color: var(--on-surface-var); opacity: .8; line-height: 1.45; }
 .stats-note:empty { display: none; }
+.about-src { white-space: nowrap; }
+
+/* ── Schnitzeljagd: Fortschritt + POI-Liste ── */
+.hunt { width: 100%; margin-top: 1.1rem; }
+.poi-bar {
+  height: 8px; border-radius: 4px; overflow: hidden;
+  background: color-mix(in srgb, var(--on-surface) 12%, transparent);
+}
+.poi-bar-fill {
+  display: block; height: 100%; border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  transition: width var(--dur-med) var(--ease-emphasized);
+}
+.poi-list { list-style: none; margin: .6rem 0 0; padding: 0; display: flex; flex-direction: column; gap: .15rem; }
+.poi-item { display: flex; align-items: center; gap: .35rem; border-radius: var(--r-m); }
+.poi-go {
+  position: relative; flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: .6rem;
+  padding: .5rem .55rem; min-height: 44px; border: 0; border-radius: var(--r-m);
+  background: transparent; color: var(--on-surface); cursor: pointer; font: inherit; text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+.poi-go::before {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; background: currentColor;
+  opacity: 0; transition: opacity var(--dur-short) var(--ease-standard);
+}
+.poi-go:hover::before { opacity: var(--st-hover); }
+.poi-mark {
+  flex: 0 0 auto; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center;
+  font-size: .72rem; font-weight: 800; color: var(--on-accent);
+  background: color-mix(in srgb, var(--on-surface) 14%, transparent);
+}
+.poi-item.is-done .poi-mark { background: var(--accent); }
+.poi-text { min-width: 0; display: flex; flex-direction: column; }
+.poi-name { font-weight: 600; font-size: .88rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.poi-desc { font-size: .72rem; color: var(--on-surface-var); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.poi-item.is-done .poi-name { color: var(--on-surface-var); }
+.poi-wiki {
+  flex: 0 0 auto; width: 28px; height: 28px; display: grid; place-items: center;
+  border-radius: 50%; border: 1px solid var(--outline-faint); color: var(--on-surface-var);
+  font-size: .7rem; font-weight: 800; text-decoration: none;
+}
+.poi-wiki:hover { color: var(--accent); border-color: var(--accent); }
+.poi-more { margin: .4rem 0 0 .55rem; font-size: .74rem; color: var(--on-surface-var); }
+
+/* ── Entdeckungs-Toasts ── */
+.toasts {
+  position: fixed; z-index: 9; left: 50%; transform: translateX(-50%);
+  top: max(.85rem, env(safe-area-inset-top)); display: flex; flex-direction: column; gap: .5rem;
+  width: min(92vw, 380px); pointer-events: none;
+}
+.toast {
+  display: flex; align-items: center; gap: .7rem; padding: .7rem .9rem;
+  border-radius: var(--r-l); background: color-mix(in srgb, var(--sc-high) 94%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--outline-faint));
+  box-shadow: var(--shadow-2); backdrop-filter: blur(14px) saturate(1.2);
+  animation: md-pop var(--dur-med) var(--ease-emphasized) both;
+  /* Toasts schließen sich selbst (4,2 s) und dürfen NIE ein Bedienelement
+     blockieren — auf Desktop liegen sie sonst über den Topbar-Controls und
+     schluckten deren Klicks (im Screenshot-Lauf reproduziert). */
+  pointer-events: none;
+}
+.toast.out { animation: none; opacity: 0; transition: opacity var(--dur-med) var(--ease-standard); }
+.toast-icon { font-size: 1.3rem; line-height: 1; }
+.toast-text { min-width: 0; display: flex; flex-direction: column; }
+.toast-text strong { font-size: .88rem; }
+.toast-text span {
+  font-size: .74rem; color: var(--on-surface-var);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+@media (min-width: 840px) { .toasts { left: auto; right: 1.25rem; transform: none; top: 5rem; } }
 
 /* ── buttons (bespoke, with state layer + press) ── */
 .btn {

@@ -15,8 +15,10 @@ import { loadKieze, loadOutline, loadLevels, levelFC, loadKiezNames, loadWall, l
 import { buildSearchIndex, search } from './search.js'
 import { readBoolPref, writeBoolPref } from './prefs.js'
 import { loadStats, loadKiezInfo, statsData, infoData, selectorFor, selectorForFeature,
-  aggregate, ranksFor, geodesicAreaM2, infoFor, infoForBezirk,
+  aggregate, ranksFor, geodesicAreaM2, infoFor, infoForBezirk, kiezFallbackText, plrIdsFor,
   fmtInt, fmtKm2, fmtDichte, fmtAlter, fmtAnteil, fmtEuroM2 } from './stats.js'
+import { loadPois, poisData, poiUrl, poisNear, readProgress, writeProgress, markVisited,
+  overallProgress, scopeProgress, isVisited, rankFor, RADIUS_M, nearestPois, fmtDist } from './hunt.js'
 import { loadPreise, preiseData, METRICS, metricByKey, standFor, buildHeatFC,
   quantileBreaks, classIndex, heatPaint, legendFor, RAMPS } from './heat.js'
 import { getPosition, reverseGeocode } from './geo.js'
@@ -78,6 +80,10 @@ const state = {
   wall: false,      // Berliner-Mauer retro mode active
   wallData: null,   // { wall: FC, west: Feature } once loaded
   overlayBeforeWall: null, // overlay mode to restore when leaving wall mode
+  // Schnitzeljagd: Fortschritt lokal; Format ist merge-fähig für einen
+  // späteren Konto-Sync (siehe hunt.js `mergeProgress`)
+  hunt: (() => { try { return readProgress(localStorage) } catch (e) { return { v: 1, visited: {} } } })(),
+  poiList: null,
   heat: 'off',      // heatmap metric key (dichte/alter/u18/o65/miete/brw) or 'off'
   heatFC: null,     // built heat FeatureCollection (kieze geometry + metric props)
   heatBreaks: null, // active metric's quantile breaks (chip dot colour)
@@ -193,7 +199,10 @@ const reopenBtn = h('button', {
   h('span', { class: 'pr-label', text: 'Kiez-Pass' }),
   h('span', { class: 'pr-chev', 'aria-hidden': 'true', html: ICONS.chevronR }))
 
-app.append(mapEl, stage, topbar, heatPop, heatLegend, areaChip, reopenBtn)
+// Entdeckungs-Meldungen der Schnitzeljagd (oben zentriert, selbst-schließend)
+const toastWrap = h('div', { class: 'toasts', aria: { live: 'polite' } })
+
+app.append(mapEl, stage, topbar, heatPop, heatLegend, areaChip, reopenBtn, toastWrap)
 
 // ── desktop: collapse / expand the info panel ────────────────────────────────
 function setPanelCollapsed(collapsed, moveFocus = true) {
@@ -458,6 +467,114 @@ function updateSectorStamp() {
   if (slot) fillSectorSlot(slot, state.pos)
 }
 
+// ── Schnitzeljagd ────────────────────────────────────────────────────────────
+// Entdeckt wird per Standort: liegt ein POI beim Check-in im Umkreis, gilt er
+// als besucht. Antippen zeigt ihn nur an — sonst wäre es keine Jagd.
+function toast(icon, title, sub) {
+  const el = h('div', { class: 'toast' },
+    h('span', { class: 'toast-icon', 'aria-hidden': 'true', text: icon }),
+    h('div', { class: 'toast-text' },
+      h('strong', { text: title }),
+      sub ? h('span', { text: sub }) : null))
+  toastWrap.append(el)
+  // selbst-schließend; kein Klick-Handler, da .toast pointer-events:none hat
+  // (sonst blockierten Toasts die Topbar-Controls)
+  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 400) }, 4200)
+}
+
+function saveHunt() {
+  try { writeProgress(localStorage, state.hunt) } catch (e) {}
+  if (state.map) state.map.setVisited(new Set(Object.keys(state.hunt.visited).map(Number)))
+}
+
+/** Nach einem Check-in: alle POIs im Umkreis als besucht eintragen. */
+function discoverAt(pos) {
+  if (!state.poiList || !pos) return []
+  const found = []
+  for (const { poi } of poisNear(state.poiList, pos.lat, pos.lon)) {
+    const r = markVisited(state.hunt, poi.qid)
+    if (r.changed) { state.hunt = r.progress; found.push(poi) }
+  }
+  if (found.length) {
+    saveHunt()
+    const before = overallProgress(state.poiList, state.hunt).visited - found.length
+    for (const p of found) toast('🎉', 'Entdeckt: ' + p.name, p.desc || '')
+    // Rangaufstieg extra feiern
+    const now = rankFor(before + found.length), was = rankFor(before)
+    if (now.title !== was.title) toast('🏅', 'Neuer Rang: ' + now.title, `${before + found.length} POIs entdeckt`)
+  }
+  return found
+}
+
+// POI-Liste eines Bereichs für die Card
+function poiItem(p, distM) {
+  const done = isVisited(state.hunt, p.qid)
+  const item = h('li', { class: 'poi-item' + (done ? ' is-done' : '') },
+    h('button', {
+      class: 'poi-go', type: 'button',
+      aria: { label: `${p.name} auf der Karte zeigen` },
+    },
+      h('span', { class: 'poi-mark', 'aria-hidden': 'true', text: done ? '✓' : '' }),
+      h('span', { class: 'poi-text' },
+        h('span', { class: 'poi-name', text: p.name }),
+        h('span', { class: 'poi-desc', text: [distM != null ? fmtDist(distM) : null, p.desc].filter(Boolean).join(' · ') }))),
+    h('a', { class: 'poi-wiki', href: poiUrl(p), target: '_blank', rel: 'noopener',
+      title: 'Wikipedia-Artikel', aria: { label: `Wikipedia-Artikel zu ${p.name}` }, text: 'W' }))
+  item.querySelector('.poi-go').addEventListener('click', () => {
+    if (state.map) state.map.flyToPoi(p.lon, p.lat)
+  })
+  return item
+}
+
+function huntSection(sel) {
+  if (!state.poiList || !sel) return null
+  const scope = scopeProgress(state.poiList, state.hunt, plrIdsFor(kiezeFC(), sel))
+  // 162 der 427 Kieze enthalten keinen der 1000 POIs — dort wäre die Sektion
+  // leer. Stattdessen: die nächstgelegenen Ziele in der Umgebung.
+  if (!scope.total) {
+    if (!state.pos) return null
+    const near = nearestPois(state.poiList, state.pos.lat, state.pos.lon, 5)
+    if (!near.length) return null
+    const list = h('ul', { class: 'poi-list' })
+    for (const n of near) list.append(poiItem(n.poi, n.dist))
+    return h('section', { class: 'hunt', 'data-reveal': '' },
+      h('p', { class: 'stats-head' }, 'Schnitzeljagd',
+        h('span', { class: 'stats-scope', text: 'in der Nähe' })),
+      h('p', { class: 'poi-more', text: 'In diesem Kiez liegt keiner der 1000 Orte — die nächsten:' }),
+      list,
+      h('p', { class: 'stats-note', text: `Ein POI zählt als entdeckt, wenn du beim Einchecken höchstens ${RADIUS_M} m entfernt bist.` }))
+  }
+  const list = h('ul', { class: 'poi-list' })
+  // besuchte ans Ende, sonst nach Prominenz
+  const sorted = scope.pois.slice().sort((a, b) =>
+    (isVisited(state.hunt, a.qid) - isVisited(state.hunt, b.qid)) || b.sl - a.sl)
+  for (const p of sorted.slice(0, 12)) {
+    list.append(poiItem(p, null))
+  }
+  const pct = Math.round((scope.visited / scope.total) * 100)
+  const bar = h('div', { class: 'poi-bar', role: 'progressbar',
+    aria: { valuenow: String(scope.visited), valuemin: '0', valuemax: String(scope.total),
+      label: `${scope.visited} von ${scope.total} POIs entdeckt` } },
+    h('span', { class: 'poi-bar-fill' }))
+  bar.querySelector('.poi-bar-fill').style.width = pct + '%'
+  return h('section', { class: 'hunt', 'data-reveal': '' },
+    h('p', { class: 'stats-head' }, 'Schnitzeljagd',
+      h('span', { class: 'stats-scope', text: `${scope.visited}/${scope.total} entdeckt` })),
+    bar,
+    list,
+    scope.pois.length > 12 ? h('p', { class: 'poi-more', text: `… und ${scope.pois.length - 12} weitere` }) : null,
+    h('p', { class: 'stats-note', text: `Ein POI zählt als entdeckt, wenn du beim Einchecken höchstens ${RADIUS_M} m entfernt bist.` }))
+}
+
+/** Hunt-Sektion der aktuellen Auswahl (neu) rendern — auch nach Level-Wechsel. */
+function patchHunt() {
+  const slot = passScroll.querySelector('.hunt-slot')
+  if (!slot) return
+  const selection = statsSelection(state.level)
+  const node = selection && selection.sel ? huntSection(selection.sel) : null
+  slot.replaceChildren(...(node ? [node] : []))
+}
+
 // ── Bereichs-Statistik (Einwohner · Fläche · Dichte + Wikipedia-Kurztext) ────
 // Ein Block pro Karte; patchbar ohne Re-Render (Level-Wechsel, Daten-Nachzug).
 let _statsEls = null
@@ -475,9 +592,10 @@ function buildStatsBlock() {
   const rank = h('p', { class: 'stats-rank', hidden: true })
   const aboutText = h('p', { class: 'about-text' })
   const aboutLink = h('a', { class: 'about-a', target: '_blank', rel: 'noopener' })
+  const aboutSrc = h('span', { class: 'about-src' })
   const about = h('div', { class: 'kiez-about', hidden: true },
     aboutText,
-    h('p', { class: 'about-meta' }, aboutLink, ' · Text: Wikipedia (CC BY-SA)'))
+    h('p', { class: 'about-meta' }, aboutLink, aboutSrc))
   const note = h('p', { class: 'stats-note' })
   const root = h('section', { class: 'stats', 'data-reveal': '', hidden: true },
     h('p', { class: 'stats-head' }, 'Statistik', scope),
@@ -485,7 +603,7 @@ function buildStatsBlock() {
     ageRow, preisRow, rank, about, note)
   _statsEls = { root, scope, pop: pop.val, area: area.val, dens: dens.val,
     ageRow, age: age.val, u18: u18.val, o65: o65.val,
-    preisRow, miete: miete.val, brw: brw.val, rank, about, aboutText, aboutLink, note }
+    preisRow, miete: miete.val, brw: brw.val, rank, about, aboutText, aboutLink, aboutSrc, note }
   return root
 }
 
@@ -512,6 +630,7 @@ function patchStats(selection) {
 
   els.scope.textContent = name || ''
   let hasNumbers = false
+  let lastAgg = null
   if (osmGeom) {
     els.pop.textContent = '—'
     els.dens.textContent = '—'
@@ -523,6 +642,7 @@ function patchStats(selection) {
     hasNumbers = true
   } else if (data) {
     const agg = aggregate(data, kiezeFC(), sel, preiseData())
+    lastAgg = agg
     if (agg) {
       els.pop.textContent = agg.pop == null ? 'k. A.' : (agg.partial ? '≥ ' : '') + fmtInt(agg.pop)
       els.area.textContent = fmtKm2(agg.m2)
@@ -553,16 +673,26 @@ function patchStats(selection) {
     } else { els.rank.hidden = true; els.ageRow.hidden = true; els.preisRow.hidden = true }
   }
 
-  // Wikipedia-Kurztext: Kieze über den Namen, Bezirke über "bez:<Name>"
-  const inf = level === 'bez' ? infoForBezirk(infoData(), name) : level === 'kiez' ? infoFor(infoData(), name) : null
+  // Beschreibung: recherchierter Text (Wikipedia/Wikidata/OSM) — und wenn es
+  // für diesen Bereich keinen gibt, eine aus den amtlichen Zahlen erzeugte
+  // Faktenzeile. So steht ÜBERALL Kontext, ohne dass etwas erfunden wird.
+  const inf = level === 'bez' ? infoForBezirk(infoData(), name) : infoFor(infoData(), name)
   if (inf) {
     els.aboutText.textContent = inf.x
     els.aboutLink.textContent = inf.t
     els.aboutLink.href = inf.u || '#'
+    els.aboutLink.hidden = !inf.u
+    els.aboutSrc.textContent = inf.src === 'wd' ? ' · Wikidata (CC0)'
+      : inf.src === 'osm' ? ' · OpenStreetMap (ODbL)' : ' · Text: Wikipedia (CC BY-SA)'
+    els.about.hidden = false
+  } else if (!osmGeom) {
+    els.aboutText.textContent = kiezFallbackText({ level, plr: state.plr, agg: lastAgg })
+    els.aboutLink.hidden = true
+    els.aboutSrc.textContent = ' · Angaben: Amt für Statistik Berlin-Brandenburg / LOR 2021'
     els.about.hidden = false
   } else els.about.hidden = true
 
-  els.root.hidden = !hasNumbers && !inf
+  els.root.hidden = !hasNumbers && els.about.hidden
 }
 
 function renderFound({ kiez, pos, address, kiezName, openSheet = true }) {
@@ -587,6 +717,7 @@ function renderFound({ kiez, pos, address, kiezName, openSheet = true }) {
 
   const sectorSlot = h('div', { class: 'sector-slot' })
   fillSectorSlot(sectorSlot, pos)
+  const huntSlot = h('div', { class: 'hunt-slot' })
 
   const body = h('div', { class: 'pass-body pass-found' },
     h('div', { class: 'stamp', 'aria-hidden': 'true' },
@@ -610,6 +741,7 @@ function renderFound({ kiez, pos, address, kiezName, openSheet = true }) {
       addressRow(address && address.line),
     ),
     buildStatsBlock(),
+    huntSlot,
     h('p', { class: 'hint', 'data-reveal': '', text:
       'Tippe eine Ebene an, um sie hervorzuheben — oder tippe auf die Karte.' }),
     h('div', { class: 'coords', 'data-reveal': '' },
@@ -620,6 +752,7 @@ function renderFound({ kiez, pos, address, kiezName, openSheet = true }) {
   )
   setCard(body, true, openSheet)
   tweenCoords(coordsEl, pos)
+  patchHunt()
   // Daten sind ggf. noch unterwegs (Boot) — dann patcht der Loader-Callback nach
   patchStats(statsSelection(state.level))
   Promise.all([loadStats(), loadKiezInfo(), loadPreise()]).then(() => {
@@ -648,6 +781,7 @@ async function selectLevel(level) {
   state.level = level
   syncLevelUI()
   patchStats(statsSelection(level)) // Stats folgen der gewählten Ebene (kein Re-Render)
+  patchHunt()
   await loadLevels().catch(() => null)
   const feature = levelFeature(level)
   if (feature) state.map.highlight(feature, { fit: true })
@@ -785,11 +919,44 @@ async function locateAt(pos, { fly = false } = {}) {
 
   // geolocation check-in (fly) opens the sheet for the lock-on; a map-pick keeps
   // the current sheet state so the map you're exploring stays visible
+  // Schnitzeljagd: nur der echte Standort-Check-in entdeckt POIs
+  if (fly) discoverAt(pos)
   renderFound({ kiez, pos, kiezName, address: null, openSheet: fly }) // title precomputed → instant
   const address = await reverseGeocode(pos.lat, pos.lon).catch(() => null)
   if (mine !== _seq) return
   // always resolve the pending "wird ermittelt …" — even a null/empty geocode
   patchAddress(address && address.line ? address.line : '—')
+}
+
+// POI-Karte: Klick auf einen Kartenpunkt der Schnitzeljagd
+function renderPoi(qid) {
+  const p = state.poiList && state.poiList.find((x) => x.qid === qid)
+  if (!p) return
+  const done = isVisited(state.hunt, p.qid)
+  const kat = (poisData() && poisData().kat[p.kat]) || 'Ort'
+  const back = h('button', { class: 'btn btn-filled', type: 'button', 'data-reveal': '' },
+    h('span', { class: 'btn-icon', html: ICONS.loc }), 'Mein Standort')
+  back.addEventListener('click', () => checkIn())
+  const show = h('button', { class: 'btn btn-tonal', type: 'button', 'data-reveal': '' },
+    h('span', { class: 'btn-icon', html: ICONS.target }), 'Auf Karte zentrieren')
+  show.addEventListener('click', () => state.map && state.map.flyToPoi(p.lon, p.lat))
+  setCard(
+    h('div', { class: 'pass-body pass-found' },
+      h('div', { class: 'stamp' + (done ? '' : ' stamp--void'), 'aria-hidden': 'true' },
+        h('span', { class: 'stamp-ring' }), h('span', { class: 'stamp-pin', html: ICONS.pin })),
+      h('p', { class: 'eyebrow', 'data-reveal': '', text: (done ? '✓ Entdeckt · ' : 'Schnitzeljagd · ') + kat }),
+      h('h1', { class: 'kiez-name', 'data-reveal': '', text: p.name }),
+      p.desc ? h('p', { class: 'muted', 'data-reveal': '', text: p.desc }) : null,
+      h('p', { class: 'hint', 'data-reveal': '', text: done
+        ? 'Diesen Ort hast du bereits besucht.'
+        : `Noch nicht entdeckt — komm auf ${RADIUS_M} m heran und checke ein.` }),
+      h('div', { class: 'actions' }, back, show),
+      h('p', { class: 'source', 'data-reveal': '', html:
+        'POI-Auswahl: Wikidata (CC0) · Beschreibung: Wikidata' }),
+    )
+  )
+  const meta = passScroll.querySelector('.source')
+  if (meta) meta.append(' · ', h('a', { class: 'about-a', href: poiUrl(p), target: '_blank', rel: 'noopener', text: 'Wikipedia' }))
 }
 
 // ── theme toggle with MD3-expressive circular reveal (View Transitions) ──────
@@ -1395,6 +1562,23 @@ async function boot() {
   loadStats()
   loadKiezInfo()
   loadPreise()
+  // Schnitzeljagd-POIs (nicht-blockierend; ohne sie fehlt nur die Jagd)
+  loadPois().then((d) => {
+    if (!d || !state.map) return
+    state.poiList = d.list
+    state.map.setPoiData({
+      type: 'FeatureCollection',
+      features: d.list.map((p) => ({
+        type: 'Feature', id: p.qid,
+        geometry: { type: 'Point', coordinates: [p.lon, p.lat] },
+        properties: { qid: p.qid, name: p.name, sl: p.sl },
+      })),
+    }).then(() => {
+      state.map.setVisited(new Set(Object.keys(state.hunt.visited).map(Number)))
+      patchHunt() // die Card steht ggf. schon
+    })
+    state.map.onPoiClick(renderPoi)
+  }).catch(() => null)
   // load polygons + map shell in parallel, then check in
   await Promise.all([loadKieze().catch(() => null), state.map.whenReady()])
   // Heatmap-Daten: kieze-Geometrie + Metriken joinen, Layer anlegen, dann den
