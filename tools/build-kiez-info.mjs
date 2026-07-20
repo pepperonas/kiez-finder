@@ -7,10 +7,21 @@
 // Schutz gegen Fehlzuordnung:
 //   · nur type=standard (keine Begriffsklärungen)
 //   · Extract/Description muss „Berlin" erwähnen — sonst verworfen
+//   · NAMENS-RELEVANZ: der abgefragte Kiez-Name muss im aufgelösten TITEL oder
+//     im Extract vorkommen (normalisiert: Kleinschreibung, Bindestriche/Leer-
+//     zeichen gefaltet). Fängt REDIRECT-DRIFT: „Donaukiez"/„Flughafenkiez"/
+//     „Harzer Kiez" sind Wikipedia-Redirects auf den Ortsteil-Artikel
+//     „Berlin-Neukölln" — der Text beschreibt dann den Ortsteil, nicht den
+//     Kiez, und drei Kieze zeigten identische Texte. Legitime Redirects
+//     überleben: Schillerkiez → Artikel „Schillerpromenade" erwähnt den
+//     Schillerkiez im Text; „Helmholtz-Kiez" → Titel „Helmholtzkiez" matcht
+//     nach Faltung.
 //   · Kiez-Namen, die in Berlin MEHRFACH vorkommen (verschiedene Flächen mit
 //     gleichem Namen), werden übersprungen — ein Artikel könnte die falsche
 //     Fläche beschreiben. Lieber Lücke als falscher Text.
-// Fallback-Reihenfolge je Name: „<Name>" → „<Name> (Berlin)".
+// Kandidaten-Reihenfolge je Name: „<Name>" → „<Name> (Berlin)" → „Berlin-<Name>"
+// (Ortsteil-Artikel — z. B. Moabit, Friedenau; die Namens-Relevanz-Regel
+// verhindert, dass dieser Kandidat je einen fremden Ortsteil liefert).
 //
 // Usage: node tools/build-kiez-info.mjs        (~1–2 min, ~400 Requests, 90 ms Pacing)
 import { readFileSync, writeFileSync } from 'node:fs'
@@ -42,12 +53,26 @@ const BEZIRKE = ['Mitte', 'Friedrichshain-Kreuzberg', 'Pankow', 'Charlottenburg-
 
 // ── Wikipedia REST Summary ───────────────────────────────────────────────────
 async function summary(title) {
-  const res = await fetch('https://de.wikipedia.org/api/rest_v1/page/summary/' +
-    encodeURIComponent(title.replace(/ /g, '_')) + '?redirect=true', {
-    headers: { 'User-Agent': UA, Accept: 'application/json' },
-  })
-  if (!res.ok) return null
-  return res.json()
+  // transienten Netz-Hickups (ECONNRESET, 5xx) mit Backoff begegnen — ein
+  // einzelner Reset darf nicht den ganzen ~450-Namen-Lauf killen
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetch('https://de.wikipedia.org/api/rest_v1/page/summary/' +
+        encodeURIComponent(title.replace(/ /g, '_')) + '?redirect=true', {
+        headers: { 'User-Agent': UA, Accept: 'application/json' },
+      })
+      if (res.status === 404) return null // echter Miss (kein Artikel), kein Retry
+      // ALLES andere (429 Rate-Limit, 5xx …) ist transient → Retry. Ein stilles
+      // `return null` machte hier aus gedrosselten Antworten "kein Artikel" —
+      // Einträge verschwanden nondeterministisch zwischen zwei Läufen.
+      if (!res.ok) throw new Error('HTTP ' + res.status)
+      return res.json()
+    } catch (e) {
+      if (attempt === 2) { console.log(`  ! ${title}: ${e.message} — übersprungen`); return null }
+      await sleep(1000 * (attempt + 1))
+    }
+  }
+  return null
 }
 
 // Extract auf ≤ ~320 Zeichen an Satzgrenze kürzen
@@ -60,13 +85,32 @@ function trimExtract(x) {
   return (dot > 120 ? cut.slice(0, dot + 1) : cut.replace(/\s+\S*$/, '') + ' …')
 }
 
+// Normalisierung für den Relevanz-Abgleich: Kleinschreibung, Bindestriche/
+// Leerzeichen raus ("Helmholtz-Kiez" ≙ "Helmholtzkiez", "Harzer Kiez" ≙ "Harzerkiez")
+const normName = (s) => (s || '').toLowerCase().replace(/[-\s]+/g, '')
+// "…kiez" und "…viertel" sind SYNONYME desselben Orts (Bötzowkiez ≙ Bötzow-
+// viertel) — Platz/Straße dagegen NICHT (Kollwitzplatz beschreibt den Platz,
+// nicht den Kiez), die bleiben bewusst draußen.
+function nameVariants(name) {
+  const n = normName(name)
+  const v = new Set([n])
+  if (n.endsWith('kiez')) v.add(n.slice(0, -4) + 'viertel')
+  if (n.endsWith('viertel')) v.add(n.slice(0, -7) + 'kiez')
+  return [...v]
+}
+
 async function lookup(name, candidates) {
+  const variants = nameVariants(name)
   for (const title of candidates) {
     const s = await summary(title)
     await sleep(90)
     if (!s || s.type !== 'standard' || !s.extract) continue
     const hay = (s.extract + ' ' + (s.description || ''))
     if (!/[Bb]erlin/.test(hay)) continue // falscher Namensvetter außerhalb Berlins
+    // Namens-Relevanz: der Artikel muss den KIEZ meinen, nicht bloß sein
+    // Redirect-Ziel sein (Ortsteil/Straße) — Titel ODER Text nennt den Namen
+    const nt = normName(s.title), nx = normName(s.extract)
+    if (!variants.some((v) => nt.includes(v) || nx.includes(v))) continue
     return { t: s.title, x: trimExtract(s.extract), u: s.content_urls?.desktop?.page || null }
   }
   return null
@@ -75,13 +119,27 @@ async function lookup(name, candidates) {
 const out = {}
 let hits = 0, misses = 0
 for (const name of [...kiezNames, ...osmNames]) {
-  const hit = await lookup(name, [name, `${name} (Berlin)`])
+  const hit = await lookup(name, [name, `${name} (Berlin)`, `Berlin-${name}`])
   if (hit) { out[name] = hit; hits++ } else misses++
   if ((hits + misses) % 50 === 0) console.log(`  … ${hits + misses} Namen (${hits} Treffer)`)
 }
 for (const b of BEZIRKE) {
   const hit = await lookup(b, [`Bezirk ${b}`, `Berlin-${b}`])
   if (hit) { out['bez:' + b] = hit; hits++ } else misses++
+}
+
+// ── Audit: geteilte Artikel dürfen nur Schreibweisen DESSELBEN Orts sein ─────
+// (Redirect-Drift auf einen gemeinsamen Ortsteil-Artikel wäre oben schon an
+// der Namens-Relevanz gescheitert — hier wird das laut geprüft + berichtet.)
+const byTitle = new Map()
+for (const [name, e] of Object.entries(out)) {
+  if (!byTitle.has(e.t)) byTitle.set(e.t, [])
+  byTitle.get(e.t).push(name)
+}
+for (const [t, names] of byTitle) {
+  if (names.length < 2) continue
+  const allVariants = names.every((nm) => normName(t).includes(normName(nm)) || names.every((o) => normName(o) === normName(nm)))
+  console.log(`  ⚠ geteilter Artikel "${t}" ← ${names.join(' + ')}${allVariants ? ' (Schreibvarianten, ok)' : ' — PRÜFEN!'}`)
 }
 
 writeFileSync(join(root, 'public/data/kiez-info.json'), JSON.stringify({

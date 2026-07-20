@@ -577,6 +577,8 @@ body {
 .stats-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: .5rem; }
 .stats-tiles--age { margin-top: .5rem; }
 .stats-tiles--age .stat-val { font-size: .94rem; } /* Zweitreihe leiser als die Kernzahlen */
+.stats-tiles--preis { grid-template-columns: repeat(2, 1fr); margin-top: .5rem; }
+.stats-tiles--preis .stat-val { font-size: .94rem; }
 .stat-tile {
   display: flex; flex-direction: column; align-items: center; gap: .12rem;
   padding: .6rem .35rem .5rem; text-align: center; border-radius: var(--r-m);
@@ -824,7 +826,11 @@ html.theme-transition * {
   .topbar { gap: .5rem .5rem; flex-wrap: wrap; align-items: center; }
   .brand { padding: .4rem; order: 1; }
   .brand-name { display: none; }
-  .topbar-actions { order: 2; margin-left: auto; }
+  .topbar-actions { order: 2; margin-left: auto; gap: .3rem; }
+  /* 6 Aktionen (Overlay·Heat·Mauer·Auto-Zoom·Theme·ggf. Install) + Brand müssen
+     in EINE Zeile passen — 44px hält die Touch-Target-Zusage, 46px brach um */
+  .topbar-actions .icon-btn { width: 44px; height: 44px; }
+  .topbar-actions .seg-btn { width: auto; min-width: 44px; padding: 0 .5rem; }
   .search { order: 3; flex: 1 0 100%; max-width: none; min-width: 0; height: 46px; }
 }
 

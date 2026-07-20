@@ -16,7 +16,7 @@ import { buildSearchIndex, search } from './search.js'
 import { readBoolPref, writeBoolPref } from './prefs.js'
 import { loadStats, loadKiezInfo, statsData, infoData, selectorFor, selectorForFeature,
   aggregate, ranksFor, geodesicAreaM2, infoFor, infoForBezirk,
-  fmtInt, fmtKm2, fmtDichte, fmtAlter, fmtAnteil } from './stats.js'
+  fmtInt, fmtKm2, fmtDichte, fmtAlter, fmtAnteil, fmtEuroM2 } from './stats.js'
 import { loadPreise, preiseData, METRICS, metricByKey, standFor, buildHeatFC,
   quantileBreaks, classIndex, heatPaint, legendFor, RAMPS } from './heat.js'
 import { getPosition, reverseGeocode } from './geo.js'
@@ -470,6 +470,8 @@ function buildStatsBlock() {
   const pop = tile('Einwohner'), area = tile('Fläche'), dens = tile('Einw./km²')
   const age = tile('Ø Alter'), u18 = tile('unter 18'), o65 = tile('ab 65')
   const ageRow = h('div', { class: 'stats-tiles stats-tiles--age', hidden: true }, age.el, u18.el, o65.el)
+  const miete = tile('Ø Miete (2022)'), brw = tile('Bodenwert')
+  const preisRow = h('div', { class: 'stats-tiles stats-tiles--preis', hidden: true }, miete.el, brw.el)
   const rank = h('p', { class: 'stats-rank', hidden: true })
   const aboutText = h('p', { class: 'about-text' })
   const aboutLink = h('a', { class: 'about-a', target: '_blank', rel: 'noopener' })
@@ -480,9 +482,10 @@ function buildStatsBlock() {
   const root = h('section', { class: 'stats', 'data-reveal': '', hidden: true },
     h('p', { class: 'stats-head' }, 'Statistik', scope),
     h('div', { class: 'stats-tiles' }, pop.el, area.el, dens.el),
-    ageRow, rank, about, note)
+    ageRow, preisRow, rank, about, note)
   _statsEls = { root, scope, pop: pop.val, area: area.val, dens: dens.val,
-    ageRow, age: age.val, u18: u18.val, o65: o65.val, rank, about, aboutText, aboutLink, note }
+    ageRow, age: age.val, u18: u18.val, o65: o65.val,
+    preisRow, miete: miete.val, brw: brw.val, rank, about, aboutText, aboutLink, note }
   return root
 }
 
@@ -514,11 +517,12 @@ function patchStats(selection) {
     els.dens.textContent = '—'
     els.area.textContent = fmtKm2(geodesicAreaM2(osmGeom))
     els.ageRow.hidden = true
+    els.preisRow.hidden = true
     els.rank.hidden = true
     els.note.textContent = 'Feiner OSM-Kiez — amtliche Einwohnerzahlen gibt es erst ab Planungsraum-Ebene.'
     hasNumbers = true
   } else if (data) {
-    const agg = aggregate(data, kiezeFC(), sel)
+    const agg = aggregate(data, kiezeFC(), sel, preiseData())
     if (agg) {
       els.pop.textContent = agg.pop == null ? 'k. A.' : (agg.partial ? '≥ ' : '') + fmtInt(agg.pop)
       els.area.textContent = fmtKm2(agg.m2)
@@ -530,14 +534,23 @@ function patchStats(selection) {
         els.o65.textContent = fmtAnteil(agg.o65, agg.pop) || '—'
         els.ageRow.hidden = false
       } else els.ageRow.hidden = true
+      // Preise (einwohnergewichtete Mittel der Mitglieds-PLRs)
+      if (agg.miete != null || agg.brw != null) {
+        els.miete.textContent = fmtEuroM2(agg.miete, 2) || '—'
+        els.brw.textContent = fmtEuroM2(agg.brw) || '—'
+        els.preisRow.hidden = false
+      } else els.preisRow.hidden = true
       const r = ranksFor(data, kiezeFC(), level, sel)
       if (r && r.of > 1) {
         els.rank.textContent = `№ ${r.popRank} von ${r.of} nach Einwohnern · № ${r.densRank} nach Dichte`
         els.rank.hidden = false
       } else els.rank.hidden = true
-      els.note.textContent = `Einwohner: Amt für Statistik Berlin-Brandenburg · Stand ${data.stand}`
+      const pd = preiseData()
+      els.note.textContent = `Einwohner: Amt für Statistik Berlin-Brandenburg · Stand ${data.stand}` +
+        (agg.miete != null && pd ? ` · Miete: Wohnatlas ${pd.standMiete}` : '') +
+        (agg.brw != null && pd ? ` · Bodenwert: BORIS ${pd.standBrw}` : '')
       hasNumbers = true
-    } else { els.rank.hidden = true; els.ageRow.hidden = true }
+    } else { els.rank.hidden = true; els.ageRow.hidden = true; els.preisRow.hidden = true }
   }
 
   // Wikipedia-Kurztext: Kieze über den Namen, Bezirke über "bez:<Name>"
@@ -609,7 +622,7 @@ function renderFound({ kiez, pos, address, kiezName, openSheet = true }) {
   tweenCoords(coordsEl, pos)
   // Daten sind ggf. noch unterwegs (Boot) — dann patcht der Loader-Callback nach
   patchStats(statsSelection(state.level))
-  Promise.all([loadStats(), loadKiezInfo()]).then(() => {
+  Promise.all([loadStats(), loadKiezInfo(), loadPreise()]).then(() => {
     if (_statsEls && document.contains(_statsEls.root)) patchStats(statsSelection(state.level))
   })
 }
@@ -1271,7 +1284,7 @@ function renderPlace(e, opts = {}) {
     : osmPick ? { level: 'kiez', name: e.label, osmGeom: e.feature.geometry }
       : e.feature ? { level: e.type, sel: selectorForFeature(e.type, e.feature), name: e.label } : null
   patchStats(selection)
-  Promise.all([loadStats(), loadKiezInfo()]).then(() => {
+  Promise.all([loadStats(), loadKiezInfo(), loadPreise()]).then(() => {
     if (_statsEls && document.contains(_statsEls.root)) patchStats(selection)
   })
 }

@@ -8,7 +8,7 @@ import assert from 'node:assert/strict'
 import {
   loadStats, loadKiezInfo, statsData, infoData,
   selectorFor, selectorForFeature, aggregate, ranksFor, clearRankCache,
-  geodesicAreaM2, infoFor, infoForBezirk, fmtInt, fmtKm2, fmtDichte, fmtAlter, fmtAnteil,
+  geodesicAreaM2, infoFor, infoForBezirk, fmtInt, fmtKm2, fmtDichte, fmtAlter, fmtAnteil, fmtEuroM2,
 } from '../src/stats.js'
 
 // ── Fixture: 5 PLRs — 4 Kiez-Gruppen, 2 Bezirke, ein NA (SAFE-anonymisiert) ──
@@ -105,6 +105,41 @@ test('aggregate: anonymisierte PLRs → partial (Summe = Untergrenze) bzw. pop n
   assert.equal(k3.avgAge, null)     // ohne Einwohner auch kein Alter
 })
 
+// [miete €/m², brw €/m²] je PLR (preise.json-Form)
+const PREISE = { standMiete: '2022', standBrw: '01.01.2026', plr: {
+  '08010101': [10, 2000],
+  '08010102': [13, 3500],
+  '08020201': [null, 1000], // Miete fehlt (kein Wohnatlas-Wert), BRW da
+  '01011101': [9.5, null],  // NA-Einwohner → Flächengewicht
+  '01011102': [8, 1200],
+} }
+
+test('aggregate mit Preisen: EINWOHNERGEWICHTETE Mittel, nicht Mittel der Mittel', () => {
+  const k1 = aggregate(DATA, FC, { kind: 'gid', v: 'k1' }, PREISE)
+  // Miete: (10×1000 + 13×2000) / 3000 = 12 — ungewichtet wären es 11,5
+  assert.ok(Math.abs(k1.miete - 12) < 1e-9)
+  // BRW: (2000×1000 + 3500×2000) / 3000 = 3000
+  assert.ok(Math.abs(k1.brw - 3000) < 1e-9)
+  // Bezirk 08: PLR ohne Miete zählt für Miete nicht mit, für BRW schon
+  const bez = aggregate(DATA, FC, { kind: 'prefix', v: '08' }, PREISE)
+  assert.ok(Math.abs(bez.miete - 12) < 1e-9)              // nur k1-Mitglieder tragen Miete
+  assert.ok(Math.abs(bez.brw - (2000 * 1000 + 3500 * 2000 + 1000 * 4000) / 7000) < 1e-9)
+})
+
+test('aggregate mit Preisen: anonymisierte PLRs wiegen mit ihrer Fläche', () => {
+  // Bezirk 01: 01011101 (NA, 200000 m² → Gewicht 20) + 01011102 (pop 500)
+  const bez01 = aggregate(DATA, FC, { kind: 'prefix', v: '01' }, PREISE)
+  const expected = (9.5 * 20 + 8 * 500) / 520
+  assert.ok(Math.abs(bez01.miete - expected) < 1e-9)
+  assert.ok(Math.abs(bez01.brw - 1200) < 1e-9) // nur 01011102 hat einen BRW
+})
+
+test('aggregate ohne preise-Daten → miete/brw null (abwärtskompatibel)', () => {
+  const a = aggregate(DATA, FC, { kind: 'gid', v: 'k1' })
+  assert.equal(a.miete, null)
+  assert.equal(a.brw, null)
+})
+
 test('aggregate ohne Altersdaten (ältere stats.json) → Alters-Felder null', () => {
   const OLD = { stand: 'x', plr: { '08010101': [1000, 500000] } } // 2er-Arrays
   const a = aggregate(OLD, FC, { kind: 'plr', v: '08010101' })
@@ -181,11 +216,14 @@ test('fmtInt / fmtKm2 / fmtDichte formatieren de-DE', () => {
   assert.equal(fmtDichte(3000, 0), null)
 })
 
-test('fmtAlter / fmtAnteil: de-DE, null-sicher', () => {
+test('fmtAlter / fmtAnteil / fmtEuroM2: de-DE, null-sicher', () => {
   assert.equal(fmtAlter(42.933), '42,9 J.')
   assert.equal(fmtAlter(null), null)
   assert.equal(fmtAnteil(450, 3000), '15 %')
   assert.equal(fmtAnteil(500, 3000), '17 %') // kaufmännisch gerundet
   assert.equal(fmtAnteil(null, 3000), null)
   assert.equal(fmtAnteil(450, 0), null)
+  assert.equal(fmtEuroM2(11.887, 2), '11,89 €/m²')
+  assert.equal(fmtEuroM2(2770.4), '2.770 €/m²')
+  assert.equal(fmtEuroM2(null), null)
 })

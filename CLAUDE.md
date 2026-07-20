@@ -21,7 +21,7 @@ npm test         # unit tests (Node's built-in runner, no deps) — tests/*.test
 ```
 No linter configured. Geolocation needs a secure context (localhost or HTTPS).
 
-**Tests** (`tests/`, `node --test`, zero dependencies — 103 tests, 100% line coverage on
+**Tests** (`tests/`, `node --test`, zero dependencies — 106 tests, 100% line coverage on
 the seven unit-testable modules) cover the dependency-light pure logic: `search.js`
 (norm folding + the multi-tier scorer / type-priority / dedup), `kiez.js` (point-in-polygon
 classification incl. holes + MultiPolygon, `bezirkName`, `kmFromBerlin`, `bboxOf`,
@@ -206,9 +206,16 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   `public/data/stats.json` (`{stand, quelle, plr: {plr_id: [einwohner|null, m2, alterssumme|null, u18|null, ab65|null]}}` (alterssumme = Σ Bandmitte×Besetzung der feinen EWR-Altersbänder, offenes Endband auf 97 gekappt → aggregierbares ≈Ø-Alter; u18/o65 exakte Bandsummen; Berlin-Ø 42,9 ≈ amtlich 42,8) — official
   Einwohnerregisterstatistik 31.12.2025 + official `finhalt` areas; built by `tools/build-stats.mjs`
   from vendored sources in `tools/vendor/`, validated 542/542 against kieze.geojson, Berlin total
-  3.913.644) and `public/data/kiez-info.json` (Wikipedia summaries, 164 entries incl. `bez:<Name>`
+  3.913.644) and `public/data/kiez-info.json` (Wikipedia summaries, 154 entries incl. `bez:<Name>`
   keys for the 12 Bezirke; built by `tools/build-kiez-info.mjs` with disambiguation + Berlin-mention
-  filters; ambiguous duplicate kiez names skipped). API: `selectorFor(level, plr)` /
+  filters, ambiguous duplicate kiez names skipped, plus a **name-relevance rule**: the queried kiez
+  name (or its kiez↔viertel suffix synonym — Bötzowkiez ≙ Bötzowviertel) must appear in the resolved
+  TITLE or extract. This kills redirect drift: Donaukiez/Flughafenkiez/Harzer Kiez are Wikipedia
+  redirects onto the Ortsteil article "Berlin-Neukölln" — three kieze showed the identical Ortsteil
+  text until 2026-07-20. Candidates per name: `<Name>` → `<Name> (Berlin)` → `Berlin-<Name>`
+  (Ortsteil articles — safe only BECAUSE of the relevance rule). Platz/Straße redirects
+  (Kollwitzkiez→Kollwitzplatz, Graefekiez→Graefestraße) are deliberately dropped: those articles
+  describe the square/street, not the kiez — lieber Lücke als falscher Text). API: `selectorFor(level, plr)` /
   `selectorForFeature(type, feature)` → gid/prefix/plr selector; `aggregate(data, fc, sel)` sums
   member PLRs (`pop: null` if all SAFE-anonymised, `partial` flag → UI shows "≥"); `ranksFor` ranks
   the unit among its level peers by Einwohner + Dichte (cache keyed on data identity,
