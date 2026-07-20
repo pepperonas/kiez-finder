@@ -306,8 +306,13 @@ export class KiezMap {
     this._pickCb = null
     this.map.getCanvas().style.cursor = 'crosshair'
     this.map.on('click', (e) => {
-      // Klick auf einen POI-Punkt öffnet dessen Karte statt neu zu verorten
-      if (e.originalEvent && e.originalEvent.__poi) return
+      // POI-Punkt in großzügiger Umgebung um den Klick? (die Punkte sind nur
+      // 4–9 px groß → auf Touch untreffbar; ein Toleranz-Kasten macht sie zu
+      // einem fairen Tap-Target, DPI-unabhängig). Punkt UND Label zählen.
+      if (this._poiCb && this.map.getLayer('poi-dot')) {
+        const poi = this._poiAtPoint(e.point)
+        if (poi != null) { this._poiCb(poi); return }
+      }
       if (this._pickCb) this._pickCb(e.lngLat.lng, e.lngLat.lat)
     })
     this._ready = new Promise((res) => this.map.on('load', res)).then(() => this._onLoad())
@@ -411,16 +416,33 @@ export class KiezMap {
     }
     this.setPoiVisibility(this._poiOn !== false)
     if (this._visitedIds) this.setVisited(this._visitedIds) // nach Restyle neu setzen
-    if (!this._poiClickHook) {
-      this._poiClickHook = true
-      this.map.on('click', 'poi-dot', (e) => {
-        e.originalEvent.__poi = true // der Karten-Pick soll NICHT auch noch feuern
-        const f = e.features && e.features[0]
-        if (f && this._poiCb) this._poiCb(f.properties.qid)
+    // Desktop-Cursor: Zeiger, sobald ein POI in Reichweite des Cursors liegt
+    if (!this._poiHoverHook) {
+      this._poiHoverHook = true
+      this.map.on('mousemove', (e) => {
+        if (!this.map.getLayer('poi-dot')) return
+        const over = this._poiAtPoint(e.point) != null
+        this.map.getCanvas().style.cursor = over ? 'pointer' : 'crosshair'
       })
-      this.map.on('mouseenter', 'poi-dot', () => { this.map.getCanvas().style.cursor = 'pointer' })
-      this.map.on('mouseleave', 'poi-dot', () => { this.map.getCanvas().style.cursor = 'crosshair' })
     }
+  }
+
+  /** qid des dem Klick-/Cursorpunkt nächsten POI innerhalb der Toleranz — oder null.
+   *  Toleranz ~15 px als Kasten um den Punkt (nicht die winzige Punkt-Geometrie). */
+  _poiAtPoint(point, tol = 15) {
+    const box = [[point.x - tol, point.y - tol], [point.x + tol, point.y + tol]]
+    const layers = ['poi-dot', ...(this.map.getLayer('poi-label') ? ['poi-label'] : [])]
+    let hits
+    try { hits = this.map.queryRenderedFeatures(box, { layers }) } catch (e) { return null }
+    if (!hits.length) return null
+    let best = null, bd = Infinity
+    for (const f of hits) {
+      const [lon, lat] = f.geometry.coordinates
+      const p = this.map.project([lon, lat])
+      const d = (p.x - point.x) ** 2 + (p.y - point.y) ** 2
+      if (d < bd) { bd = d; best = f }
+    }
+    return best ? Number(best.properties.qid) : null
   }
 
   /** Besuchte POIs (Set von qid) als feature-state spiegeln. */

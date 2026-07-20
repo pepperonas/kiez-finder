@@ -256,8 +256,12 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   construction), `scopeProgress`/`completedAreas`/`rankFor`. **Discovery is geolocation-only** (≤150 m
   at check-in); tapping a POI merely shows it — otherwise it's a checklist, not a hunt.
   map.js: `setPoiData`/`setVisited` (feature-state via `promoteId: 'qid'` — a visit doesn't re-upload
-  1000 features)/`setPoiVisibility`/`onPoiClick`/`flyToPoi`; the map click handler skips picks flagged
-  `__poi` so tapping a dot opens its card instead of re-locating. main.js: `discoverAt` on the real
+  1000 features)/`setPoiVisibility`/`onPoiClick`/`flyToPoi`. The general map-click handler calls
+  `_poiAtPoint(e.point)` FIRST: a ~15px tolerance box via `queryRenderedFeatures` over poi-dot+label
+  → opens that POI, else falls through to a normal locate. The dots are only 4–9px, so an exact hit
+  is impossible on touch; the earlier per-layer `map.on('click','poi-dot')` + an `e.originalEvent.__poi`
+  flag DID NOT WORK (the general handler runs first, before the flag is set) — that's why POIs seemed
+  unclickable. `mousemove` uses the same helper for the desktop pointer cursor. main.js: `discoverAt` on the real
   check-in only, toasts (`pointer-events: none` — they used to swallow topbar clicks), `huntSection`/
   `patchHunt` in the card. Covered by `tests/hunt.test.js`.
 - `src/account.js` + `server/` — **optional account sync** (Google OAuth). The ONLY server-side piece
