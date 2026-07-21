@@ -447,7 +447,9 @@ body {
 }
 /* typewriter tracking for display copy (Courier has no weight axis drama) */
 #app.wall-mode .eyebrow { letter-spacing: .22em; }
-#app.wall-mode .kiez-name { letter-spacing: -.02em; }
+/* Courier ist ~1,4× breiter als die Proportionalschrift → Titelgröße dämpfen,
+   damit lange Namen möglichst ohne Trennung in die Card passen. */
+#app.wall-mode .kiez-name { letter-spacing: -.02em; font-size: clamp(1.7rem, 7vw, 2.6rem); }
 #app.wall-mode .brand-name { letter-spacing: .02em; }
 
 /* ── sector stamp (dialog): "would you have been East or West" ── */
@@ -494,7 +496,9 @@ body {
 }
 .pass-scroll {
   flex: 1 1 auto; min-height: 0;
-  overflow: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+  /* nur vertikal scrollen — die Pass-Card hat nie horizontalen Inhalt; ein
+     Überlauf (langer Titel o. Ä.) wird geklippt statt seitlich scrollbar. */
+  overflow: hidden auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
   touch-action: pan-y; /* native vertical scroll; JS hijacks only pull-down-at-top */
   padding: clamp(1.1rem, 3vw, 1.6rem);
   scrollbar-width: thin;
@@ -534,6 +538,11 @@ body {
   margin: 0; line-height: 1.02; letter-spacing: -.02em;
   font-size: clamp(2.1rem, 8.5vw, 3.3rem);
   text-wrap: balance;
+  /* lange Einzelwörter (z. B. „Friedrichshain") dürfen brechen statt zu
+     überlaufen — sonst sprengt der Titel v. a. in der breiteren Mauer-Modus-
+     Monospace die Card (horizontaler Scroll + Clipping). hyphens: auto nutzt
+     die de-Silbentrennung (html lang="de") für saubere Trennstellen. */
+  overflow-wrap: break-word; hyphens: auto;
   background: linear-gradient(120deg, var(--on-surface), color-mix(in srgb, var(--accent) 65%, var(--on-surface)));
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
