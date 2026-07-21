@@ -19,7 +19,7 @@ import { loadStats, loadKiezInfo, statsData, infoData, selectorFor, selectorForF
   fmtInt, fmtKm2, fmtDichte, fmtAlter, fmtAnteil, fmtEuroM2 } from './stats.js'
 import { loadPois, poisData, poiUrl, poisNear, readProgress, writeProgress, markVisited, unmarkVisited,
   overallProgress, scopeProgress, isVisited, rankFor, RADIUS_M, nearestPois, fmtDist, mergeProgress, distanceM,
-  loadPoiInfo, poiInfo, poiImageUrl } from './hunt.js'
+  loadPoiInfo, poiInfo, poiImgSrc } from './hunt.js'
 import { loadPreise, preiseData, METRICS, metricByKey, standFor, buildHeatFC,
   quantileBreaks, classIndex, heatPaint, legendFor, RAMPS } from './heat.js'
 import { fetchMe, syncProgress, pushProgress, logout, loginUrl, readLoginFlag, stripLoginFlag } from './account.js'
@@ -1246,7 +1246,7 @@ function renderPoi(qid) {
     if (info.extract) descEl.textContent = info.extract // reicher als die Wikidata-Zeile
     if (info.img && !mediaSlot.firstChild) {
       const img = h('img', { class: 'poi-photo', alt: p.name, loading: 'lazy', decoding: 'async',
-        src: poiImageUrl(info.img, 480) })
+        src: poiImgSrc(p.qid) })
       const fig = h('figure', { class: 'poi-figure' }, img,
         h('figcaption', { class: 'poi-credit', text: 'Foto: ' + (info.credit || 'Wikimedia Commons') }))
       // Bild lädt nicht (offline/404) → Figur still entfernen, Card bleibt intakt

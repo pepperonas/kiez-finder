@@ -25,6 +25,18 @@ export default defineConfig({
         navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [
           {
+            // Selbst gehostete POI-Fotos: zu groß fürs Precache (~22 MB), aber
+            // pro qid unveränderlich → CacheFirst. Einmal angeschaut = offline
+            // + instant beim Wiederbesuch. maxEntries deckelt das Wachstum.
+            urlPattern: ({ url }) => url.origin === self.location.origin && url.pathname.startsWith('/img/poi/'),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'poi-images',
+              expiration: { maxEntries: 600, maxAgeSeconds: 60 * 60 * 24 * 180 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
             urlPattern: /^https:\/\/[a-d]?\.?basemaps\.cartocdn\.com\/.*/i,
             handler: 'StaleWhileRevalidate',
             options: {

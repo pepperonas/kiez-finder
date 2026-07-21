@@ -41,17 +41,15 @@ export function loadPoiInfo() {
   }
   return _infoP
 }
-/** { extract, img, credit } für einen POI — leere Felder, wenn nichts da. */
+/** { extract, img, credit } für einen POI — `img` = true, wenn ein selbst
+ *  gehostetes WebP existiert. Leere Felder, wenn nichts da. */
 export function poiInfo(qid) {
   const e = _info && _info.info && _info.info[qid]
   if (!e) return null
-  return { extract: e.x || null, img: e.img || null, credit: e.credit || null }
+  return { extract: e.x || null, img: e.img === 1, credit: e.credit || null }
 }
-/** Commons-Thumbnail-URL aus dem Dateinamen (kein gehashter Pfad nötig). */
-export function poiImageUrl(filename, width = 480) {
-  if (!filename) return null
-  return `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(filename)}?width=${width}`
-}
+/** Pfad zum selbst gehosteten, optimierten POI-Foto (same-origin, cachebar). */
+export const poiImgSrc = (qid) => `/img/poi/${qid}.webp`
 
 /** Kompaktes Array-Format → benanntes Objekt. `facts` = 0–2 Eckdaten (Feld [9],
  *  fehlt in älteren pois.json → leer). */

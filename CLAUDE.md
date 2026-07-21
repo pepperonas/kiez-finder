@@ -282,7 +282,20 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   flag DID NOT WORK (the general handler runs first, before the flag is set) — that's why POIs seemed
   unclickable. `mousemove` uses the same helper for the desktop pointer cursor. main.js: `discoverAt` on the real
   check-in only, toasts (`pointer-events: none` — they used to swallow topbar clicks), `huntSection`/
-  `patchHunt` in the card. Covered by `tests/hunt.test.js`. Enriched further by `tools/build-poi-info.mjs` → `public/data/poi-info.json` (993/1000 a 2-sentence Wikipedia extract, 959 a Commons image filename + author/license, ~301 KB): `loadPoiInfo`/`poiInfo`/`poiImageUrl` (Special:FilePath thumbnail from the bare filename); the POI card shows the extract as a paragraph + a lazy `<img>` from Commons that self-removes on error (text is precached=offline, the photo is runtime like the tiles).
+  `patchHunt` in the card. Covered by `tests/hunt.test.js`. Enriched further by `tools/build-poi-info.mjs`
+  → `public/data/poi-info.json` (993/1000 a 2-sentence Wikipedia extract, 959 an image + author/license,
+  ~301 KB): `loadPoiInfo`/`poiInfo`. **POI photos are SELF-HOSTED, not runtime-from-Commons:**
+  `tools/build-poi-images.mjs` downloads each Commons image ONCE, resizes+optimises to WebP (width 480,
+  q74, ~24 KB avg) → `public/img/poi/<qid>.webp` (~22 MB, committed), and rewrites poi-info `img` from the
+  filename to a boolean `1`/`0`. The card loads `poiImgSrc(qid)` = `/img/poi/<qid>.webp` — same-origin,
+  HTTP/2, no Commons 302-redirect → fast; `<img loading=lazy>` self-removes on error. **The old runtime
+  path (`commons.wikimedia.org/Special:FilePath?width=` → 302 → `upload.wikimedia.org`) was the slowness
+  the user saw.** WebP isn't in the SW `globPatterns` (too big to precache); a `runtimeCaching` CacheFirst
+  route (`/img/poi/`, `poi-images` cache, 600 entries) makes viewed photos offline + instant on revisit.
+  Downloading is SEQUENTIAL with Retry-After handling — Commons hard-429s parallel access (5-way
+  concurrency failed ~⅓); the build is incremental (skips existing WebPs), so recovery after a partial
+  run is `node tools/build-poi-info.mjs && node tools/build-poi-images.mjs`. nginx serves `/img/poi/`
+  immutable-cached. Text stays precached=offline; only the photo bytes need the network on first view.
 - `src/account.js` + `server/` — **optional account sync** (Google OAuth). The ONLY server-side piece
   of an otherwise fully static app; the static core keeps working without it — every call in
   `account.js` returns a harmless value on failure instead of throwing, so offline / backend-down /
