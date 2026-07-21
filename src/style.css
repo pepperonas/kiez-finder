@@ -1089,3 +1089,19 @@ html.theme-transition * {
   color: var(--on-surface); background: color-mix(in srgb, var(--accent) 12%, var(--sc-high));
   border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--outline-faint));
 }
+
+/* ── POI-Foto + Fließtext (Detail-Card) ── */
+.poi-figure {
+  margin: .2rem 0 .4rem; border-radius: var(--r-l); overflow: hidden;
+  background: var(--sc-high); border: 1px solid var(--outline-faint);
+  opacity: 0; transition: opacity var(--dur-med) var(--ease-standard);
+}
+.poi-figure.is-loaded { opacity: 1; }
+.poi-photo { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; }
+.poi-credit {
+  padding: .3rem .6rem; font-size: .64rem; color: var(--on-surface-var);
+  background: color-mix(in srgb, var(--sc-high) 80%, transparent);
+}
+.poi-desc-full { line-height: 1.55; }
+.poi-desc-full:empty { display: none; }
+@media (prefers-reduced-motion: reduce) { .poi-figure { transition: none; opacity: 1; } }

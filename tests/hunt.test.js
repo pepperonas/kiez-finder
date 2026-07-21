@@ -6,7 +6,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  loadPois, poisData,
+  loadPois, poisData, loadPoiInfo, poiInfo, poiImageUrl,
   RADIUS_M, decodePoi, poiUrl, distanceM, poisNear, nearestPois, fmtDist, unmarkVisited,
   emptyProgress, readProgress, writeProgress, markVisited, mergeProgress,
   isVisited, overallProgress, scopeProgress, completedAreas, rankFor, RANKS,
@@ -41,6 +41,33 @@ test('loadPois lädt einmal, dekodiert die Liste und memoisiert', async () => {
     assert.equal(d1.list[0].name, 'Brandenburger Tor') // dekodiert, nicht roh
     assert.equal(poisData(), d1)
   } finally { globalThis.fetch = realFetch }
+})
+
+test('loadPoiInfo memoisiert; poiInfo liefert Extrakt/Bild/Credit oder null', async () => {
+  const realFetch = globalThis.fetch
+  let calls = 0
+  globalThis.fetch = async () => {
+    calls++
+    return { ok: true, json: async () => ({ info: {
+      82425: { x: 'Das Brandenburger Tor …', img: 'BTor.jpg', credit: 'Joergsam · CC BY-SA 3.0' },
+      999: { x: 'Nur Text', img: 0, credit: 0 },
+    } }) }
+  }
+  try {
+    await loadPoiInfo(); await loadPoiInfo()
+    assert.equal(calls, 1) // memoisiert
+    assert.deepEqual(poiInfo(82425), { extract: 'Das Brandenburger Tor …', img: 'BTor.jpg', credit: 'Joergsam · CC BY-SA 3.0' })
+    assert.deepEqual(poiInfo(999), { extract: 'Nur Text', img: null, credit: null }) // 0 → null
+    assert.equal(poiInfo(12345), null) // unbekannt
+  } finally { globalThis.fetch = realFetch }
+})
+
+test('poiImageUrl baut die Commons-Thumbnail-URL aus dem Dateinamen', () => {
+  assert.equal(poiImageUrl('BerlinBrandenburgerTor1985.jpg', 480),
+    'https://commons.wikimedia.org/wiki/Special:FilePath/BerlinBrandenburgerTor1985.jpg?width=480')
+  // Sonderzeichen werden encodiert; kein Bild → null
+  assert.match(poiImageUrl('Café Achteck.jpg'), /Special:FilePath\/Caf%C3%A9%20Achteck\.jpg\?width=480/)
+  assert.equal(poiImageUrl(null), null)
 })
 
 // ── Dekodierung ──────────────────────────────────────────────────────────────

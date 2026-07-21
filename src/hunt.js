@@ -27,6 +27,32 @@ export function loadPois() {
 }
 export const poisData = () => _pois
 
+// Angereicherte Info (Wikipedia-Extrakt + Commons-Bild) — eigene, lazy geladene
+// Datei, damit pois.json für Karte/Liste beim Boot schlank bleibt. Precached →
+// der Text ist offline da; das Bild lädt zur Laufzeit (Netz, degradiert offline).
+let _info = null
+let _infoP = null
+export function loadPoiInfo() {
+  if (!_infoP) {
+    _infoP = fetch('/data/poi-info.json')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => (_info = d))
+      .catch(() => null)
+  }
+  return _infoP
+}
+/** { extract, img, credit } für einen POI — leere Felder, wenn nichts da. */
+export function poiInfo(qid) {
+  const e = _info && _info.info && _info.info[qid]
+  if (!e) return null
+  return { extract: e.x || null, img: e.img || null, credit: e.credit || null }
+}
+/** Commons-Thumbnail-URL aus dem Dateinamen (kein gehashter Pfad nötig). */
+export function poiImageUrl(filename, width = 480) {
+  if (!filename) return null
+  return `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(filename)}?width=${width}`
+}
+
 /** Kompaktes Array-Format → benanntes Objekt. `facts` = 0–2 Eckdaten (Feld [9],
  *  fehlt in älteren pois.json → leer). */
 export function decodePoi(a) {

@@ -21,7 +21,7 @@ npm test         # unit tests (Node's built-in runner, no deps) — tests/*.test
 ```
 No linter configured. Geolocation needs a secure context (localhost or HTTPS).
 
-**Tests** (`tests/`, `node --test`, zero dependencies — 143 tests, 100% line coverage on
+**Tests** (`tests/`, `node --test`, zero dependencies — 145 tests, 100% line coverage on
 the eight unit-testable modules) cover the dependency-light pure logic: `search.js`
 (norm folding + the multi-tier scorer / type-priority / dedup), `kiez.js` (point-in-polygon
 classification incl. holes + MultiPolygon, `bezirkName`, `kmFromBerlin`, `bboxOf`,
@@ -272,7 +272,7 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   flag DID NOT WORK (the general handler runs first, before the flag is set) — that's why POIs seemed
   unclickable. `mousemove` uses the same helper for the desktop pointer cursor. main.js: `discoverAt` on the real
   check-in only, toasts (`pointer-events: none` — they used to swallow topbar clicks), `huntSection`/
-  `patchHunt` in the card. Covered by `tests/hunt.test.js`.
+  `patchHunt` in the card. Covered by `tests/hunt.test.js`. Enriched further by `tools/build-poi-info.mjs` → `public/data/poi-info.json` (993/1000 a 2-sentence Wikipedia extract, 959 a Commons image filename + author/license, ~301 KB): `loadPoiInfo`/`poiInfo`/`poiImageUrl` (Special:FilePath thumbnail from the bare filename); the POI card shows the extract as a paragraph + a lazy `<img>` from Commons that self-removes on error (text is precached=offline, the photo is runtime like the tiles).
 - `src/account.js` + `server/` — **optional account sync** (Google OAuth). The ONLY server-side piece
   of an otherwise fully static app; the static core keeps working without it — every call in
   `account.js` returns a harmless value on failure instead of throwing, so offline / backend-down /
@@ -369,7 +369,7 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   v4 also never fires `style.load` on setStyle. The reliable sequence (measured): wait for a
   `styledata` (swap begun) and only then accept `isStyleLoaded()===true` (checked on
   styledata/idle), with a 4 s hard-timeout + an `once('idle')` rebuild fallback.
-- **PWA/offline:** all `public/data/*` (13 geojson + `strassen.json` + `stats.json` + `kiez-info.json` + `preise.json` + `pois.json`, ~3.1 MB) are **precached** by
+- **PWA/offline:** all `public/data/*` (13 geojson + `strassen.json` + `stats.json` + `kiez-info.json` + `preise.json` + `pois.json` + `poi-info.json`, ~3.4 MB) are **precached** by
   the SW (`geojson,json` in `workbox.globPatterns`) — revisioned by content hash, so data edits bust
   the cache on deploy; the app classifies fully offline after the first visit and the **street
   search works fully offline** too (verified: preview server killed → reload → search + Kiez

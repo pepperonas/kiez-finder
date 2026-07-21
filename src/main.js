@@ -18,7 +18,8 @@ import { loadStats, loadKiezInfo, statsData, infoData, selectorFor, selectorForF
   aggregate, ranksFor, geodesicAreaM2, infoFor, infoForBezirk, kiezFallbackText, plrIdsFor,
   fmtInt, fmtKm2, fmtDichte, fmtAlter, fmtAnteil, fmtEuroM2 } from './stats.js'
 import { loadPois, poisData, poiUrl, poisNear, readProgress, writeProgress, markVisited, unmarkVisited,
-  overallProgress, scopeProgress, isVisited, rankFor, RADIUS_M, nearestPois, fmtDist, mergeProgress, distanceM } from './hunt.js'
+  overallProgress, scopeProgress, isVisited, rankFor, RADIUS_M, nearestPois, fmtDist, mergeProgress, distanceM,
+  loadPoiInfo, poiInfo, poiImageUrl } from './hunt.js'
 import { loadPreise, preiseData, METRICS, metricByKey, standFor, buildHeatFC,
   quantileBreaks, classIndex, heatPaint, legendFor, RAMPS } from './heat.js'
 import { fetchMe, syncProgress, pushProgress, logout, loginUrl, readLoginFlag, stripLoginFlag } from './account.js'
@@ -1201,13 +1202,18 @@ function renderPoi(qid) {
   }
   visitBtn.addEventListener('click', () => setPoiVisited(p.qid, !isVisited(state.hunt, p.qid), paint))
   const done0 = isVisited(state.hunt, p.qid)
+  // Slot für Bild + Fließtext (Wikipedia/Commons) — lazy befüllt: der Text ist
+  // offline da (precached), das Bild lädt zur Laufzeit und degradiert offline.
+  const mediaSlot = h('div', { class: 'poi-media-slot' })
+  const descEl = h('p', { class: 'muted poi-desc-full', 'data-reveal': '', text: p.desc || '' })
   setCard(
     h('div', { class: 'pass-body pass-found' },
       h('div', { class: 'stamp' + (done0 ? '' : ' stamp--void'), 'aria-hidden': 'true' },
         h('span', { class: 'stamp-ring' }), h('span', { class: 'stamp-pin', html: ICONS.pin })),
       h('p', { class: 'eyebrow', 'data-reveal': '', text: (done0 ? '✓ Besichtigt · ' : 'Schnitzeljagd · ') + kat }),
       h('h1', { class: 'kiez-name', 'data-reveal': '', text: p.name }),
-      p.desc ? h('p', { class: 'muted', 'data-reveal': '', text: p.desc }) : null,
+      mediaSlot,
+      descEl,
       p.facts && p.facts.length
         ? h('div', { class: 'poi-facts', 'data-reveal': '' }, ...p.facts.map((f) => h('span', { class: 'poi-fact', text: f })))
         : null,
@@ -1216,12 +1222,30 @@ function renderPoi(qid) {
         : `Automatisch entdeckt wird er, sobald du beim Einchecken ≤ ${RADIUS_M} m entfernt bist — oder markiere ihn manuell.` }),
       h('div', { class: 'actions' }, visitBtn, show),
       h('p', { class: 'source', 'data-reveal': '', html:
-        'POI-Auswahl: Wikidata (CC0) · Beschreibung: Wikidata' }),
+        'Auswahl + Fakten: Wikidata (CC0) · Text: Wikipedia (CC BY-SA)' }),
     )
   )
   paint()
   const meta = passScroll.querySelector('.source')
   if (meta) meta.append(' · ', h('a', { class: 'about-a', href: poiUrl(p), target: '_blank', rel: 'noopener', text: 'Wikipedia' }))
+  // Info anwenden (synchron falls geladen, sonst nach dem Lazy-Load nachziehen)
+  const applyInfo = () => {
+    const info = poiInfo(p.qid)
+    if (!info) return
+    if (info.extract) descEl.textContent = info.extract // reicher als die Wikidata-Zeile
+    if (info.img && !mediaSlot.firstChild) {
+      const img = h('img', { class: 'poi-photo', alt: p.name, loading: 'lazy', decoding: 'async',
+        src: poiImageUrl(info.img, 480) })
+      const fig = h('figure', { class: 'poi-figure' }, img,
+        h('figcaption', { class: 'poi-credit', text: 'Foto: ' + (info.credit || 'Wikimedia Commons') }))
+      // Bild lädt nicht (offline/404) → Figur still entfernen, Card bleibt intakt
+      img.addEventListener('error', () => fig.remove())
+      img.addEventListener('load', () => fig.classList.add('is-loaded'))
+      mediaSlot.append(fig)
+    }
+  }
+  applyInfo()
+  loadPoiInfo().then(applyInfo)
 }
 
 // ── theme toggle with MD3-expressive circular reveal (View Transitions) ──────
@@ -1848,6 +1872,7 @@ async function boot() {
   }).catch(() => null)
 
   // Schnitzeljagd-POIs (nicht-blockierend; ohne sie fehlt nur die Jagd)
+  loadPoiInfo() // Wikipedia-Texte + Commons-Bilder für die POI-Cards (lazy, offline-precached)
   loadPois().then((d) => {
     if (!d || !state.map) return
     state.poiList = d.list
