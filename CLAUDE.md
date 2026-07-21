@@ -69,9 +69,19 @@ look). Compress afterwards with
 
 Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion system.
 
-- `src/main.js` — orchestrator + state machine (locating → found / outside-Berlin / error), builds the
+- `src/main.js` — orchestrator + state machine (locating → found / outside-Berlin), builds the
   DOM with a safe `h()` helper (Kiez names via `textContent`, only static strings via innerHTML),
   owns the lock-on flow, theme toggle (View Transitions circular reveal), install prompt, card tilt.
+  **Location fallback:** a failed/denied geolocation OR a real check-in that lands outside Berlin does
+  NOT show a dead-end card — `useFallback(reason)` places the user at `FALLBACK_POS` (Rathaus Neukölln,
+  52.4814/13.4353 → Donaukiez) with a lock-on + a short "Start in Neukölln" toast. `locateAt(pos,
+  {fly, discover})` splits the camera flight from POI discovery: the fallback flies but passes
+  `discover:false` (you're not really there → no scavenger-hunt hits). The outside-Berlin fallback is
+  guarded by `fly && !pos.fallback` (a deliberate map-click outside Berlin, `fly:false`, keeps the honest
+  `renderOutside` card; the fallback pos itself resolves to a Kiez so no recursion). There is no
+  geolocation-error card anymore. **Card always scrolls to top:** `setCard` resets `passScroll.scrollTop
+  = 0` on every fresh render (opening/switching a POI, a new Kiez, search) — desktop side-panel AND
+  mobile sheet; in-place patches (`selectLevel`, visited-toggle, `patchAddress`) don't touch the scroll.
   **Interactive levels:** the Kiez title + the Bezirksregion/Bezirk rows are `<button>`s with
   `data-level` (`kiez`/`bzr`/`bez`); a delegated click calls `selectLevel()` → `map.highlight(…,{fit})`.
   **Default highlight = the merged colloquial Kiez** (`level: 'kiez'` → `kiezAreaFor`), so the whole

@@ -248,6 +248,7 @@ passScroll.addEventListener('click', (e) => {
 // ── state renderers ─────────────────────────────────────────────────────────
 function setCard(node, animate = true, forceOpen = true) {
   passScroll.replaceChildren(node)
+  passScroll.scrollTop = 0 // frischer Kart­eninhalt (POI öffnen/wechseln, Kiez, Suche) IMMER von oben — Desktop-Panel + Mobil-Sheet; In-Place-Patches (Level, Besucht) rühren den Scroll nicht an
   requestAnimationFrame(fitKiezName)
   sheetOnRender(forceOpen)
   if (animate && !reduceMotion()) {
@@ -1076,24 +1077,9 @@ function renderOutside({ pos, openSheet = true }) {
   )
 }
 
-function renderError(err) {
-  const denied = err.kind === 'denied'
-  const retry = h('button', { class: 'btn btn-filled', type: 'button', 'data-reveal': '' },
-    h('span', { class: 'btn-icon', html: ICONS.refresh }), denied ? 'Erneut versuchen' : 'Nochmal einchecken')
-  retry.addEventListener('click', () => checkIn())
-  setCard(
-    h('div', { class: 'pass-body pass-error' },
-      h('div', { class: 'stamp stamp--void', 'aria-hidden': 'true' },
-        h('span', { class: 'stamp-ring' }), h('span', { class: 'stamp-pin', html: ICONS.pin })),
-      h('p', { class: 'eyebrow', 'data-reveal': '', text: 'Standort' }),
-      h('h1', { class: 'kiez-name', 'data-reveal': '', text: denied ? 'Freigabe nötig' : 'Kein Standort' }),
-      h('p', { class: 'muted', 'data-reveal': '', text: err.message }),
-      denied ? h('p', { class: 'muted small', 'data-reveal': '', text:
-        'Tippe auf das Schloss-/Info-Symbol in der Adressleiste und erlaube den Standortzugriff.' }) : null,
-      h('div', { class: 'actions' }, retry),
-    )
-  )
-}
+// Standort-Fehler (Freigabe abgelehnt / nicht verfügbar) haben KEINE eigene
+// Karte mehr — checkIn() fällt stattdessen auf den Neukölln-Ersatz zurück
+// (useFallback), damit die App nie in einer Sackgasse landet.
 
 // Core boundary data failed to load (offline first visit, 404, malformed JSON).
 // Without this card a load failure would masquerade as "not in Berlin".
@@ -1122,6 +1108,23 @@ function renderDataError() {
 // ── core flow ────────────────────────────────────────────────────────────────
 let _seq = 0 // guards against out-of-order results when picks overlap
 
+// Ersatz-Standort: Rathaus Neukölln (Karl-Marx-Straße 83 → Donaukiez). Wird
+// genutzt, wenn die Standortfreigabe fehlt/scheitert ODER der echte Standort
+// außerhalb Berlins liegt — dann startet die App dort, statt in eine Sackgasse
+// („Freigabe nötig" / „außerhalb der Stadtgrenze") zu laufen. `fallback: true`
+// markiert die Position, damit sie nicht als echter Check-in gilt (keine
+// POI-Entdeckung) und die Rekursion beim Verorten sicher terminiert.
+const FALLBACK_POS = { lat: 52.4814, lon: 13.4353, accuracy: null, fallback: true }
+
+async function useFallback(reason) {
+  // Hinweis sofort zeigen (nicht erst nach der internen Adress­auflösung von
+  // locateAt), damit klar ist, WARUM die App gerade in Neukölln startet.
+  toast('📍', 'Start in Neukölln', reason === 'outside'
+    ? 'Du bist außerhalb Berlins — wir zeigen dir den Donaukiez.'
+    : 'Kein Standortzugriff — erlaube ihn für deinen echten Kiez.')
+  await locateAt(FALLBACK_POS, { fly: true, discover: false })
+}
+
 // Geolocation check-in — the dramatic lock-on flight.
 async function checkIn() {
   if (state.busy) return
@@ -1132,8 +1135,9 @@ async function checkIn() {
     const pos = await getPosition()
     await locateAt(pos, { fly: true })
   } catch (err) {
+    // Freigabe abgelehnt / nicht verfügbar / kein Geo-API → Ersatz Neukölln
     state.plr = null
-    renderError(err)
+    await useFallback(err && err.kind === 'denied' ? 'denied' : 'unavailable')
   } finally {
     state.busy = false
   }
@@ -1145,7 +1149,10 @@ async function pickAt(lon, lat) {
 }
 
 // Shared: resolve a position → Kiez, move the map, render the card.
-async function locateAt(pos, { fly = false } = {}) {
+// `discover` (default = fly) steuert die POI-Entdeckung getrennt vom Kamera-Flug
+// — der Neukölln-Ersatz fliegt zwar hin, entdeckt aber KEINE POIs (man ist nicht
+// wirklich dort).
+async function locateAt(pos, { fly = false, discover = fly } = {}) {
   const mine = ++_seq
   state.level = 'kiez'
   if (!kiezeFC()) { state.plr = null; renderDataError(); return } // data never loaded ≠ outside Berlin
@@ -1163,6 +1170,10 @@ async function locateAt(pos, { fly = false } = {}) {
   }
 
   if (!kiez) {
+    // Echter Geo-Check-in außerhalb Berlins → Ersatz Neukölln (nicht der
+    // fallback selbst, sonst Endlosschleife). Ein bewusster Karten-Klick
+    // außerhalb (fly:false) behält die ehrliche „nicht in Berlin"-Karte.
+    if (fly && !pos.fallback) { await useFallback('outside'); return }
     state.plr = null
     renderOutside({ pos, openSheet: fly })
     return
@@ -1171,7 +1182,7 @@ async function locateAt(pos, { fly = false } = {}) {
   // geolocation check-in (fly) opens the sheet for the lock-on; a map-pick keeps
   // the current sheet state so the map you're exploring stays visible
   // Schnitzeljagd: nur der echte Standort-Check-in entdeckt POIs
-  if (fly) discoverAt(pos)
+  if (discover) discoverAt(pos)
   renderFound({ kiez, pos, kiezName, address: null, openSheet: fly }) // title precomputed → instant
   const address = await reverseGeocode(pos.lat, pos.lon).catch(() => null)
   if (mine !== _seq) return
