@@ -229,6 +229,10 @@ body {
 .search-item-sub { font-size: .76rem; color: var(--on-surface-var); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .search-item-type { flex: 0 0 auto; font-size: .68rem; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; color: var(--on-surface-var); padding: .15rem .45rem; border: 1px solid var(--outline-faint); border-radius: var(--r-full); }
 
+/* `display:grid` unten überschreibt sonst das UA-`[hidden]{display:none}` →
+   ein versteckter Button (z. B. Install, wenn kein Prompt ansteht) belegte
+   trotzdem einen Slot und verschob die Verteilung. Explizit ausblenden. */
+.icon-btn[hidden] { display: none; }
 .icon-btn {
   position: relative; width: 46px; height: 46px; flex: 0 0 auto;
   display: grid; place-items: center; border: 1px solid var(--outline-faint);
@@ -893,15 +897,29 @@ html.theme-transition * {
    squeezes the search to a few px. Put the search on its own full-width row so it
    stays a big, reliable tap target. */
 @media (max-width: 600px) {
-  .topbar { gap: .5rem .5rem; flex-wrap: wrap; align-items: center; }
-  .brand { padding: .4rem; order: 1; }
-  .brand-name { display: none; }
-  .topbar-actions { order: 2; margin-left: auto; gap: .3rem; }
-  /* 6 Aktionen (Overlay·Heat·Mauer·Auto-Zoom·Theme·ggf. Install) + Brand müssen
-     in EINE Zeile passen — 44px hält die Touch-Target-Zusage, 46px brach um */
+  .topbar { gap: .5rem .5rem; flex-wrap: wrap; align-items: center;
+    padding-left: max(.7rem, env(safe-area-inset-left)); padding-right: max(.7rem, env(safe-area-inset-right)); }
+  /* Marken-Logo weg (Platzgewinn; Home = Reload auf der SPA) → die Aktionen
+     bekommen die ganze Breite und verteilen sich gleichmäßig statt rechts
+     zusammengedrängt. Eigene Reihe, Suche darunter. */
+  .brand { display: none; }
+  .topbar-actions { order: 1; flex: 1 0 100%; margin-left: 0; gap: .3rem;
+    justify-content: space-between; }
   .topbar-actions .icon-btn { width: 44px; height: 44px; }
-  .topbar-actions .seg-btn { width: auto; min-width: 44px; padding: 0 .5rem; }
-  .search { order: 3; flex: 1 0 100%; max-width: none; min-width: 0; height: 46px; }
+  /* Overlay-Button bleibt ein gleichförmiger Kreis — sein Label würde die
+     Reihe sprengen; der aktive Zustand ist über die Tönung + die
+     „Aktueller-Bereich"-Plakette ohnehin erkennbar. */
+  .topbar-actions .seg-btn { width: 44px; min-width: 44px; padding: 0; justify-content: center; }
+  .topbar-actions .seg-label { display: none; }
+  .search { order: 2; flex: 1 0 100%; max-width: none; min-width: 0; height: 46px; }
+}
+/* Nur die extrem schmale Klasse (<360px, faktisch nur Uralt-Geräte): mit
+   sichtbarem Install-Button sind es 7 Icons — bei 44px würde das letzte
+   abgeschnitten. Leicht verkleinern, damit nichts clippt; alle realen Phones
+   (≥360px) behalten die vollen 44px oben. */
+@media (max-width: 359.98px) {
+  .topbar-actions { gap: .15rem; }
+  .topbar-actions .icon-btn, .topbar-actions .seg-btn { width: 40px; height: 40px; }
 }
 
 /* desktop collapse control (mobile uses the sheet handle instead) */
