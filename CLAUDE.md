@@ -236,6 +236,21 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   (de-DE). `main.js` renders the block (`buildStatsBlock`/`patchStats`/`statsSelection`) in
   `renderFound` + `renderPlace` (search hits incl. OSM-kiez picks, street picks → resolved Kiez) and
   re-patches it on `selectLevel` — no re-render. Covered by `tests/stats.test.js`.
+  **Kiez-Fotos:** `loadKiezImg`/`kiezImg(gid)`/`kiezImgSrc(gid)` (`public/data/kiez-img.json`,
+  keyed by `gid`) back a representative photo per colloquial Kiez, rendered by `main.js`
+  `applyKiezImg()` directly under the Kiez title (reused `.poi-figure`, lazy). Photos are
+  **self-hosted WebP** (`public/img/kiez/<gid>.webp`, 480px q74, ~38 KB, `/img/`
+  runtime-cached + nginx-immutable like the POI photos). Built by `tools/build-kiez-images.mjs`:
+  a **candidate pool** from three sources — the Kiez's Wikipedia article pageimage, its
+  Commons category (`Category:<Name>`), and a Commons geosearch around the Kiez centroid
+  (800→1500 m) — is ranked (curated-source + landmark-keyword + name-match + size bonuses),
+  then the ranked list is walked down on download failure. **The decisive quality filter is
+  category-based**: candidates are rejected if any Commons category matches maps/coats-of-arms/
+  sealing-stamps/Stolpersteine/aerial/plans (`BAD_CAT`) — the filename alone does NOT reveal a
+  map (e.g. a file named `…Luisenstadt….jpg` that is a historical map), the categories do.
+  Each entry stores `file` (source title) for future incremental re-validation. Sequential +
+  Retry-After (Commons 429s parallel access), incremental; `KF_FORCE=1` re-resolves+redownloads
+  all, `KF_GIDS=k12,k39` only those. ~408/427 Kieze (~95 %) get a photo; the rest stay text-only.
 - `src/heat.js` — **Heatmap** (Choroplethen je Planungsraum; maplibre-free core + thin `loadPreise`).
   Metrics: dichte/alter/u18/o65 (from stats.json) + miete/brw (from `public/data/preise.json`, built
   by `tools/build-heat-prices.mjs`: Angebotsmieten €/m² je PROGNOSERAUM from Wohnatlas WFS

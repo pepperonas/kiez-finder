@@ -207,7 +207,7 @@ node tools/build-pois.mjs       # → public/data/pois.json (1000 POIs aus Wikid
 node tools/build-poi-facts.mjs  # reichert pois.json um 1–2 Eckdaten je POI an (Wikidata, ~30 s)
 node tools/build-poi-info.mjs   # → public/data/poi-info.json (Wikipedia-Text + Commons-Bild je POI, ~2–3 min)
 node tools/build-poi-images.mjs # lädt die Fotos, optimiert zu WebP → public/img/poi/ (sequenziell, ~6–8 min)
-node tools/build-kiez-images.mjs# Kiez-Fotos (Wikipedia/Commons-Geosuche) → public/img/kiez/ (~8–12 min)
+node tools/build-kiez-images.mjs# Kiez-Fotos → public/img/kiez/ (~12–15 min; KF_FORCE=1 = alle neu, KF_GIDS=k12,k39 = gezielt)
 node tools/build-heat-prices.mjs # → public/data/preise.json (Angebotsmieten je Prognoseraum +
                                 #   Bodenrichtwerte Wohnbauland je PLR, beide live vom Geoportal-WFS,
                                 #   dl-de-zero-2.0; validiert Abdeckung + Plausibilitäts-Median)
@@ -318,7 +318,7 @@ Einmalig: `.env` nach dem Muster `server/.env.example` unter `/opt/kiezfinder-ap
 - **Kiez-Beschreibungen:** *Wikipedia* (CC BY-SA 4.0) · *Wikidata* (CC0) · *OpenStreetMap* (ODbL) — je Eintrag mit Quelle + Link
 - **Schnitzeljagd-POIs:** *Wikidata* (CC0), Auswahl nach Wikipedia-Sprachversionen; Verortung je Planungsraum über die LOR-2021-Grenzen. Eckdaten (Baujahr/Eröffnung, Höhe, Architekt, Baustil, Denkmalschutz) ebenfalls *Wikidata* (CC0)
 - **POI-Beschreibungen:** Einleitungstexte aus *Wikipedia* (CC BY-SA 4.0)
-- **Kiez-Fotos:** *Wikipedia* / *Wikimedia Commons* (Geosuche um den Kiez-Mittelpunkt), optimiert + selbst gehostet, Urheber/Lizenz je Bild
+- **Kiez-Fotos:** *Wikipedia*-Artikelfoto / *Wikimedia-Commons*-Kiez-Kategorie / Geosuche um den Kiez-Mittelpunkt (gerankt, **Kategorie-gefiltert** gegen Karten/Wappen/Siegelmarken/Stolpersteine/Luftbilder), optimiert + selbst gehostet, Urheber/Lizenz je Bild
 - **POI-Fotos:** *Wikimedia Commons* — einmalig heruntergeladen, zu WebP optimiert (~24 KB) und **selbst gehostet** (`/img/poi/<qid>.webp`, schnell + offline-cachebar); Urheber + Lizenz je Bild in der Bildunterschrift
 - **Angebotsmieten:** Wohnatlas Berlin (2022, €/m² netto kalt je Prognoseraum) — *SenSBW via Geoportal-WFS* (dl-de-zero-2.0)
 - **Bodenrichtwerte:** BORIS Berlin, Stichtag 01.01.2026 — *Gutachterausschuss für Grundstückswerte via Geoportal-WFS* (dl-de-zero-2.0)
