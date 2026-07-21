@@ -1105,3 +1105,9 @@ html.theme-transition * {
 .poi-desc-full { line-height: 1.55; }
 .poi-desc-full:empty { display: none; }
 @media (prefers-reduced-motion: reduce) { .poi-figure { transition: none; opacity: 1; } }
+
+/* ── Kiez-Foto (repräsentatives Bild oben in der Kiez-Card) ── */
+.kiez-media-slot:empty { display: none; }
+.kiez-media-slot .poi-figure { margin: .1rem 0 .7rem; }
+/* im Peek der Bottom-Sheet einklappen (wie stamp/radar/eyebrow) */
+.pass[data-sheet='peek'] .kiez-media-slot { max-height: 0; overflow: hidden; margin: 0; }

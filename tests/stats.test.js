@@ -6,11 +6,35 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  loadStats, loadKiezInfo, statsData, infoData,
+  loadStats, loadKiezInfo, loadKiezImg, kiezImg, kiezImgSrc, statsData, infoData,
   selectorFor, selectorForFeature, aggregate, ranksFor, clearRankCache, plrIdsFor,
   geodesicAreaM2, infoFor, infoForBezirk, kiezFallbackText,
   fmtInt, fmtKm2, fmtDichte, fmtAlter, fmtAnteil, fmtEuroM2,
 } from '../src/stats.js'
+
+test('loadKiezImg memoisiert; kiezImg liefert Foto+Credit nur bei img===1', async () => {
+  const realFetch = globalThis.fetch
+  let calls = 0
+  globalThis.fetch = async () => {
+    calls++
+    return { ok: true, json: async () => ({ info: {
+      k262: { img: 1, credit: 'Foo · CC BY-SA 4.0' },
+      k9: { img: 0 },
+    } }) }
+  }
+  try {
+    await loadKiezImg(); await loadKiezImg()
+    assert.equal(calls, 1) // memoisiert
+    assert.deepEqual(kiezImg('k262'), { img: true, credit: 'Foo · CC BY-SA 4.0' })
+    assert.equal(kiezImg('k9'), null)   // img:0 → kein Foto
+    assert.equal(kiezImg('kX'), null)   // unbekannt
+  } finally { globalThis.fetch = realFetch }
+})
+
+test('kiezImgSrc zeigt aufs selbst gehostete Kiez-WebP (per gid)', () => {
+  assert.equal(kiezImgSrc('k262'), '/img/kiez/k262.webp')
+  assert.equal(kiezImgSrc('k0'), '/img/kiez/k0.webp')
+})
 
 // ── Fixture: 5 PLRs — 4 Kiez-Gruppen, 2 Bezirke, ein NA (SAFE-anonymisiert) ──
 const plr = (plr_id, gid) => ({ type: 'Feature', properties: { plr_id, gid }, geometry: null })

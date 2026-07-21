@@ -35,6 +35,28 @@ export function loadKiezInfo() {
 export const statsData = () => _stats
 export const infoData = () => _info
 
+// Kiez-Fotos (repräsentatives Bild je gid, selbst gehostet als WebP) — eigene
+// lazy Datei; das Bild lädt zur Laufzeit vom eigenen Host + wird SW-gecacht.
+let _kimg = null
+let _kimgP = null
+export function loadKiezImg() {
+  if (!_kimgP) {
+    _kimgP = fetch('/data/kiez-img.json')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => (_kimg = d))
+      .catch(() => null)
+  }
+  return _kimgP
+}
+/** { img:true, credit } für eine gid — oder null, wenn kein Foto vorliegt. */
+export function kiezImg(gid) {
+  const e = _kimg && _kimg.info && _kimg.info[gid]
+  if (!e || e.img !== 1) return null
+  return { img: true, credit: e.credit || 'Wikimedia Commons' }
+}
+/** Pfad zum selbst gehosteten Kiez-Foto (same-origin, cachebar). */
+export const kiezImgSrc = (gid) => `/img/kiez/${gid}.webp`
+
 // ── Selektoren: welche PLRs gehören zur gewählten Einheit? ──────────────────
 // kiez = gid-Gruppe (jeder PLR trägt gid) · bzr/pgr/bez = plr_id-Präfix (6/4/2)
 const PREFIX = { bez: 2, pgr: 4, bzr: 6 }

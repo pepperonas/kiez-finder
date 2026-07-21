@@ -28,10 +28,10 @@ export default defineConfig({
             // Selbst gehostete POI-Fotos: zu groß fürs Precache (~22 MB), aber
             // pro qid unveränderlich → CacheFirst. Einmal angeschaut = offline
             // + instant beim Wiederbesuch. maxEntries deckelt das Wachstum.
-            urlPattern: ({ url }) => url.origin === self.location.origin && url.pathname.startsWith('/img/poi/'),
+            urlPattern: ({ url }) => url.origin === self.location.origin && url.pathname.startsWith('/img/'),
             handler: 'CacheFirst',
             options: {
-              cacheName: 'poi-images',
+              cacheName: 'poi-images', // POI- + Kiez-Fotos
               expiration: { maxEntries: 600, maxAgeSeconds: 60 * 60 * 24 * 180 },
               cacheableResponse: { statuses: [0, 200] },
             },

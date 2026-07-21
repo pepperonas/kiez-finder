@@ -14,7 +14,7 @@ import { loadKieze, loadOutline, loadLevels, levelFC, loadKiezNames, loadWall, l
   kiezAreasFC, osmKiezeFC, findOsmKiez, pointInGeometry } from './kiez.js'
 import { buildSearchIndex, search, norm } from './search.js'
 import { readBoolPref, writeBoolPref } from './prefs.js'
-import { loadStats, loadKiezInfo, statsData, infoData, selectorFor, selectorForFeature,
+import { loadStats, loadKiezInfo, loadKiezImg, kiezImg, kiezImgSrc, statsData, infoData, selectorFor, selectorForFeature,
   aggregate, ranksFor, geodesicAreaM2, infoFor, infoForBezirk, kiezFallbackText, plrIdsFor,
   fmtInt, fmtKm2, fmtDichte, fmtAlter, fmtAnteil, fmtEuroM2 } from './stats.js'
 import { loadPois, poisData, poiUrl, poisNear, readProgress, writeProgress, markVisited, unmarkVisited,
@@ -970,6 +970,7 @@ function renderFound({ kiez, pos, address, kiezName, openSheet = true }) {
   const sectorSlot = h('div', { class: 'sector-slot' })
   fillSectorSlot(sectorSlot, pos)
   const huntSlot = h('div', { class: 'hunt-slot' })
+  const kiezMediaSlot = h('div', { class: 'kiez-media-slot' }) // repräsentatives Foto (lazy, offen lizenziert)
 
   const body = h('div', { class: 'pass-body pass-found' },
     h('div', { class: 'stamp', 'aria-hidden': 'true' },
@@ -982,6 +983,7 @@ function renderFound({ kiez, pos, address, kiezName, openSheet = true }) {
     },
       h('h1', { class: 'kiez-name', text: titleText }),
       colloquial ? h('p', { class: 'kiez-official', text: `amtl. Planungsraum · ${p.plr_name}` }) : null),
+    kiezMediaSlot,
     sectorSlot,
     // ordered by ascending area size (Kiez = title above; then bigger → biggest).
     // The Prognoseraum is hidden when it only duplicates the Bezirk name.
@@ -1010,6 +1012,22 @@ function renderFound({ kiez, pos, address, kiezName, openSheet = true }) {
   Promise.all([loadStats(), loadKiezInfo(), loadPreise()]).then(() => {
     if (_statsEls && document.contains(_statsEls.root)) patchStats(statsSelection(state.level))
   })
+  // Kiez-Foto (selbst gehostet, offen lizenziert) — lazy einsetzen
+  applyKiezImg(p.gid, kiezMediaSlot, titleText)
+  loadKiezImg().then(() => { if (document.contains(kiezMediaSlot)) applyKiezImg(p.gid, kiezMediaSlot, titleText) })
+}
+
+// Kiez-Foto in die Card-Slot legen (Bild vom eigenen Host, Fehler → still weg).
+function applyKiezImg(gid, slot, name) {
+  if (gid == null || slot.firstChild) return
+  const info = kiezImg(gid)
+  if (!info) return
+  const img = h('img', { class: 'poi-photo', alt: name || 'Kiez', loading: 'lazy', decoding: 'async', src: kiezImgSrc(gid) })
+  const fig = h('figure', { class: 'poi-figure', 'data-reveal': '' }, img,
+    h('figcaption', { class: 'poi-credit', text: 'Foto: ' + (info.credit || 'Wikimedia Commons') }))
+  img.addEventListener('error', () => fig.remove())
+  img.addEventListener('load', () => fig.classList.add('is-loaded'))
+  slot.append(fig)
 }
 
 // reflect the active level in the card chrome without re-rendering (no replay)
@@ -1861,6 +1879,7 @@ async function boot() {
   // patcht sich nach, sobald sie da sind — ohne sie fehlt nur der Stats-Block)
   loadStats()
   loadKiezInfo()
+  loadKiezImg()
   loadPreise()
   // Konto (optional): Login-Rückmeldung auswerten, dann Fortschritt mergen.
   // Alles fehlertolerant — ohne Backend bleibt die Jagd rein lokal.
