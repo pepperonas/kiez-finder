@@ -16,7 +16,7 @@ import { buildSearchIndex, search, norm } from './search.js'
 import { readBoolPref, writeBoolPref } from './prefs.js'
 import { loadStats, loadKiezInfo, loadKiezImg, kiezImg, kiezImgSrc, statsData, infoData, selectorFor, selectorForFeature,
   aggregate, ranksFor, geodesicAreaM2, infoFor, infoForBezirk, kiezFallbackText, plrIdsFor,
-  fmtInt, fmtKm2, fmtDichte, fmtAlter, fmtAnteil, fmtEuroM2 } from './stats.js'
+  fmtInt, fmtKm2, fmtDichte, fmtAlter, fmtEuroM2 } from './stats.js'
 import { loadPois, poisData, poiUrl, poisNear, readProgress, writeProgress, markVisited, unmarkVisited,
   overallProgress, scopeProgress, isVisited, rankFor, RADIUS_M, nearestPois, fmtDist, mergeProgress, distanceM,
   loadPoiInfo, poiInfo, poiImgSrc } from './hunt.js'
@@ -108,7 +108,7 @@ const state = {
   hunt: (() => { try { return readProgress(localStorage) } catch (e) { return { v: 1, visited: {} } } })(),
   poiList: null,
   account: { authed: false }, // { authed, name } — rein additiv, App läuft ohne
-  heat: 'off',      // heatmap metric key (dichte/alter/u18/o65/miete/brw) or 'off'
+  heat: 'off',      // heatmap metric key (dichte/alter/miete/brw) or 'off'
   heatFC: null,     // built heat FeatureCollection (kieze geometry + metric props)
   heatBreaks: null, // active metric's quantile breaks (chip dot colour)
 }
@@ -141,7 +141,7 @@ const wallBtn = h('button', {
   html: ICONS.wall,
 })
 // Heatmap-Control: Button öffnet ein kompaktes Popover mit Metrik-Chips
-// (aus · Dichte · Ø Alter · U18 · 65+ · Miete · Bodenrichtwert)
+// (aus · Dichte · Ø Alter · Miete · Bodenrichtwert)
 const heatBtn = h('button', {
   class: 'icon-btn heat-btn', type: 'button',
   title: 'Heatmap (Dichte, Alter, Preise …)',
@@ -856,8 +856,8 @@ function buildStatsBlock() {
     return { val, el: h('div', { class: 'stat-tile' }, val, h('span', { class: 'stat-label', text: label })) }
   }
   const pop = tile('Einwohner'), area = tile('Fläche'), dens = tile('Einw./km²')
-  const age = tile('Ø Alter'), u18 = tile('unter 18'), o65 = tile('ab 65')
-  const ageRow = h('div', { class: 'stats-tiles stats-tiles--age', hidden: true }, age.el, u18.el, o65.el)
+  const age = tile('Ø Alter')
+  const ageRow = h('div', { class: 'stats-tiles stats-tiles--age', hidden: true }, age.el)
   const miete = tile('Ø Miete (2022)'), brw = tile('Bodenwert')
   const preisRow = h('div', { class: 'stats-tiles stats-tiles--preis', hidden: true }, miete.el, brw.el)
   const rank = h('p', { class: 'stats-rank', hidden: true })
@@ -873,7 +873,7 @@ function buildStatsBlock() {
     h('div', { class: 'stats-tiles' }, pop.el, area.el, dens.el),
     ageRow, preisRow, rank, about, note)
   _statsEls = { root, scope, pop: pop.val, area: area.val, dens: dens.val,
-    ageRow, age: age.val, u18: u18.val, o65: o65.val,
+    ageRow, age: age.val,
     preisRow, miete: miete.val, brw: brw.val, rank, about, aboutText, aboutLink, aboutSrc, note }
   return root
 }
@@ -918,11 +918,9 @@ function patchStats(selection) {
       els.pop.textContent = agg.pop == null ? 'k. A.' : (agg.partial ? '≥ ' : '') + fmtInt(agg.pop)
       els.area.textContent = fmtKm2(agg.m2)
       els.dens.textContent = fmtDichte(agg.pop, agg.m2) || '—'
-      // Altersstruktur: Ø approximativ (Bandmitten), U18/65+ exakte Bandsummen
+      // Altersstruktur: Ø approximativ (aus Altersband-Mitten)
       if (agg.avgAge != null) {
         els.age.textContent = '≈ ' + fmtAlter(agg.avgAge)
-        els.u18.textContent = fmtAnteil(agg.u18, agg.pop) || '—'
-        els.o65.textContent = fmtAnteil(agg.o65, agg.pop) || '—'
         els.ageRow.hidden = false
       } else els.ageRow.hidden = true
       // Preise (einwohnergewichtete Mittel der Mitglieds-PLRs)
@@ -1571,7 +1569,7 @@ async function applyWall(on) {
 }
 wallBtn.addEventListener('click', () => applyWall(!state.wall))
 
-// ── Heatmap: Choroplethen je Planungsraum (Dichte/Alter/U18/65+/Miete/BRW) ────
+// ── Heatmap: Choroplethen je Planungsraum (Dichte/Alter/Miete/BRW) ───────────
 let _heatReady = false
 function heatValues(key) {
   return state.heatFC.features.map((f) => f.properties[key]).filter((v) => v != null)

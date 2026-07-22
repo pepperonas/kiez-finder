@@ -28,7 +28,7 @@ test('loadPreise lädt einmal, memoisiert und schluckt Fehler', async () => {
 const plr = (plr_id, kiez) => ({ type: 'Feature', properties: { plr_id, kiez }, geometry: { type: 'Polygon', coordinates: [] } })
 const FC = { type: 'FeatureCollection', features: [plr('08010101', 'Testkiez'), plr('01011101', 'Anonkiez'), plr('99999999', 'Ohne')] }
 const STATS = { stand: '31.12.2025', plr: {
-  '08010101': [1000, 500000, 40000, 150, 100], // Dichte 2000, Ø 40, U18 15%, 65+ 10%
+  '08010101': [1000, 500000, 40000], // Dichte 2000, Ø 40
   '01011101': [null, 200000, null, null, null], // NA → keine Bevölkerungsmetriken
   // 99999999 fehlt komplett → Feature wird übersprungen
 } }
@@ -38,8 +38,8 @@ const PREISE = { standMiete: '2022', standBrw: '01.01.2026', plr: {
 } }
 
 // ── Katalog + Stichtage ──────────────────────────────────────────────────────
-test('METRICS: 6 Metriken, metricByKey findet + verfehlt korrekt', () => {
-  assert.equal(METRICS.length, 6)
+test('METRICS: 4 Metriken, metricByKey findet + verfehlt korrekt', () => {
+  assert.equal(METRICS.length, 4)
   assert.equal(metricByKey('dichte').unit, 'Einw./km²')
   assert.equal(metricByKey('brw').label, 'Bodenrichtwert Wohnen')
   assert.equal(metricByKey('off'), null)
@@ -61,7 +61,6 @@ test('buildHeatFC joint Metriken je PLR und lässt fehlende Werte WEG', () => {
   assert.equal(a.name, 'Testkiez')
   assert.ok(Math.abs(a.dichte - 2000) < 1e-9)
   assert.ok(Math.abs(a.alter - 40) < 1e-9)
-  assert.ok(Math.abs(a.u18 - 15) < 1e-9)
   assert.equal(a.miete, 11.89)
   assert.equal(a.brw, 2770)
   const b = fc.features[1].properties

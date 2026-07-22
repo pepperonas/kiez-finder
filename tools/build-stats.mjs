@@ -6,10 +6,10 @@
 // Geometrie (public/data/kieze.geojson) — jede ID muss exakt matchen.
 //
 // Format (kompakt, ~22 KB):
-//   { stand, quelle, plr: { "<plr_id>": [einwohner|null, flaeche_m2, alterssumme|null, u18|null, ab65|null] } }
+//   { stand, quelle, plr: { "<plr_id>": [einwohner|null, flaeche_m2, alterssumme|null] } }
 // alterssumme = Σ(Bandmitte × Besetzung) über die feinen Altersbänder — daraus
 // rechnet die Runtime das (approximative) Durchschnittsalter aggregierbar
-// (Summen addieren, erst am Ende teilen); u18/ab65 sind EXAKTE Bandsummen.
+// (Summen addieren, erst am Ende teilen).
 // Aggregationen (Kiez-Fläche/BZR/PGR/Bezirk = Summen der Mitglieds-PLRs) macht
 // die Runtime (src/stats.js) — die Gruppenzugehörigkeit steckt schon in
 // kieze.geojson (gid + plr_id-Präfixe), hier wäre sie Redundanz.
@@ -41,18 +41,16 @@ for (const line of csv.slice(1)) {
   const c = line.split(';')
   const id = c[iR].replace(/"/g, '')
   const v = parseInt(c[iE], 10)
-  if (Number.isNaN(v)) { pop.set(id, [null, null, null, null]); continue } // "NA" = SAFE-anonymisiert
-  let ageSum = 0, bandTotal = 0, u18 = 0, o65 = 0
+  if (Number.isNaN(v)) { pop.set(id, [null, null]); continue } // "NA" = SAFE-anonymisiert
+  let ageSum = 0, bandTotal = 0
   for (const b of bands) {
     const n = parseInt(c[b.idx], 10) || 0
     bandTotal += n
     ageSum += n * b.mid
-    if (b.hi <= 18) u18 += n
-    if (b.lo >= 65) o65 += n
   }
   // Konsistenz: die Bänder müssen exakt zur Gesamtzahl aufsummieren
   if (bandTotal !== v) throw new Error(`EWR-CSV ${id}: Σ Bänder ${bandTotal} ≠ E_E ${v}`)
-  pop.set(id, [v, Math.round(ageSum), u18, o65])
+  pop.set(id, [v, Math.round(ageSum)])
 }
 
 // ── amtliche Flächen (finhalt, m²) ───────────────────────────────────────────
@@ -67,8 +65,8 @@ let total = 0, na = 0, ageSumAll = 0
 for (const id of ids) {
   if (!pop.has(id)) throw new Error(`EWR-CSV: plr_id ${id} fehlt`)
   if (!(id in areas)) throw new Error(`Flächen: plr_id ${id} fehlt`)
-  const [e, ageSum, u18, o65] = pop.get(id)
-  plr[id] = [e, areas[id], ageSum, u18, o65]
+  const [e, ageSum] = pop.get(id)
+  plr[id] = [e, areas[id], ageSum]
   if (e == null) na++
   else { total += e; ageSumAll += ageSum }
 }

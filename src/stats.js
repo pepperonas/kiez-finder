@@ -106,12 +106,12 @@ export function plrIdsFor(fc, sel) {
 }
 
 /**
- * Aggregat über die Mitglieds-PLRs → { pop, m2, n, partial, avgAge, u18, o65,
- * miete, brw } oder null.
+ * Aggregat über die Mitglieds-PLRs → { pop, m2, n, partial, avgAge, miete, brw }
+ * oder null.
  * pop = null, wenn KEIN Mitglied einen Wert hat (SAFE-anonymisierte PLRs);
  * partial = true, wenn einzelne Mitglieder anonymisiert sind (Summe = Untergrenze).
- * avgAge (approx. aus Altersband-Mitten) + u18/o65 (exakte Bandsummen) sind null,
- * wenn die Daten sie nicht tragen (ältere stats.json) oder pop null ist.
+ * avgAge (approx. aus Altersband-Mitten) ist null, wenn die Daten es nicht tragen
+ * (ältere stats.json) oder pop null ist.
  * miete/brw (optionales `preise` = preise.json): EINWOHNERGEWICHTETE Mittel der
  * Mitglieds-PLRs — auf Bezirksebene mischen sich verschiedene Prognoseräume/
  * BRW-Zonen, ein ungewichtetes Mittel würde leere Randlagen überbetonen.
@@ -120,7 +120,7 @@ export function plrIdsFor(fc, sel) {
 export function aggregate(data, fc, sel, preise) {
   if (!data || !fc || !sel) return null
   let pop = 0, m2 = 0, n = 0, have = 0, partial = false
-  let ageSum = 0, u18 = 0, o65 = 0, haveAge = false
+  let ageSum = 0, haveAge = false
   let mieteW = 0, mieteSum = 0, brwW = 0, brwSum = 0
   for (const f of fc.features) {
     const p = f.properties
@@ -132,7 +132,7 @@ export function aggregate(data, fc, sel, preise) {
     if (row[0] == null) partial = true
     else {
       pop += row[0]; have++
-      if (row[2] != null) { ageSum += row[2]; u18 += row[3]; o65 += row[4]; haveAge = true }
+      if (row[2] != null) { ageSum += row[2]; haveAge = true }
     }
     const pr = preise && preise.plr[p.plr_id]
     if (pr) {
@@ -148,8 +148,6 @@ export function aggregate(data, fc, sel, preise) {
   return {
     pop: have ? pop : null, m2, n, partial: partial && have > 0,
     avgAge: haveAge && pop ? ageSum / pop : null,
-    u18: haveAge ? u18 : null,
-    o65: haveAge ? o65 : null,
     miete: mieteW > 0 ? mieteSum / mieteW : null,
     brw: brwW > 0 ? brwSum / brwW : null,
   }
@@ -288,11 +286,6 @@ export function fmtDichte(pop, m2) {
 export function fmtAlter(avgAge) {
   if (avgAge == null) return null
   return avgAge.toFixed(1).replace('.', ',') + ' J.'
-}
-/** Anteil als "15 %" (kaufmännisch gerundet) — null-sicher. */
-export function fmtAnteil(part, total) {
-  if (part == null || !total) return null
-  return Math.round((part / total) * 100) + ' %'
 }
 /** "11,89 €/m²" (2 Nachkommastellen) bzw. "2.770 €/m²" (ganzzahlig) — null-sicher. */
 export function fmtEuroM2(v, decimals = 0) {

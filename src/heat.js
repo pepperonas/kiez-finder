@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────
 // Heatmap (Choroplethen) — färbt ganz Berlin je Planungsraum nach einer
-// Kennzahl: Dichte/Alter/U18/65+ (aus stats.json) + Miete/Bodenrichtwert
+// Kennzahl: Dichte/Alter (aus stats.json) + Miete/Bodenrichtwert
 // (aus preise.json). Kern ist PURE (injizierte Daten) und unit-testbar;
 // Klassengrenzen sind QUANTILE (7 Klassen) — Berliner Verteilungen sind so
 // schief, dass eine lineare Skala fast einfarbig wäre.
@@ -25,8 +25,6 @@ const de = (n, d = 0) => n.toLocaleString('de-DE', { minimumFractionDigits: d, m
 export const METRICS = [
   { key: 'dichte', label: 'Bevölkerungsdichte', unit: 'Einw./km²', stand: 's', fmt: (v) => de(Math.round(v)) },
   { key: 'alter', label: 'Ø Alter (≈)', unit: 'Jahre', stand: 's', fmt: (v) => de(v, 1) },
-  { key: 'u18', label: 'Anteil unter 18', unit: '%', stand: 's', fmt: (v) => de(v, 1) },
-  { key: 'o65', label: 'Anteil ab 65', unit: '%', stand: 's', fmt: (v) => de(v, 1) },
   { key: 'miete', label: 'Angebotsmiete', unit: '€/m² netto kalt', stand: 'm', fmt: (v) => de(v, 2) },
   { key: 'brw', label: 'Bodenrichtwert Wohnen', unit: '€/m²', stand: 'b', fmt: (v) => de(Math.round(v)) },
 ]
@@ -51,13 +49,9 @@ export function buildHeatFC(kiezeFC, stats, preise) {
     const row = stats.plr[id]
     if (!row) continue
     const props = { plr_id: id, name: f.properties.kiez || f.properties.plr_name }
-    const [pop, m2, ageSum, u18, o65] = row
+    const [pop, m2, ageSum] = row
     if (pop != null && m2) props.dichte = pop / (m2 / 1e6)
-    if (pop != null && ageSum != null && pop > 0) {
-      props.alter = ageSum / pop
-      props.u18 = (u18 / pop) * 100
-      props.o65 = (o65 / pop) * 100
-    }
+    if (pop != null && ageSum != null && pop > 0) props.alter = ageSum / pop
     const pr = preise && preise.plr[id]
     if (pr) {
       if (pr[0] != null) props.miete = pr[0]

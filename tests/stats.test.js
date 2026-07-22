@@ -9,7 +9,7 @@ import {
   loadStats, loadKiezInfo, loadKiezImg, kiezImg, kiezImgSrc, statsData, infoData,
   selectorFor, selectorForFeature, aggregate, ranksFor, clearRankCache, plrIdsFor,
   geodesicAreaM2, infoFor, infoForBezirk, kiezFallbackText,
-  fmtInt, fmtKm2, fmtDichte, fmtAlter, fmtAnteil, fmtEuroM2,
+  fmtInt, fmtKm2, fmtDichte, fmtAlter, fmtEuroM2,
 } from '../src/stats.js'
 
 test('loadKiezImg memoisiert; kiezImg liefert Foto+Credit nur bei img===1', async () => {
@@ -50,13 +50,13 @@ const FC = { type: 'FeatureCollection', features: [
   plr('01011101', 'k3'), // Bezirk 01 — Einwohner anonymisiert (NA)
   plr('01011102', 'k4'), // Bezirk 01
 ] }
-// [pop, m2, alterssumme (Σ Bandmitte×Besetzung), u18, ab65]
+// [pop, m2, alterssumme (Σ Bandmitte×Besetzung)]
 const DATA = { stand: '31.12.2025', plr: {
-  '08010101': [1000, 500000, 40000, 150, 100],  // Ø 40,0
-  '08010102': [2000, 500000, 90000, 300, 400],  // Ø 45,0
-  '08020201': [4000, 1000000, 160000, 800, 600],
-  '01011101': [null, 200000, null, null, null], // "NA"
-  '01011102': [500, 300000, 25000, 50, 125],
+  '08010101': [1000, 500000, 40000],  // Ø 40,0
+  '08010102': [2000, 500000, 90000],  // Ø 45,0
+  '08020201': [4000, 1000000, 160000],
+  '01011101': [null, 200000, null], // "NA"
+  '01011102': [500, 300000, 25000],
 } }
 
 // ── Loader (fetch-Stub): memoisiert, Fehlschlag → null statt Throw ───────────
@@ -113,8 +113,6 @@ test('aggregate summiert die Mitglieds-PLRs einer Kiez-Gruppe (inkl. Altersstruk
   // Ø-Alter aggregiert über die ALTERSSUMMEN, nicht als Mittel der Mittel:
   // (40000 + 90000) / 3000 = 43,33 — NICHT (40+45)/2 = 42,5
   assert.ok(Math.abs(a.avgAge - 130000 / 3000) < 1e-9)
-  assert.equal(a.u18, 450)
-  assert.equal(a.o65, 500)
 })
 
 test('aggregate über Präfixe: BZR und Bezirk', () => {
@@ -175,7 +173,6 @@ test('aggregate ohne Altersdaten (ältere stats.json) → Alters-Felder null', (
   const a = aggregate(OLD, FC, { kind: 'plr', v: '08010101' })
   assert.equal(a.pop, 1000)
   assert.equal(a.avgAge, null)
-  assert.equal(a.u18, null)
 })
 
 test('aggregate: kein Treffer/fehlende Inputs → null', () => {
@@ -282,13 +279,9 @@ test('fmtInt / fmtKm2 / fmtDichte formatieren de-DE', () => {
   assert.equal(fmtDichte(3000, 0), null)
 })
 
-test('fmtAlter / fmtAnteil / fmtEuroM2: de-DE, null-sicher', () => {
+test('fmtAlter / fmtEuroM2: de-DE, null-sicher', () => {
   assert.equal(fmtAlter(42.933), '42,9 J.')
   assert.equal(fmtAlter(null), null)
-  assert.equal(fmtAnteil(450, 3000), '15 %')
-  assert.equal(fmtAnteil(500, 3000), '17 %') // kaufmännisch gerundet
-  assert.equal(fmtAnteil(null, 3000), null)
-  assert.equal(fmtAnteil(450, 0), null)
   assert.equal(fmtEuroM2(11.887, 2), '11,89 €/m²')
   assert.equal(fmtEuroM2(2770.4), '2.770 €/m²')
   assert.equal(fmtEuroM2(null), null)

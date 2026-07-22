@@ -588,7 +588,7 @@ body {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .stats-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: .5rem; }
-.stats-tiles--age { margin-top: .5rem; }
+.stats-tiles--age { grid-template-columns: 1fr; margin-top: .5rem; } /* nur noch Ø Alter */
 .stats-tiles--age .stat-val { font-size: .94rem; } /* Zweitreihe leiser als die Kernzahlen */
 .stats-tiles--preis { grid-template-columns: repeat(2, 1fr); margin-top: .5rem; }
 .stats-tiles--preis .stat-val { font-size: .94rem; }
