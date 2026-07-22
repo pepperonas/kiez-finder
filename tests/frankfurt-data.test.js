@@ -12,6 +12,7 @@ const bezirke = load('bezirke.geojson')
 const stats = load('stats.json')
 const strassen = load('strassen.json')
 const pois = load('pois.json')
+const preise = load('preise.json')
 
 test('kieze: 46 Stadtteile im App-Schema (plr_id/gid/kiez/bez, Polygon)', () => {
   assert.equal(kieze.features.length, 46)
@@ -62,6 +63,30 @@ test('strassen: Index-Form + bekannte Frankfurter Straßen', () => {
     assert.equal(s.length, 8) // [name, bezIdx, cx, cy, x1,y1,x2,y2]
     assert.ok(s[1] >= -1 && s[1] < 16)
   }
+})
+
+test('preise: Bodenrichtwerte je Stadtteil (miete=null, brw plausibel, konsistent zu kieze)', () => {
+  assert.equal(preise.standMiete, null) // keine offene Frankfurter Mietquelle
+  assert.match(preise.standBrw, /2024/) // BORIS Hessen Stichtag
+  const ids = Object.keys(preise.plr)
+  assert.equal(ids.length, 46)
+  const plrIds = new Set(kieze.features.map((f) => f.properties.plr_id))
+  let brwN = 0
+  const brwVals = []
+  for (const [id, row] of Object.entries(preise.plr)) {
+    assert.ok(plrIds.has(id), `preise für gültigen Stadtteil ${id}`)
+    assert.equal(row.length, 2) // [miete, brw]
+    assert.equal(row[0], null) // Miete durchweg null
+    if (row[1] != null) { assert.ok(row[1] > 0); brwVals.push(row[1]); brwN++ }
+  }
+  assert.ok(brwN >= 40, `BRW-Abdeckung ${brwN}/46`) // Flughafen/Bahnhofsviertel ohne Wohnbauland
+  brwVals.sort((a, b) => a - b)
+  const med = brwVals[Math.floor(brwVals.length / 2)]
+  assert.ok(med > 800 && med < 2500, `BRW-Median ${med} €/m² plausibel`)
+  // Westend-Süd ist die teuerste Wohnlage, äußere West-Stadtteile die günstigsten
+  const byName = (n) => preise.plr[kieze.features.find((f) => f.properties.kiez === n).properties.plr_id][1]
+  assert.ok(byName('Westend-Süd') > byName('Sindlingen'), 'Westend teurer als Sindlingen')
+  assert.ok(byName('Westend-Süd') > 4000, 'Westend-Süd Top-Wohnlage')
 })
 
 test('pois: Schnitzeljagd-Datensatz (kompakte Records, in Stadtteilen verortet)', () => {

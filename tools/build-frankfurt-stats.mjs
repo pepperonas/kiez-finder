@@ -9,6 +9,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { geodesicAreaM2 } from '../src/stats.js'
+// (Bodenrichtwerte je Stadtteil baut das separate tools/build-frankfurt-heat-prices.mjs)
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 

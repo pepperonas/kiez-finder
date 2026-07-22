@@ -12,9 +12,13 @@ am Main** (**Stadtteil** → Ortsbezirk, 46/16), reuses the exact same engine ag
 The city is resolved once at boot — URL `?city=frankfurt` > `localStorage kf-city` > a `frankfurt.*`
 subdomain > Berlin — and a topbar switcher flips it. Berlin behaviour is unchanged (its `dataDir` is
 `/data`, so every loader path stays identical). **Etappen-Stand:** Frankfurt has the CORE (boundary
-classification, hierarchy, terminology, city switcher, Berlin-only Mauer feature hidden); the
-enrichment (streets/search index, stats, POI scavenger hunt, photos, price heatmap) is still
-Berlin-only and comes in later etappes.
+classification, hierarchy, terminology, city switcher, Berlin-only Mauer feature hidden) PLUS the full
+enrichment: streets/search index, stats (Einwohner/Dichte), POI scavenger hunt with photos+text,
+Stadtteil photos, and the heatmap — **density** (always) and **Bodenrichtwert Wohnbauland** (BORIS
+Hessen 2024, `tools/build-frankfurt-heat-prices.mjs`; no open per-Stadtteil rent source → Miete stays
+null). `availableMetrics(stats,preise)` in heat.js filters the heat popover to metrics that actually
+have data, so Frankfurt shows only Dichte + Bodenrichtwert (no empty Alter/Miete). All Frankfurt data
+lives under `public/data/frankfurt/` (runtime-cached, not in Berlin's precache — see PWA note).
 
 Live: **https://kiezfinder.celox.io** · deployed as a static build on the celox.io VPS (69.62.121.168),
 webroot `/var/www/kiezfinder.celox.io/`, nginx block `kiezfinder.celox.io`.
@@ -29,7 +33,7 @@ npm test         # unit tests (Node's built-in runner, no deps) — tests/*.test
 ```
 No linter configured. Geolocation needs a secure context (localhost or HTTPS).
 
-**Tests** (`tests/`, `node --test`, zero dependencies — 247 tests, 100% line coverage on
+**Tests** (`tests/`, `node --test`, zero dependencies — 248 tests, 100% line coverage on
 the ten unit-testable modules) cover the dependency-light pure logic: `search.js`
 (norm folding + the multi-tier scorer / type-priority / dedup), `kiez.js` (point-in-polygon
 classification incl. holes + MultiPolygon, `bezirkName`, `kmFromBerlin`, `bboxOf`,
@@ -71,7 +75,7 @@ measures the suite (test count + line coverage) and counts the LOC of `src/*.js`
 `N tests`/`N Tests` claims in README.md/CLAUDE.md, and commits the change back with
 `[skip ci]` (no loop). So the numbers never go stale and you never hand-edit them; run
 `node tools/badges.mjs` locally to preview, or `--check` to assert without writing. (This
-paragraph's `247 tests, 100% line` count is rewritten by that tool too.)
+paragraph's `248 tests, 100% line` count is rewritten by that tool too.)
 
 **README screenshots** (`docs/screenshot-*.png`) are regenerated with
 `tools/screenshots.cjs` against a `npm run preview -- --port 4190` server (needs a
