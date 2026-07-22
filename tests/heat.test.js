@@ -6,7 +6,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  loadPreise, preiseData, METRICS, metricByKey, standFor, buildHeatFC,
+  loadPreise, preiseData, METRICS, metricByKey, availableMetrics, standFor, buildHeatFC,
   quantileBreaks, classIndex, heatPaint, legendFor, RAMPS,
 } from '../src/heat.js'
 
@@ -173,4 +173,13 @@ test('RAMPS: 7 Stufen je Theme, alles Hex-Farben', () => {
     assert.equal(RAMPS[t].length, 7)
     for (const c of RAMPS[t]) assert.match(c, /^#[0-9a-f]{6}$/i)
   }
+})
+
+test('availableMetrics: nur Metriken mit Daten (Frankfurt = nur Dichte)', () => {
+  assert.deepEqual(availableMetrics(STATS, PREISE).map((m) => m.key), ['dichte', 'alter', 'miete', 'brw'])
+  // Frankfurt-artig: stats ohne Altersstruktur (row[2]=null), keine preise → nur Dichte
+  const ffm = { stand: 'x', plr: { 1: [1000, 500000, null] } }
+  assert.deepEqual(availableMetrics(ffm, null).map((m) => m.key), ['dichte'])
+  assert.deepEqual(availableMetrics(STATS, null).map((m) => m.key), ['dichte', 'alter'])
+  assert.deepEqual(availableMetrics(null, null), []) // keine Daten → keine Metriken
 })

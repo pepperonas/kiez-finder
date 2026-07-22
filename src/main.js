@@ -20,7 +20,7 @@ import { loadStats, loadKiezInfo, loadKiezImg, kiezImg, kiezImgSrc, statsData, i
 import { loadPois, poisData, poiUrl, poisNear, readProgress, writeProgress, markVisited, unmarkVisited,
   overallProgress, scopeProgress, isVisited, rankFor, RADIUS_M, nearestPois, fmtDist, mergeProgress, distanceM,
   loadPoiInfo, poiInfo, poiImgSrc } from './hunt.js'
-import { loadPreise, preiseData, METRICS, metricByKey, standFor, buildHeatFC,
+import { loadPreise, preiseData, METRICS, metricByKey, availableMetrics, standFor, buildHeatFC,
   quantileBreaks, classIndex, heatPaint, legendFor, RAMPS } from './heat.js'
 import { fetchMe, syncProgress, pushProgress, logout, loginUrl, readLoginFlag, stripLoginFlag } from './account.js'
 import { getPosition, reverseGeocode } from './geo.js'
@@ -1624,7 +1624,7 @@ function renderHeatPop() {
   heatPop.replaceChildren(
     h('p', { class: 'heat-pop-title', text: 'Heatmap' }),
     mk('off', 'Aus'),
-    ...METRICS.map((m) => mk(m.key, m.label)))
+    ...availableMetrics(statsData(), preiseData()).map((m) => mk(m.key, m.label)))
 }
 function openHeatPop() {
   renderHeatPop()

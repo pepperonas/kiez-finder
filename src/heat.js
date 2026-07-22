@@ -31,6 +31,17 @@ export const METRICS = [
 ]
 export const metricByKey = (key) => METRICS.find((m) => m.key === key) || null
 
+/** Welche Metriken haben für die aktuell geladenen Daten überhaupt Werte?
+ *  dichte = immer (sobald stats da); alter nur mit Altersdaten; miete/brw nur mit
+ *  preise.json. So zeigt das Heat-Popover in Frankfurt nur „Dichte", nicht drei
+ *  leere Metriken. Pure — unit-getestet. */
+export function availableMetrics(stats, preise) {
+  const has = { dichte: !!stats, alter: false, miete: false, brw: false }
+  if (stats) { for (const r of Object.values(stats.plr)) if (r[2] != null) { has.alter = true; break } }
+  if (preise) for (const r of Object.values(preise.plr)) { if (r[0] != null) has.miete = true; if (r[1] != null) has.brw = true }
+  return METRICS.filter((m) => has[m.key])
+}
+
 /** Stichtags-Text für die Legende (aus den geladenen Daten). */
 export function standFor(metric, stats, preise) {
   if (!metric) return null
