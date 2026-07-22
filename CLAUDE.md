@@ -21,8 +21,8 @@ npm test         # unit tests (Node's built-in runner, no deps) — tests/*.test
 ```
 No linter configured. Geolocation needs a secure context (localhost or HTTPS).
 
-**Tests** (`tests/`, `node --test`, zero dependencies — 149 tests, 100% line coverage on
-the eight unit-testable modules) cover the dependency-light pure logic: `search.js`
+**Tests** (`tests/`, `node --test`, zero dependencies — 173 tests, 100% line coverage on
+the nine unit-testable modules) cover the dependency-light pure logic: `search.js`
 (norm folding + the multi-tier scorer / type-priority / dedup), `kiez.js` (point-in-polygon
 classification incl. holes + MultiPolygon, `bezirkName`, `kmFromBerlin`, `bboxOf`,
 `levelName` — plus, via a **fetch mock**, the loaders and the loaded-state functions:
@@ -41,9 +41,14 @@ expression shape, legend data — pure with injected fixtures),
 visits, commutative union-merge, per-scope evaluation, ranks — pure with fixtures),
 `geo.js` (error mapping, Nominatim line assembly, rounded-coordinate caching — global
 stubs for navigator/fetch/sessionStorage; the module touches globals only at call time,
-so no extraction was needed), and `motion.js` (spring physics with a fake clock + an
+so no extraction was needed), `motion.js` (spring physics with a fake clock + an
 auto-pumping rAF stub — every scheduled frame runs on a 0-ms timer advancing a fake
-clock one 60fps step; asserts exact convergence, overshoot at damping 0.6, cancel).
+clock one 60fps step; asserts exact convergence, overshoot at damping 0.6, cancel),
+and `account.js` (the optional account/progress-sync CLIENT — a `fetch` stub asserts
+every function degrades to a harmless value on failure: `fetchMe`→offline sentinel,
+`fetchProgress`/`pushProgress`→null, `logout` never throws, `syncProgress` merges
+local ∪ remote and still applies the merge if the upload fails; plus `readLoginFlag`/
+`stripLoginFlag` via `location`/`history` stubs).
 `main.js`/`map.js` aren't covered — they pull in MapLibre + CSS, so pure logic worth
 testing (persistence, graph-colouring, label candidates) is **extracted into a
 maplibre-free module first** (that's what `prefs.js` is). Add tests alongside as
