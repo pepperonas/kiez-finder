@@ -225,7 +225,60 @@ test('completedAreas zählt nur Bereiche, die überhaupt POIs haben', () => {
   assert.deepEqual(completedAreas(LIST, p, areas), { done: 1, withPois: 2 })
 })
 
+test('decodePoi: facts nur bei echtem Array, sonst leer', () => {
+  assert.deepEqual(decodePoi([1, 'X', '', 0, 0, 0, 'p', 5, 0, 0]).facts, [])        // 0 → []
+  assert.deepEqual(decodePoi([1, 'X', '', 0, 0, 0, 'p', 5, 0, 'string']).facts, []) // String → []
+  assert.deepEqual(decodePoi([1, 'X', '', 0, 0, 0, 'p', 5, 0]).facts, [])           // fehlt → []
+})
+
+test('nearestPois: n größer als die Liste liefert alle, sortiert', () => {
+  const all = nearestPois(LIST, 52.5163, 13.3777, 99)
+  assert.equal(all.length, LIST.length)
+  for (let i = 1; i < all.length; i++) assert.ok(all[i].dist >= all[i - 1].dist, 'aufsteigend')
+})
+
+test('poisNear: ein POI außerhalb des Radius, aber innerhalb des Vorfilters, wird verworfen', () => {
+  // ~270 m entfernt (Reichstag), Vorfilter (±0.02°/±0.03°) lässt ihn durch,
+  // die Haversine-Prüfung mit Standard-Radius 150 m aber nicht
+  const near = poisNear([REICHSTAG], 52.5163, 13.3777)
+  assert.equal(near.length, 0)
+  assert.equal(poisNear([REICHSTAG], 52.5163, 13.3777, 300).length, 1) // größerer Radius fängt ihn
+})
+
+test('readProgress dekodiert String-Keys zu numerischen QID-Keys', () => {
+  const p = readProgress(stubStorage({ 'kf-hunt': '{"v":1,"visited":{"82425":1700000000000}}' }))
+  assert.equal(p.visited[82425], 1700000000000) // Zahl-Key, nicht "82425"
+  assert.ok(Object.keys(p.visited).every((k) => Number.isFinite(+k)))
+})
+
+test('overallProgress: ohne Liste → alles 0 (kein Absturz)', () => {
+  assert.deepEqual(overallProgress(null, emptyProgress()), { total: 0, visited: 0, pct: 0 })
+  assert.deepEqual(overallProgress(undefined, { v: 1, visited: { 1: 1 } }), { total: 0, visited: 0, pct: 0 })
+})
+
+test('mergeProgress koerziert String-QIDs zu Zahlen und behält den frühesten ts', () => {
+  const merged = mergeProgress({ v: 1, visited: { 5: 900 } }, { v: 1, visited: { 5: 400, 7: 100 } })
+  assert.deepEqual(merged.visited, { 5: 400, 7: 100 })
+  assert.ok(Object.keys(merged.visited).every((k) => Number.isFinite(+k)))
+})
+
+test('fmtDist: die 1000-m-Grenze ist exklusiv, darunter Meter (auf 10 gerundet)', () => {
+  assert.equal(fmtDist(1000), '1,0 km')  // Grenze (< 1000 ist false) → km
+  assert.equal(fmtDist(1250), '1,3 km')
+  assert.equal(fmtDist(945), '950 m')    // auf 10 m gerundet
+  assert.equal(fmtDist(4), '0 m')        // rundet auf 0
+})
+
 // ── Ränge ────────────────────────────────────────────────────────────────────
+test('rankFor: die Schwellen selbst heben in den nächsthöheren Rang', () => {
+  assert.equal(rankFor(4).title, 'Neu in der Stadt') // knapp unter Tourist
+  assert.equal(rankFor(5).title, 'Tourist')          // Schwelle erreicht
+  assert.equal(rankFor(24).title, 'Tourist')
+  assert.equal(rankFor(25).title, 'Zugezogen')
+  assert.equal(rankFor(600).title, 'Berlin-Legende')
+  assert.equal(rankFor(5).toNext, 20) // 25 − 5 bis „Zugezogen"
+})
+
 test('rankFor liefert Titel + Rest bis zum nächsten Rang', () => {
   const r0 = rankFor(0)
   assert.equal(r0.title, 'Neu in der Stadt')

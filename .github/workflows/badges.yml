@@ -1,0 +1,42 @@
+# Badges — misst bei jedem Push auf main die Tests/Coverage + zählt die LOC und
+# schreibt die dynamischen Badges (Unit-Tests · Lines of Code · Coverage) in
+# README.md/CLAUDE.md zurück. Der Auto-Commit trägt [skip ci] → kein Workflow-Loop.
+name: Badges
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: badges-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  badges:
+    runs-on: ubuntu-latest
+    # der eigene Bot-Commit (mit [skip ci]) triggert ohnehin nichts — Gürtel + Hosenträger
+    if: github.actor != 'github-actions[bot]'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Badges messen + schreiben
+        run: node tools/badges.mjs
+      - name: Änderungen zurück-committen
+        run: |
+          if [[ -n "$(git status --porcelain README.md CLAUDE.md)" ]]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add README.md CLAUDE.md
+            git commit -m "chore: Badges (LOC + Tests) automatisch aktualisiert [skip ci]"
+            git push
+          else
+            echo "Badges bereits aktuell — nichts zu committen."
+          fi

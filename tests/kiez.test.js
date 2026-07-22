@@ -5,6 +5,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   bezirkName, kmFromBerlin, bboxOf, levelName, pointInGeometry, BERLIN_CENTER,
+  LEVELS, kiezAreaFor, featureForLevel, findKiez, findOsmKiez, kiezeFC, levelFC,
 } from '../src/kiez.js'
 
 const square = (minX, minY, maxX, maxY) => ({
@@ -75,6 +76,88 @@ test('pointInGeometry: MultiPolygon membership', () => {
 test('pointInGeometry: null/unsupported geometry is not inside', () => {
   assert.equal(pointInGeometry(null, 1, 1), false)
   assert.equal(pointInGeometry({ type: 'Point', coordinates: [1, 1] }, 1, 1), false)
+})
+
+test('bezirkName trims surrounding whitespace and single-digit prefixes', () => {
+  assert.equal(bezirkName('  Mitte  '), 'Mitte')
+  assert.equal(bezirkName('1 - Mitte'), 'Mitte')      // single digit
+  assert.equal(bezirkName('08-Neukölln'), 'Neukölln') // no spaces around the dash
+  assert.equal(bezirkName(undefined), '')
+})
+
+test('kmFromBerlin separates the latitude and longitude contributions', () => {
+  const [clon, clat] = BERLIN_CENTER
+  // 0.1° latitude ≈ 11.13 km (no cos scaling on lat)
+  const dLat = kmFromBerlin(clon, clat + 0.1)
+  assert.ok(Math.abs(dLat - 11.132) < 0.05, `~11.13 km, got ${dLat}`)
+  // 0.1° longitude at 52.5°N ≈ 11.13 × cos(52.5°) ≈ 6.78 km — shorter than the lat step
+  const dLon = kmFromBerlin(clon + 0.1, clat)
+  assert.ok(dLon < dLat && dLon > 6.5 && dLon < 7.1, `~6.8 km, got ${dLon}`)
+})
+
+test('bboxOf includes holes but they never extend the outer bounds', () => {
+  const withHole = {
+    type: 'Feature', properties: {},
+    geometry: { type: 'Polygon', coordinates: [
+      [[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]], // outer
+      [[4, 4], [6, 4], [6, 6], [4, 6], [4, 4]],     // hole (interior → no effect on bbox)
+    ] },
+  }
+  assert.deepEqual(bboxOf(withHole), [0, 0, 10, 10])
+})
+
+test('pointInGeometry: a concave (L-shaped) polygon excludes its notch', () => {
+  // L-shape occupying the lower and left, with the top-right corner cut out
+  const L = { type: 'Polygon', coordinates: [[
+    [0, 0], [10, 0], [10, 4], [4, 4], [4, 10], [0, 10], [0, 0],
+  ]] }
+  assert.equal(pointInGeometry(L, 1, 1), true)   // inside the solid corner
+  assert.equal(pointInGeometry(L, 2, 8), true)   // inside the left arm
+  assert.equal(pointInGeometry(L, 8, 8), false)  // in the cut-out notch → outside
+})
+
+test('pointInGeometry: MultiPolygon where one part carries a hole', () => {
+  const g = { type: 'MultiPolygon', coordinates: [
+    [ // part A with a hole
+      [[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]],
+      [[4, 4], [6, 4], [6, 6], [4, 6], [4, 4]],
+    ],
+    [ // part B, solid
+      [[20, 20], [22, 20], [22, 22], [20, 22], [20, 20]],
+    ],
+  ] }
+  assert.equal(pointInGeometry(g, 1, 1), true)    // A, clear of the hole
+  assert.equal(pointInGeometry(g, 5, 5), false)   // inside A's hole → outside
+  assert.equal(pointInGeometry(g, 21, 21), true)  // inside B
+  assert.equal(pointInGeometry(g, 15, 15), false) // between the parts
+})
+
+// ── fresh-state guards (nothing loaded — kiez.test.js never imports loaders) ──
+test('accessors and finders are null/empty before any load', () => {
+  assert.equal(kiezeFC(), null)
+  assert.equal(levelFC(), null)
+  assert.equal(findKiez(13.4, 52.5), null)   // no data → no classification
+  assert.equal(findOsmKiez(13.4, 52.5), null)
+})
+
+test('kiezAreaFor without loaded areas falls back to the feature itself (even with a gid)', () => {
+  const plr = { properties: { gid: 7, plr_id: '08010101' } }
+  assert.equal(kiezAreaFor(plr), plr) // no _kiezAreaByGid yet → identity, not null
+  assert.equal(kiezAreaFor(null), null)
+})
+
+test('featureForLevel: plr/kiez resolve locally, aggregate levels need loaded maps', () => {
+  const plr = { properties: { gid: 7, plr_id: '08010101' } }
+  assert.equal(featureForLevel('plr', plr), plr)
+  assert.equal(featureForLevel('kiez', plr), plr) // → kiezAreaFor fallback = itself
+  assert.equal(featureForLevel('bez', plr), null) // no _levelMaps loaded → null
+  assert.equal(featureForLevel('bzr', null), null)
+})
+
+test('LEVELS lists the four LOR tiers with key + label', () => {
+  assert.deepEqual(LEVELS.map((l) => l.key), ['plr', 'bez', 'bzr', 'pgr'])
+  for (const l of LEVELS) assert.ok(l.label && typeof l.label === 'string')
+  assert.deepEqual(BERLIN_CENTER, [13.404, 52.52])
 })
 
 test('levelName reads the right hierarchy field for a Planungsraum', () => {

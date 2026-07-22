@@ -268,7 +268,58 @@ test('kiezFallbackText bleibt ohne Daten sinnvoll', () => {
     /Die Fläche beträgt 0,51 km²\.$/) // ohne Einwohner: nur die Fläche
 })
 
+test('aggregate: Ø-Alter zählt nur die nicht-anonymisierten Mitglieder', () => {
+  // Bezirk 01: 01011101 = NA (kein Alter), 01011102 = pop 500, alterssumme 25000
+  // → avgAge = 25000 / 500 = 50, obwohl das NA-Mitglied mit-„partial" ist
+  const bez01 = aggregate(DATA, FC, { kind: 'prefix', v: '01' })
+  assert.equal(bez01.pop, 500)
+  assert.equal(bez01.partial, true)
+  assert.ok(Math.abs(bez01.avgAge - 50) < 1e-9)
+})
+
+test('selectorForFeature: Aggregat-Feature ohne id → null (kein Präfix ableitbar)', () => {
+  assert.equal(selectorForFeature('bez', { properties: {} }), null)
+  assert.equal(selectorForFeature('pgr', { properties: { id: '' } }), null) // leere id ist falsy
+  assert.equal(selectorForFeature('nope', { properties: { id: '08' } }), null) // unbekannter Typ
+})
+
+test('ranksFor: eine im Selektor genannte, aber unbekannte Einheit hat keinen Rang', () => {
+  clearRankCache()
+  assert.equal(ranksFor(DATA, FC, 'kiez', { kind: 'gid', v: 'gibtsnicht' }), null)
+  assert.equal(ranksFor(DATA, FC, 'nope', { kind: 'gid', v: 'k1' }), null) // unbekannte Ebene
+  assert.equal(ranksFor(null, FC, 'kiez', { kind: 'gid', v: 'k1' }), null)
+})
+
+test('ranksFor: Dichte-Rang kann vom Einwohner-Rang abweichen', () => {
+  clearRankCache()
+  // ga: viele Einwohner, große Fläche → dünn · gb: weniger Einwohner, klein → dicht
+  const FC2 = { type: 'FeatureCollection', features: [
+    { type: 'Feature', properties: { plr_id: '08010101', gid: 'ga' }, geometry: null },
+    { type: 'Feature', properties: { plr_id: '08020101', gid: 'gb' }, geometry: null },
+  ] }
+  const DATA2 = { stand: 'x', plr: { '08010101': [1000, 2000000, 40000], '08020101': [900, 300000, 40000] } }
+  const ga = ranksFor(DATA2, FC2, 'kiez', { kind: 'gid', v: 'ga' })
+  const gb = ranksFor(DATA2, FC2, 'kiez', { kind: 'gid', v: 'gb' })
+  assert.deepEqual(ga, { popRank: 1, densRank: 2, of: 2 }) // meiste Einwohner, geringste Dichte
+  assert.deepEqual(gb, { popRank: 2, densRank: 1, of: 2 }) // umgekehrt
+  clearRankCache()
+})
+
+test('geodesicAreaM2: entartete Geometrie (leere/kollineare Ringe) → 0', () => {
+  assert.equal(geodesicAreaM2({ type: 'Polygon', coordinates: [] }), 0)
+  // eine Linie (Fläche 0) hin und zurück
+  assert.equal(geodesicAreaM2({ type: 'Polygon', coordinates: [[[13, 52], [13.1, 52], [13, 52]]] }), 0)
+  assert.equal(geodesicAreaM2({ type: 'MultiPolygon', coordinates: [] }), 0)
+})
+
 // ── Formatierung ─────────────────────────────────────────────────────────────
+test('fmtKm2: Grenzwerte 1 km² und 10 km² wechseln die Nachkommastellen-Regel', () => {
+  assert.equal(fmtKm2(1e6), '1,0 km²')     // genau 1 km² → 1 Nachkommastelle
+  assert.equal(fmtKm2(1e7), '10 km²')      // genau 10 km² → ganzzahlig
+  assert.equal(fmtKm2(2500000), '2,5 km²')
+  assert.equal(fmtKm2(0), '0,00 km²')      // < 1 km² → 2 Nachkommastellen
+})
+
 test('fmtInt / fmtKm2 / fmtDichte formatieren de-DE', () => {
   assert.equal(fmtInt(3913644), '3.913.644')
   assert.equal(fmtKm2(470000), '0,47 km²')   // < 1 km² → 2 Nachkommastellen

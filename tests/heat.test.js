@@ -126,6 +126,48 @@ test('legendFor liefert Titel, formatiertes Min/Max und die Klassenfarben', () =
   assert.equal(legendFor(metricByKey('dichte'), [], [1], 'dark'), null)
 })
 
+test('standFor: ohne Metrik → null', () => {
+  assert.equal(standFor(null, STATS, PREISE), null)
+  assert.equal(standFor(metricByKey('dichte'), null, PREISE), null) // Quelle fehlt
+})
+
+test('quantileBreaks: k=2 liefert genau die Median-Grenze', () => {
+  assert.deepEqual(quantileBreaks([1, 2, 3, 4], 2), [3]) // v[floor(4·1/2)] = v[2] = 3
+  assert.equal(quantileBreaks([1, 2, 3, 4], 2).length, 1) // k-1 Grenzen
+})
+
+test('classIndex: ohne Grenzen ist alles Klasse 0', () => {
+  assert.equal(classIndex(999, []), 0)
+  assert.equal(classIndex(-5, []), 0)
+})
+
+test('buildHeatFC: pop 0 gibt Dichte 0, aber kein Alter (pop>0 nötig)', () => {
+  const S = { stand: 'x', plr: { '08010101': [0, 500000, 40000] } }
+  const F = { type: 'FeatureCollection', features: [plr('08010101', 'Null')] }
+  const p = buildHeatFC(F, S, null).features[0].properties
+  assert.equal(p.dichte, 0)          // pop != null && m2 → Dichte 0 (nicht weggelassen)
+  assert.equal('alter' in p, false)  // pop > 0 verletzt → kein Alter
+})
+
+test('heatPaint: unbekanntes Theme fällt auf die dark-Rampe zurück', () => {
+  const p = heatPaint('dichte', [10], 'sonnengelb')
+  assert.equal(p[3][2], RAMPS.dark[0]) // step-Basisfarbe = dark[0]
+})
+
+test('heatPaint: mehr Breaks als Rampenstufen → Farbindex klemmt auf die letzte', () => {
+  const breaks = [1, 2, 3, 4, 5, 6, 7] // 7 Grenzen → 8 Klassen, Rampe hat nur 7
+  const step = heatPaint('dichte', breaks, 'dark')[3]
+  assert.equal(step.length, 3 + 2 * 7)                     // Basis + 7 (Stop, Farbe)
+  assert.equal(step[step.length - 1], RAMPS.dark[6])       // letzte Farbe geklemmt
+})
+
+test('legendFor: unbekanntes Theme nutzt die dark-Rampe, Farbenzahl = Breaks+1', () => {
+  const leg = legendFor(metricByKey('dichte'), [10, 20, 30], [1, 15, 25, 40], 'zzz')
+  assert.deepEqual(leg.colors, RAMPS.dark.slice(0, 4))
+  assert.equal(leg.min, '1')
+  assert.equal(leg.max, '40')
+})
+
 test('RAMPS: 7 Stufen je Theme, alles Hex-Farben', () => {
   for (const t of ['dark', 'light']) {
     assert.equal(RAMPS[t].length, 7)

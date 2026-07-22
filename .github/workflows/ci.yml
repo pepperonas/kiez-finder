@@ -22,10 +22,10 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
-      - name: Unit-Tests + Coverage + Doku-Sync
-        # Führt die Suite mit Coverage aus UND prüft, dass Coverage-Badge und
-        # Test-Anzahl in README.md/CLAUDE.md der Messung entsprechen — die
-        # statischen Doku-Zahlen können so nicht still veralten.
-        run: node tools/check-doc-sync.mjs
+      - name: Unit-Tests + Coverage
+        # Suite mit Coverage (Report im Job-Log). Rot bei jedem Fehlschlag.
+        # Die Badge-Zahlen (LOC/Tests/Coverage) pflegt der Badges-Workflow
+        # automatisch — hier wird nicht mehr auf Doku-Drift geprüft.
+        run: node --test --experimental-test-coverage tests/*.test.js
       - name: Production-Build
         run: npm run build

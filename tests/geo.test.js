@@ -103,6 +103,42 @@ test('reverseGeocode is best-effort: HTTP error and thrown fetch both yield null
   assert.equal(await reverseGeocode(52.51, 13.41), null)
 })
 
+test('reverseGeocode: address with no road drops the street part cleanly', async () => {
+  setGlobal('sessionStorage', storageStub())
+  globalThis.fetch = NOMINATIM({ postcode: '12045', suburb: 'Neukölln' })
+  const out = await reverseGeocode(52.48, 13.43)
+  assert.equal(out.line, '12045 Neukölln') // no leading ", " from the empty street
+  assert.equal(out.kiez, null)
+})
+
+test('reverseGeocode: borough is the last Ortsteil fallback after suburb/city_district', async () => {
+  setGlobal('sessionStorage', storageStub())
+  globalThis.fetch = NOMINATIM({ road: 'Karl-Marx-Straße', borough: 'Neukölln' })
+  const out = await reverseGeocode(52.47, 13.44)
+  assert.equal(out.line, 'Karl-Marx-Straße, Neukölln')
+})
+
+test('reverseGeocode: distinct rounded coordinates each trigger their own fetch', async () => {
+  const store = storageStub()
+  setGlobal('sessionStorage', store)
+  let calls = 0
+  globalThis.fetch = async () => { calls++; return { ok: true, json: async () => ({ address: { road: 'Weg' } }) } }
+  await reverseGeocode(52.4800, 13.4300)
+  await reverseGeocode(52.4900, 13.4400) // > 1e-4 apart → different cache key
+  assert.equal(calls, 2)
+  assert.equal(store._map.size, 2)
+})
+
+test('reverseGeocode: a cached hit returns the parsed object without touching fetch', async () => {
+  const cached = { line: 'Aus Cache 1', kiez: 'Reuterkiez', raw: {} }
+  setGlobal('sessionStorage', storageStub({ 'kf-rev-52.5200,13.4000': JSON.stringify(cached) }))
+  let calls = 0
+  globalThis.fetch = async () => { calls++; return { ok: true, json: async () => ({ address: {} }) } }
+  const out = await reverseGeocode(52.52, 13.40)
+  assert.deepEqual(out, cached)
+  assert.equal(calls, 0)
+})
+
 test('reverseGeocode survives a throwing sessionStorage (private mode)', async () => {
   setGlobal('sessionStorage', {
     getItem() { throw new Error('SecurityError') },

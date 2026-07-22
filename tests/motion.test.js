@@ -87,6 +87,23 @@ test('the cancel fn stops the spring mid-flight', async () => {
   assert.notEqual(seen[seen.length - 1], 100, 'was still mid-flight')
 })
 
+test('spring already at the target settles immediately (from === to)', async () => {
+  const seen = []
+  let done = false
+  spring(42, 42, SPRINGS.spatialDefault, (v) => seen.push(v), () => { done = true })
+  await settle(50)
+  assert.ok(done, 'onDone still fires')
+  assert.equal(seen[seen.length - 1], 42) // never leaves the target
+  assert.ok(seen.every((v) => v === 42), 'no spurious excursion off the target')
+})
+
+test('spring works without an onDone callback (optional)', async () => {
+  const seen = []
+  assert.doesNotThrow(() => spring(0, 10, SPRINGS.spatialDefault, (v) => seen.push(v)))
+  await settle(100)
+  assert.equal(seen[seen.length - 1], 10)
+})
+
 // ── tweenNumber ──────────────────────────────────────────────────────────────
 test('tweenNumber eases to the target and formats every frame', async () => {
   const el = { textContent: '' }
