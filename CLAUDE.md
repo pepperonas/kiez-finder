@@ -303,8 +303,13 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   unclickable. `mousemove` uses the same helper for the desktop pointer cursor. main.js: `discoverAt` on the real
   check-in only, toasts (`pointer-events: none` — they used to swallow topbar clicks), `huntSection`/
   `patchHunt` in the card. Covered by `tests/hunt.test.js`. Enriched further by `tools/build-poi-info.mjs`
-  → `public/data/poi-info.json` (993/1000 a 2-sentence Wikipedia extract, 959 an image + author/license,
-  ~301 KB): `loadPoiInfo`/`poiInfo`. **POI photos are SELF-HOSTED, not runtime-from-Commons:**
+  → `public/data/poi-info.json` (993/1000 a 2-sentence Wikipedia extract, **993/993 an image** +
+  author/license): `loadPoiInfo`/`poiInfo`. **The original `build-poi-images.mjs` (Wikipedia-pageimage
+  only) missed ~40 POIs — including flagships like the Fernsehturm, Kottbusser Tor, Schloss Bellevue.
+  `tools/recover-poi-images.mjs` fills any `img≠1` POI multi-source: Wikidata P18 (the qid IS the
+  Wikidata Q-number → curated main image) → dewiki pageimage (jpg) → category-filtered Commons
+  geosearch around the POI coords (same BAD_CAT map/seal/Stolperstein reject as the Kiez photos).
+  Re-run it after adding POIs.** **POI photos are SELF-HOSTED, not runtime-from-Commons:**
   `tools/build-poi-images.mjs` downloads each Commons image ONCE, resizes+optimises to WebP (width 480,
   q74, ~24 KB avg) → `public/img/poi/<qid>.webp` (~22 MB, committed), and rewrites poi-info `img` from the
   filename to a boolean `1`/`0`. The card loads `poiImgSrc(qid)` = `/img/poi/<qid>.webp` — same-origin,
