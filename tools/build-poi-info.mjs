@@ -24,6 +24,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
+const sub = ((process.argv.slice(2).find((a) => a.startsWith('--city=')) || '').split('=')[1] || '') ? 'frankfurt/' : ''
 const UA = 'kiez-finder/1.0 (https://kiezfinder.celox.io; Build-Skript, einmalig)'
 const API = 'https://de.wikipedia.org/w/api.php'
 const COMMONS = 'https://commons.wikimedia.org/w/api.php'
@@ -58,7 +59,7 @@ function trimExtract(x) {
 }
 
 // ── POIs + Artikel-Titel ─────────────────────────────────────────────────────
-const data = JSON.parse(readFileSync(join(root, 'public/data/pois.json'), 'utf8'))
+const data = JSON.parse(readFileSync(join(root, `public/data/${sub}pois.json`), 'utf8'))
 // Titel → Liste der qids (mehrere POIs können denselben Artikel referenzieren)
 const titleToQids = new Map()
 for (const p of data.pois) {
@@ -130,7 +131,7 @@ for (const [qid, img] of imgByQid) {
 }
 
 // ── schreiben ────────────────────────────────────────────────────────────────
-writeFileSync(join(root, 'public/data/poi-info.json'), JSON.stringify({
+writeFileSync(join(root, `public/data/${sub}poi-info.json`), JSON.stringify({
   quelle: 'Texte: Wikipedia (CC BY-SA 4.0) · Bilder: Wikimedia Commons (Urheber/Lizenz je Bild)',
   info,
 }))

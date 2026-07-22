@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Builds public/data/kiez-img.json + public/img/kiez/<gid>.webp — ein repräsen-
+// Builds public/data/${sub}kiez-img.json + public/img/kiez/<gid>.webp — ein repräsen-
 // tatives, offen lizenziertes Foto je umgangssprachlichem Kiez (gid), damit die
 // KIEZ-Card (nicht nur POI-Cards) ein Bild zeigt.
 //
@@ -29,15 +29,16 @@ import { tmpdir } from 'node:os'
 
 const run = promisify(execFile)
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
+const sub = ((process.argv.slice(2).find((a) => a.startsWith('--city=')) || '').split('=')[1] || '') ? 'frankfurt/' : ''
 const OUT = join(root, 'public/img/kiez')
 const UA = 'kiez-finder/1.0 (https://kiezfinder.celox.io; Build-Skript, einmalig)'
 const WIDTH = 480, QUALITY = 74, PACE_MS = 140
 mkdirSync(OUT, { recursive: true })
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
-const kieze = JSON.parse(readFileSync(join(root, 'public/data/kieze.geojson'), 'utf8'))
-const areas = JSON.parse(readFileSync(join(root, 'public/data/kiez-areas.geojson'), 'utf8'))
-const kiezInfo = JSON.parse(readFileSync(join(root, 'public/data/kiez-info.json'), 'utf8')).info
+const kieze = JSON.parse(readFileSync(join(root, `public/data/${sub}kieze.geojson`), 'utf8'))
+const areas = JSON.parse(readFileSync(join(root, `public/data/${sub}kiez-areas.geojson`), 'utf8'))
+const kiezInfo = (existsSync(join(root, `public/data/${sub}kiez-info.json`)) ? JSON.parse(readFileSync(join(root, `public/data/${sub}kiez-info.json`), 'utf8')).info : {})
 
 // je gid: Kiez-Name + Mittelpunkt (aus der zusammengeführten Fläche)
 const byGid = new Map()
@@ -195,8 +196,8 @@ const hash = (s) => { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 
 // WebPs behalten, Credit/file aus dem letzten Lauf übernehmen).
 const FORCE = process.env.KF_FORCE === '1'
 const GIDS = new Set((process.env.KF_GIDS || '').split(',').map((s) => s.trim()).filter(Boolean))
-const prev = existsSync(join(root, 'public/data/kiez-img.json'))
-  ? JSON.parse(readFileSync(join(root, 'public/data/kiez-img.json'), 'utf8')).info : {}
+const prev = existsSync(join(root, `public/data/${sub}kiez-img.json`))
+  ? JSON.parse(readFileSync(join(root, `public/data/${sub}kiez-img.json`), 'utf8')).info : {}
 const out = {}
 let ok = 0, skip = 0, miss = 0, n = 0
 for (const k of byGid.values()) {
@@ -216,7 +217,7 @@ for (const k of byGid.values()) {
   if (n % 40 === 0) console.log(`  … ${n}/${byGid.size} (${ok} neu, ${skip} da, ${miss} ohne)`)
 }
 
-writeFileSync(join(root, 'public/data/kiez-img.json'), JSON.stringify({ quelle: 'Fotos: Wikipedia / Wikimedia Commons (Urheber+Lizenz je Bild)', info: out }))
+writeFileSync(join(root, `public/data/${sub}kiez-img.json`), JSON.stringify({ quelle: 'Fotos: Wikipedia / Wikimedia Commons (Urheber+Lizenz je Bild)', info: out }))
 let bytes = 0
 for (const g of Object.keys(out)) { const p = join(OUT, g + '.webp'); if (existsSync(p)) bytes += statSync(p).size }
 const withImg = Object.values(out).filter((e) => e.img === 1).length

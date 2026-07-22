@@ -25,6 +25,7 @@ import { tmpdir } from 'node:os'
 
 const run = promisify(execFile)
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
+const sub = ((process.argv.slice(2).find((a) => a.startsWith('--city=')) || '').split('=')[1] || '') ? 'frankfurt/' : ''
 const OUT = join(root, 'public/img/poi')
 const UA = 'kiez-finder/1.0 (https://kiezfinder.celox.io; Build-Skript, einmalig)'
 // SEQUENZIELL + Pacing: Wikimedia Commons rate-limitet parallele Zugriffe hart
@@ -32,7 +33,7 @@ const UA = 'kiez-finder/1.0 (https://kiezfinder.celox.io; Build-Skript, einmalig
 const WIDTH = 480, QUALITY = 74, CONCURRENCY = 1, PACE_MS = 140
 mkdirSync(OUT, { recursive: true })
 
-const infoDoc = JSON.parse(readFileSync(join(root, 'public/data/poi-info.json'), 'utf8'))
+const infoDoc = JSON.parse(readFileSync(join(root, `public/data/${sub}poi-info.json`), 'utf8'))
 const jobs = Object.entries(infoDoc.info)
   .filter(([, e]) => e.img && e.img !== 0 && e.img !== 1)
   .map(([qid, e]) => ({ qid: +qid, file: e.img }))
@@ -95,7 +96,7 @@ async function worker() {
 await Promise.all(Array.from({ length: CONCURRENCY }, worker))
 
 // POIs, die keinen Commons-Dateinamen hatten, bleiben img:0 (unverändert)
-writeFileSync(join(root, 'public/data/poi-info.json'), JSON.stringify(infoDoc))
+writeFileSync(join(root, `public/data/${sub}poi-info.json`), JSON.stringify(infoDoc))
 
 // Gesamtgröße melden
 let bytes = 0, count = 0
