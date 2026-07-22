@@ -8,7 +8,7 @@
 
 [![CI](https://img.shields.io/github/actions/workflow/status/pepperonas/kiez-finder/ci.yml?branch=main&label=CI&logo=githubactions&logoColor=white)](https://github.com/pepperonas/kiez-finder/actions/workflows/ci.yml)
 [![Unit Tests](https://img.shields.io/badge/unit_tests-249-4c9f70?logo=nodedotjs&logoColor=white)](#tests-ausf%C3%BChren)
-[![Lines of Code](https://img.shields.io/badge/lines_of_code-5302-8a7bd8?logo=javascript&logoColor=000)](#tech-stack)
+[![Lines of Code](https://img.shields.io/badge/lines_of_code-5314-8a7bd8?logo=javascript&logoColor=000)](#tech-stack)
 [![Coverage (Unit)](https://img.shields.io/badge/coverage_(unit)-100.00%25_lines-brightgreen)](#tests-ausf%C3%BChren)
 [![Live](https://img.shields.io/website?url=https%3A%2F%2Fkiezfinder.celox.io&label=kiezfinder.celox.io&logo=icloud&logoColor=white)](https://kiezfinder.celox.io)
 [![Version](https://img.shields.io/github/package-json/v/pepperonas/kiez-finder?logo=npm&logoColor=white)](package.json)
