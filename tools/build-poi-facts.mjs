@@ -19,9 +19,10 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
+const sub = ((process.argv.slice(2).find((a) => a.startsWith('--city=')) || '').split('=')[1] || '') ? 'frankfurt/' : ''
 const UA = 'kiez-finder/1.0 (https://kiezfinder.celox.io; Build-Skript, einmalig)'
 
-const data = JSON.parse(readFileSync(join(root, 'public/data/pois.json'), 'utf8'))
+const data = JSON.parse(readFileSync(join(root, `public/data/${sub}pois.json`), 'utf8'))
 const KAT = data.kat
 const values = data.pois.map((p) => 'wd:Q' + p[0]).join(' ')
 
@@ -116,5 +117,5 @@ for (const p of data.pois) {
   if (facts.length === 2) withTwo++
 }
 data.factsQuelle = 'Eckdaten: Wikidata (CC0)'
-writeFileSync(join(root, 'public/data/pois.json'), JSON.stringify(data))
+writeFileSync(join(root, `public/data/${sub}pois.json`), JSON.stringify(data))
 console.log(`✓ pois.json angereichert: ${withAny}/${data.pois.length} mit ≥1 Eckdatum, ${withTwo} mit zwei`)

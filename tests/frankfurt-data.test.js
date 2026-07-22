@@ -11,6 +11,7 @@ const kieze = load('kieze.geojson')
 const bezirke = load('bezirke.geojson')
 const stats = load('stats.json')
 const strassen = load('strassen.json')
+const pois = load('pois.json')
 
 test('kieze: 46 Stadtteile im App-Schema (plr_id/gid/kiez/bez, Polygon)', () => {
   assert.equal(kieze.features.length, 46)
@@ -61,4 +62,19 @@ test('strassen: Index-Form + bekannte Frankfurter Straßen', () => {
     assert.equal(s.length, 8) // [name, bezIdx, cx, cy, x1,y1,x2,y2]
     assert.ok(s[1] >= -1 && s[1] < 16)
   }
+})
+
+test('pois: Schnitzeljagd-Datensatz (kompakte Records, in Stadtteilen verortet)', () => {
+  assert.equal(pois.kat.length, 16)
+  assert.ok(pois.pois.length >= 300)
+  const plrIds = new Set(kieze.features.map((f) => f.properties.plr_id))
+  for (const p of pois.pois) {
+    assert.equal(p.length >= 8, true) // [qid,name,desc,lon,lat,katIdx,plr_id,sitelinks,art?,facts?]
+    assert.ok(p[5] >= 0 && p[5] < 16) // katIdx
+    assert.ok(plrIds.has(p[6]), `POI ${p[1]} in gültigem Stadtteil`)
+    assert.ok(p[3] > 8.4 && p[3] < 8.9 && p[4] > 49.9 && p[4] < 50.3) // Frankfurt-Bbox
+  }
+  // bekannte Frankfurter Wahrzeichen sind dabei
+  const names = new Set(pois.pois.map((p) => p[1]))
+  assert.ok(['Messeturm', 'Städelsches Kunstinstitut'].some((n) => names.has(n)))
 })

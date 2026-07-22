@@ -31,13 +31,19 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const TARGET = 1000
-const QUOTA = 45 // Mindestplätze je Bezirk vor der globalen Auffüllung
+const cityId = (process.argv.slice(2).find((a) => a.startsWith('--city=')) || '').split('=')[1] || ''
+const CITY = {
+  '':         { wd: 'Q64',   target: 1000, quota: 45, bezMin: 12, minBez: 20, sub: '',           verortung: 'LOR 2021', name: 'Berlins' },
+  frankfurt:  { wd: 'Q1794', target: 400,  quota: 12, bezMin: 12, minBez: 1,  sub: 'frankfurt/', verortung: 'Stadtteile (Point-in-Polygon)', name: 'Frankfurts' },
+}[cityId]
+if (!CITY) { console.error(`unbekannte --city=${cityId}`); process.exit(1) }
+const TARGET = CITY.target
+const QUOTA = CITY.quota // Mindestplätze je Bezirk vor der globalen Auffüllung
 const UA = 'kiez-finder/1.0 (https://kiezfinder.celox.io; Build-Skript, einmalig)'
 
 const SPARQL = `
 SELECT DISTINCT ?item ?itemLabel ?desc ?coord ?sl ?article WHERE {
-  ?item wdt:P131* wd:Q64 ; wdt:P625 ?coord ; wikibase:sitelinks ?sl .
+  ?item wdt:P131* wd:${CITY.wd} ; wdt:P625 ?coord ; wikibase:sitelinks ?sl .
   FILTER(?sl >= 2)
   VALUES ?root { wd:Q811979 wd:Q2065736 wd:Q570116 wd:Q22698 wd:Q33506 wd:Q4989906 wd:Q839954 wd:Q39614 }
   ?item wdt:P31/wdt:P279* ?root .
@@ -130,7 +136,7 @@ for (const r of rows) {
 console.log(`  ${rows.length} Zeilen → ${byQid.size} eindeutige Kandidaten`)
 
 // ── 2) Planungsraum + Bezirk zuordnen (POIs außerhalb Berlins fallen raus) ──
-const kieze = JSON.parse(readFileSync(join(root, 'public/data/kieze.geojson'), 'utf8'))
+const kieze = JSON.parse(readFileSync(join(root, `public/data/${CITY.sub}kieze.geojson`), 'utf8'))
 const plrs = kieze.features.map((f) => ({ id: f.properties.plr_id, bez: f.properties.bez, geom: f.geometry, bb: bboxOf(f.geometry) }))
 const candidates = []
 for (const p of byQid.values()) {
@@ -138,7 +144,7 @@ for (const p of byQid.values()) {
   if (!hit) continue // außerhalb der Stadtgrenze (P131* erfasst auch Randfälle)
   candidates.push({ ...p, plr: hit.id, bez: hit.bez, kat: kategorie(p.name, p.desc) })
 }
-console.log(`  ${candidates.length} davon innerhalb Berlins verortet`)
+console.log(`  ${candidates.length} davon innerhalb ${CITY.name} verortet`)
 
 // ── 3) Auswahl: Bezirks-Quote, dann global nach Sitelinks auffüllen ─────────
 candidates.sort((a, b) => b.sl - a.sl || a.qid - b.qid)
@@ -169,18 +175,18 @@ const pois = [...picked].sort((a, b) => b.sl - a.sl || a.qid - b.qid).slice(0, T
 // ── 4) Validierung + schreiben ───────────────────────────────────────────────
 const bezCount = new Map()
 for (const p of pois) bezCount.set(p.bez, (bezCount.get(p.bez) || 0) + 1)
-if (bezCount.size !== 12) throw new Error(`nur ${bezCount.size} Bezirke vertreten`)
+if (bezCount.size < CITY.bezMin) throw new Error(`nur ${bezCount.size} Bezirke vertreten`)
 const minBez = Math.min(...bezCount.values())
-if (minBez < 20) throw new Error(`Bezirk mit nur ${minBez} POIs — Quote greift nicht`)
+if (minBez < CITY.minBez) throw new Error(`Bezirk mit nur ${minBez} POIs — Quote greift nicht`)
 if (pois.length < TARGET * 0.9) throw new Error(`nur ${pois.length} POIs gefunden`)
 
 const out = {
   stand: new Date().toISOString().slice(0, 10),
-  quelle: 'Wikidata (CC0) — Auswahl nach Zahl der Wikipedia-Sprachversionen, Bezirks-Quote; Verortung: LOR 2021',
+  quelle: `Wikidata (CC0) — Auswahl nach Zahl der Wikipedia-Sprachversionen, Bezirks-Quote; Verortung: ${CITY.verortung}`,
   kat: KAT,
   pois: pois.map((p) => [p.qid, p.name, p.desc, +p.lon.toFixed(5), +p.lat.toFixed(5), p.kat, p.plr, p.sl, p.art]),
 }
-writeFileSync(join(root, 'public/data/pois.json'), JSON.stringify(out))
+writeFileSync(join(root, `public/data/${CITY.sub}pois.json`), JSON.stringify(out))
 
 const katCount = new Map()
 for (const p of out.pois) katCount.set(KAT[p[5]], (katCount.get(KAT[p[5]]) || 0) + 1)
