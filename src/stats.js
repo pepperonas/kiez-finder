@@ -9,6 +9,7 @@
 // die LOR-Ebenen sind exakte Partitionen, Summen sind also amtlich korrekt.
 // ─────────────────────────────────────────────────────────────────────────
 
+import { dpath } from './datapath.js'
 let _stats = null
 let _statsP = null
 let _info = null
@@ -16,7 +17,7 @@ let _infoP = null
 
 export function loadStats() {
   if (!_statsP) {
-    _statsP = fetch('/data/stats.json')
+    _statsP = fetch(dpath('stats.json'))
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => (_stats = d))
       .catch(() => null)
@@ -25,7 +26,7 @@ export function loadStats() {
 }
 export function loadKiezInfo() {
   if (!_infoP) {
-    _infoP = fetch('/data/kiez-info.json')
+    _infoP = fetch(dpath('kiez-info.json'))
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => (_info = d))
       .catch(() => null)
@@ -41,7 +42,7 @@ let _kimg = null
 let _kimgP = null
 export function loadKiezImg() {
   if (!_kimgP) {
-    _kimgP = fetch('/data/kiez-img.json')
+    _kimgP = fetch(dpath('kiez-img.json'))
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => (_kimg = d))
       .catch(() => null)

@@ -6,11 +6,12 @@
 // schief, dass eine lineare Skala fast einfarbig wäre.
 // ─────────────────────────────────────────────────────────────────────────
 
+import { dpath } from './datapath.js'
 let _preise = null
 let _preiseP = null
 export function loadPreise() {
   if (!_preiseP) {
-    _preiseP = fetch('/data/preise.json')
+    _preiseP = fetch(dpath('preise.json'))
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => (_preise = d))
       .catch(() => null)

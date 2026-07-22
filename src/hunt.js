@@ -12,13 +12,14 @@
 // reiner Union-Merge ist — kein Konflikt möglich.
 // ─────────────────────────────────────────────────────────────────────────
 
+import { dpath } from './datapath.js'
 export const RADIUS_M = 150 // „du warst da" — großzügig genug für GPS-Drift
 
 let _pois = null
 let _poisP = null
 export function loadPois() {
   if (!_poisP) {
-    _poisP = fetch('/data/pois.json')
+    _poisP = fetch(dpath('pois.json'))
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => (_pois = d ? { ...d, list: d.pois.map(decodePoi) } : null))
       .catch(() => null)
@@ -34,7 +35,7 @@ let _info = null
 let _infoP = null
 export function loadPoiInfo() {
   if (!_infoP) {
-    _infoP = fetch('/data/poi-info.json')
+    _infoP = fetch(dpath('poi-info.json'))
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => (_info = d))
       .catch(() => null)

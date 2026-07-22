@@ -5,6 +5,7 @@
 //
 // One point, many polygons → a hand-rolled ray-cast (zero deps), bbox-prefiltered.
 // ─────────────────────────────────────────────────────────────────────────
+import { setDataDir, dpath } from './datapath.js'
 
 let _kieze = null // FeatureCollection
 let _bbox = null  // per-feature [minX,minY,maxX,maxY]
@@ -25,15 +26,13 @@ async function loadJSON(url) {
 // setCityData() (called once at boot from src/city.js) repoints every loader +
 // the overview centre at another city's data folder.
 const EMPTY_FC = { type: 'FeatureCollection', features: [] }
-let _dataDir = '/data'
 let _outlineFile = 'berlin-outline.geojson'
 let _center = [13.404, 52.52]
 export function setCityData(cfg = {}) {
-  _dataDir = cfg.dataDir || '/data'
+  setDataDir(cfg.dataDir) // repoints EVERY data loader (kiez, stats, heat, hunt)
   _outlineFile = cfg.outlineFile || 'berlin-outline.geojson'
   if (cfg.center) _center = cfg.center
 }
-const dpath = (file) => `${_dataDir}/${file}`
 /** Die aktive Stadt-Mitte (für die Kamera-Übersicht). */
 export function cityCenter() { return _center }
 

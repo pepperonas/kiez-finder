@@ -30,16 +30,18 @@ export function norm(s) {
 
 let _index = []
 
-export function buildSearchIndex({ kieze, areas, osmKieze, bez, bzr, pgr, streets, pois }) {
+export function buildSearchIndex({ kieze, areas, osmKieze, bez, bzr, pgr, streets, pois, labels = {}, defaultSub = 'Berlin' }) {
   const out = []
   const seen = new Set() // dedup by norm|type
+  // per-city type labels override the defaults (Frankfurt: Kiez→Stadtteil, Bezirk→Ortsbezirk)
+  const labelFor = (type) => labels[type] || TYPE[type].label
   const add = (label, type, sub, feature) => {
     if (!label) return
     const n = norm(label)
     const key = n + '|' + type
     if (seen.has(key)) return
     seen.add(key)
-    out.push({ label, norm: n, words: n.split(' '), type, typeLabel: TYPE[type].label, prio: TYPE[type].prio, sub, feature })
+    out.push({ label, norm: n, words: n.split(' '), type, typeLabel: labelFor(type), prio: TYPE[type].prio, sub, feature })
   }
 
   // gid → Bezirk name (for Kiez context)
@@ -55,7 +57,7 @@ export function buildSearchIndex({ kieze, areas, osmKieze, bez, bzr, pgr, street
   if (pois) for (const p of pois) {
     const n = norm(p.name)
     if (!n) continue
-    out.push({ label: p.name, norm: n, words: n.split(' '), type: 'poi', typeLabel: TYPE.poi.label, prio: TYPE.poi.prio, sub: p.desc || 'Ort', feature: null, pt: [p.lon, p.lat], qid: p.qid })
+    out.push({ label: p.name, norm: n, words: n.split(' '), type: 'poi', typeLabel: labelFor('poi'), prio: TYPE.poi.prio, sub: p.desc || 'Ort', feature: null, pt: [p.lon, p.lat], qid: p.qid })
   }
   if (bez) for (const f of bez.features) add(bezirkName(f.properties.bez), 'bez', 'Berlin', f)
   // OSM Kiez polygons first → precise named Kieze (e.g. Scheunenviertel) win the
@@ -79,7 +81,7 @@ export function buildSearchIndex({ kieze, areas, osmKieze, bez, bzr, pgr, street
   if (streets) for (const s of streets) {
     const n = norm(s.name)
     if (!n) continue
-    out.push({ label: s.name, norm: n, words: n.split(' '), type: 'str', typeLabel: TYPE.str.label, prio: TYPE.str.prio, sub: s.bez || 'Berlin', feature: null, pt: s.pt, bbox: s.bbox })
+    out.push({ label: s.name, norm: n, words: n.split(' '), type: 'str', typeLabel: labelFor('str'), prio: TYPE.str.prio, sub: s.bez || defaultSub, feature: null, pt: s.pt, bbox: s.bbox })
   }
   _index = out
   return out

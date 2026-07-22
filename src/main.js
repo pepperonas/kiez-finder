@@ -2020,7 +2020,10 @@ async function boot() {
     // + POIs. POIs load on their own async (loadPois below) — stash the level args
     // so either completion order rebuilds the full index (buildSearchIndex replaces).
     if (fc) {
-      state._searchArgs = { kieze: kiezeFC(), areas: kiezAreasFC(), osmKieze: osmKiezeFC(), bez: fc.bez, bzr: fc.bzr, pgr: fc.pgr, streets }
+      state._searchArgs = { kieze: kiezeFC(), areas: kiezAreasFC(), osmKieze: osmKiezeFC(), bez: fc.bez, bzr: fc.bzr, pgr: fc.pgr, streets,
+        // city-aware Typ-Labels + Straßen-Sub-Fallback (Frankfurt: Stadtteil/Ortsbezirk)
+        labels: { kiez: CITY.term, bez: (CITY.levels.find((l) => l.key === 'bez') || {}).label || 'Bezirk' },
+        defaultSub: CITY.name }
       buildSearchIndex({ ...state._searchArgs, pois: state.poiList })
       state.searchReady = true
     }
