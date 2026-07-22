@@ -317,11 +317,16 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   now REPLACES the user’s set authoritatively (delete-missing + upsert in one tx; the client holds the
   full post-login union, so replace is safe and lets deletions propagate). map.js: `setPoiData`/`setVisited` (feature-state via `promoteId: 'qid'` — a visit doesn't re-upload
   1000 features)/`setPoiVisibility`/`onPoiClick`/`flyToPoi`. The general map-click handler calls
-  `_poiAtPoint(e.point)` FIRST: a ~15px tolerance box via `queryRenderedFeatures` over poi-dot+label
-  → opens that POI, else falls through to a normal locate. The dots are only 4–9px, so an exact hit
-  is impossible on touch; the earlier per-layer `map.on('click','poi-dot')` + an `e.originalEvent.__poi`
-  flag DID NOT WORK (the general handler runs first, before the flag is set) — that's why POIs seemed
-  unclickable. `mousemove` uses the same helper for the desktop pointer cursor. main.js: `discoverAt` on the real
+  `_poiAtPoint(e.point)` FIRST: opens that POI, else falls through to a normal locate. The dots are
+  only 4–9px, so an exact hit is impossible on touch; the earlier per-layer `map.on('click','poi-dot')`
+  + an `e.originalEvent.__poi` flag DID NOT WORK (the general handler runs first, before the flag is
+  set) — that's why POIs seemed unclickable. **Two separate queries so POIs don't blanket the map and
+  eat every Kiez-click (Frankfurt's Altstadt is POI-dense — reported as "can't click Kieze"):** the
+  **poi-dot** gets a small **10px** tolerance box (a fair, DPI-independent touch target without the old
+  15px halo covering the gaps), the **poi-label** counts only on a **direct** point-query hit (no
+  inflation — a 100px-wide label ±15px used to make far-away POIs clickable across a huge area). Measured
+  on the dense Altstadt view (real clicks, camera reset): POI over-capture **50%→25%**, Kiez selection
+  50%→75%. `mousemove` uses the same helper for the desktop pointer cursor. main.js: `discoverAt` on the real
   check-in only, toasts (`pointer-events: none` — they used to swallow topbar clicks), `huntSection`/
   `patchHunt` in the card. Covered by `tests/hunt.test.js`. Enriched further by `tools/build-poi-info.mjs`
   → `public/data/poi-info.json` (993/1000 a 2-sentence Wikipedia extract, **1000/1000 an image** (via recovery) +

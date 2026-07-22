@@ -429,11 +429,23 @@ export class KiezMap {
 
   /** qid des dem Klick-/Cursorpunkt nächsten POI innerhalb der Toleranz — oder null.
    *  Toleranz ~15 px als Kasten um den Punkt (nicht die winzige Punkt-Geometrie). */
-  _poiAtPoint(point, tol = 15) {
-    const box = [[point.x - tol, point.y - tol], [point.x + tol, point.y + tol]]
-    const layers = ['poi-dot', ...(this.map.getLayer('poi-label') ? ['poi-label'] : [])]
-    let hits
-    try { hits = this.map.queryRenderedFeatures(box, { layers }) } catch (e) { return null }
+  _poiAtPoint(point, tol = 10) {
+    // Zwei getrennte Abfragen, damit POIs nicht die halbe Karte als Tap-Target
+    // belegen und jeden Kiez-Klick abfangen (Frankfurts Altstadt ist POI-dicht):
+    //  · poi-dot: tol-Box um den Punkt — die Dots sind nur 4–9 px, ein kleiner
+    //    Toleranzkasten macht sie DPI-unabhängig fair antippbar (touch), ohne
+    //    wie die alten 15 px die Zwischenräume zuzudecken.
+    //  · poi-label: nur ein DIREKTER Treffer (Punkt-Query, keine Aufblähung) —
+    //    ein breites Textlabel zählt nur, wenn man wirklich draufklickt (sonst
+    //    belegte ein 100-px-Label ±15 px die ganze Umgebung).
+    let hits = []
+    try {
+      const box = [[point.x - tol, point.y - tol], [point.x + tol, point.y + tol]]
+      hits = this.map.queryRenderedFeatures(box, { layers: ['poi-dot'] })
+      if (this.map.getLayer('poi-label')) {
+        hits = hits.concat(this.map.queryRenderedFeatures(point, { layers: ['poi-label'] }))
+      }
+    } catch (e) { return null }
     if (!hits.length) return null
     let best = null, bd = Infinity
     for (const f of hits) {
