@@ -114,7 +114,9 @@ async function fetchBuf(url) {
   return null
 }
 
-const targets = Object.entries(pi.info).filter(([, v]) => v.img !== 1).map(([q]) => q)
+// Ziele = ALLE POIs ohne Bild — inkl. der 7 ganz ohne poi-info-Eintrag (die
+// sonst weder Text noch Bild zeigen); für die legen wir einen Eintrag an.
+const targets = poiData.map((r) => String(r[0])).filter((q) => pi.info[q]?.img !== 1)
 console.log(`  ${targets.length} POIs ohne Bild → Recovery`)
 let ok = 0, miss = 0, n = 0
 for (const qid of targets) {
@@ -132,7 +134,7 @@ for (const qid of targets) {
       if (existsSync(dest) && statSync(dest).size > 0) { saved = c; break }
     } catch (e) { try { rmSync(dest) } catch {} } finally { try { rmSync(tmp) } catch {} }
   }
-  if (saved) { ok++; pi.info[qid].img = 1; pi.info[qid].credit = saved.credit; console.log(`  ✓ ${qid} ${coords.get(qid)?.name} — ${saved.credit}`) }
+  if (saved) { ok++; if (!pi.info[qid]) pi.info[qid] = { x: 0 }; pi.info[qid].img = 1; pi.info[qid].credit = saved.credit; console.log(`  ✓ ${qid} ${coords.get(qid)?.name} — ${saved.credit}`) }
   else { miss++; console.log(`  · ${qid} ${coords.get(qid)?.name} — kein Bild`) }
   await sleep(140)
 }

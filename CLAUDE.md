@@ -303,7 +303,7 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   unclickable. `mousemove` uses the same helper for the desktop pointer cursor. main.js: `discoverAt` on the real
   check-in only, toasts (`pointer-events: none` — they used to swallow topbar clicks), `huntSection`/
   `patchHunt` in the card. Covered by `tests/hunt.test.js`. Enriched further by `tools/build-poi-info.mjs`
-  → `public/data/poi-info.json` (993/1000 a 2-sentence Wikipedia extract, **993/993 an image** +
+  → `public/data/poi-info.json` (993/1000 a 2-sentence Wikipedia extract, **1000/1000 an image** (via recovery) +
   author/license): `loadPoiInfo`/`poiInfo`. **The original `build-poi-images.mjs` (Wikipedia-pageimage
   only) missed ~40 POIs — including flagships like the Fernsehturm, Kottbusser Tor, Schloss Bellevue.
   `tools/recover-poi-images.mjs` fills any `img≠1` POI multi-source: Wikidata P18 (the qid IS the
