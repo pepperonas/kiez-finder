@@ -70,7 +70,7 @@ const COMMONS = 'https://commons.wikimedia.org/w/api.php'
 const WIKI = 'https://de.wikipedia.org/w/api.php'
 
 const BAD_EXT = /\.(tif|tiff|svg|pdf|xcf|gif|webp)$/i
-const BAD_NAME = /stra[sß]enbrunnen|stolperstein|\bDOP\d|orthophoto|luftbild|karte|\bmap\b|\bplan\b|wappen|coat of arms|logo|diagram|schild|gedenktafel|\.stl|baustelle|\bWC\b|first aid|feuerwehr.?einsatz/i
+const BAD_NAME = /stra[sß]enbrunnen|stolperstein|\bDOP\d|orthophoto|luftbild|karte|\bmap\b|\bplan\b|wappen|coat of arms|logo|diagram|schild|gedenktafel|star ?walk|walk of fame|\.stl|baustelle|\bWC\b|first aid|feuerwehr.?einsatz/i
 // Ablehnung per Commons-KATEGORIE — der entscheidende Filter: der Dateiname
 // verrät die Kartennatur oft NICHT (z. B. „…Luisenstadt…jpg" ist eine Karte),
 // die Kategorien aber schon („Maps of…", „Coats of arms…", „Sealing stamps…",
@@ -78,7 +78,7 @@ const BAD_NAME = /stra[sß]enbrunnen|stolperstein|\bDOP\d|orthophoto|luftbild|ka
 // Luftbilder/Logos/Diagramme — verschont echte Orts-Fotos.
 const BAD_CAT = /\b(maps?|old maps|coats? of arms|emblems|sealing stamps|siegelmarke|stolperstein(e)?|wappen|logos?|diagrams?|floor ?plans?|site ?plans?|aerial (photograph|view)|orthophoto|panoramas?)\b/i
 const GOOD = /park|kirche|\bdom\b|kathedrale|platz|schloss|denkmal|brücke|rathaus|museum|kanal|ufer|garten|synagoge|dorf|siedlung|allee|markt|turm|theater|schule|kino|bahnhof/i
-const DULL = /playground|spielplatz|\btable\b|tisch|water barrier|detail|mülleimer|papierkorb|hydrant|ampel|verkehrs|parkplatz|garage|toilet|abfall/i
+const DULL = /playground|spielplatz|\btable\b|tisch|water barrier|detail|mülleimer|papierkorb|hydrant|ampel|verkehrs|parkplatz|garage|toilet|abfall|star ?walk|walk of fame|tattoomat|vending|automat|gedenktafel|memorial plaque|briefkasten|bank ?\d/i
 
 // Kandidaten-Pool aus drei Quellen (dedupliziert): kuratiertes WP-Artikelfoto,
 // die Commons-Kategorie DES KIEZES (kuratierte Orts-Fotos) und die Geosuche um
@@ -141,6 +141,7 @@ async function resolveImage(k) {
     if (nn.length > 3 && t.toLowerCase().includes(nn)) s += 35
     return { title: t, s }
   }).filter(Boolean).sort((a, b) => b.s - a.s)
+  if (process.env.KF_DEBUG) { console.log(`\n[${k.gid}] ${k.name} — Pool ${pool.size}, geeignet ${scored.length}:`); for (const x of scored.slice(0, 8)) console.log(`   ${x.s.toFixed(0).padStart(4)}  ${x.title}`) }
   return scored.map((x) => x.title)
 }
 

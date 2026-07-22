@@ -250,7 +250,12 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   map (e.g. a file named `…Luisenstadt….jpg` that is a historical map), the categories do.
   Each entry stores `file` (source title) for future incremental re-validation. Sequential +
   Retry-After (Commons 429s parallel access), incremental; `KF_FORCE=1` re-resolves+redownloads
-  all, `KF_GIDS=k12,k39` only those. ~408/427 Kieze (~95 %) get a photo; the rest stay text-only.
+  all, `KF_GIDS=k12,k39` only those (`KF_DEBUG=1` prints the scored candidate list). ~404/427
+  Kieze (~95 %) get a photo; the rest stay text-only. **Cache-bust:** `kiezImgSrc(gid)` appends
+  `?v=<hash of the source file title>` — the SW caches `/img/` **CacheFirst** (never revalidates),
+  so without a version token a swapped photo (same gid URL) would stay stale forever for returning
+  users; the token changes only when the source file changes → only swapped images bust, unchanged
+  ones stay instant. (POI images stay unversioned — immutable per qid.)
 - `src/heat.js` — **Heatmap** (Choroplethen je Planungsraum; maplibre-free core + thin `loadPreise`).
   Metrics: dichte/alter/u18/o65 (from stats.json) + miete/brw (from `public/data/preise.json`, built
   by `tools/build-heat-prices.mjs`: Angebotsmieten €/m² je PROGNOSERAUM from Wohnatlas WFS

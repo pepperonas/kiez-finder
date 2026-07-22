@@ -54,8 +54,19 @@ export function kiezImg(gid) {
   if (!e || e.img !== 1) return null
   return { img: true, credit: e.credit || 'Wikimedia Commons' }
 }
-/** Pfad zum selbst gehosteten Kiez-Foto (same-origin, cachebar). */
-export const kiezImgSrc = (gid) => `/img/kiez/${gid}.webp`
+const _hash = (s) => { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return (h >>> 0).toString(36) }
+/**
+ * Pfad zum selbst gehosteten Kiez-Foto (same-origin). Hängt einen `?v=`-Token
+ * aus dem Hash der Quelldatei an: der Service-Worker cached `/img/` CacheFirst,
+ * revalidiert also NIE — ohne Versions-Query würde ein getauschtes Foto (gleiche
+ * gid-URL) bei wiederkehrenden Nutzern für immer alt bleiben. Der Token ändert
+ * sich nur, wenn sich die Quelldatei ändert → nur getauschte Bilder busten den
+ * Cache, unveränderte bleiben instant. Vor dem Laden (kein `file`) ohne Query.
+ */
+export const kiezImgSrc = (gid) => {
+  const e = _kimg && _kimg.info && _kimg.info[gid]
+  return `/img/kiez/${gid}.webp` + (e && e.file ? `?v=${_hash(e.file)}` : '')
+}
 
 // ── Selektoren: welche PLRs gehören zur gewählten Einheit? ──────────────────
 // kiez = gid-Gruppe (jeder PLR trägt gid) · bzr/pgr/bez = plr_id-Präfix (6/4/2)

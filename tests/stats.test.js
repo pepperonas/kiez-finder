@@ -18,7 +18,8 @@ test('loadKiezImg memoisiert; kiezImg liefert Foto+Credit nur bei img===1', asyn
   globalThis.fetch = async () => {
     calls++
     return { ok: true, json: async () => ({ info: {
-      k262: { img: 1, credit: 'Foo · CC BY-SA 4.0' },
+      k262: { img: 1, credit: 'Foo · CC BY-SA 4.0', file: 'File:Foo.jpg' },
+      k7: { img: 1, credit: 'Bar' },   // Foto, aber ohne file-Provenienz
       k9: { img: 0 },
     } }) }
   }
@@ -31,9 +32,13 @@ test('loadKiezImg memoisiert; kiezImg liefert Foto+Credit nur bei img===1', asyn
   } finally { globalThis.fetch = realFetch }
 })
 
-test('kiezImgSrc zeigt aufs selbst gehostete Kiez-WebP (per gid)', () => {
-  assert.equal(kiezImgSrc('k262'), '/img/kiez/k262.webp')
-  assert.equal(kiezImgSrc('k0'), '/img/kiez/k0.webp')
+test('kiezImgSrc versioniert per file-Hash (Cache-Bust), sonst plain', () => {
+  // k262 hat eine file → ?v=<hash> (stabil, deterministisch)
+  const a = kiezImgSrc('k262')
+  assert.match(a, /^\/img\/kiez\/k262\.webp\?v=[a-z0-9]+$/)
+  assert.equal(a, kiezImgSrc('k262'))                   // deterministisch
+  assert.equal(kiezImgSrc('k7'), '/img/kiez/k7.webp')   // Foto ohne file → kein ?v
+  assert.equal(kiezImgSrc('k0'), '/img/kiez/k0.webp')   // unbekannt → plain
 })
 
 // ── Fixture: 5 PLRs — 4 Kiez-Gruppen, 2 Bezirke, ein NA (SAFE-anonymisiert) ──
