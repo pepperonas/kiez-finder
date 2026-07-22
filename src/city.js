@@ -16,6 +16,7 @@ export const CITIES = {
   berlin: {
     id: 'berlin',
     name: 'Berlin',
+    demonym: 'Berliner', // Adjektiv für „Kein Berliner Kiez" / „vom Berliner Zentrum"
     term: 'Kiez', // colloquial unit the user "steht in"
     article: 'im',
     center: [13.404, 52.52],
@@ -36,6 +37,7 @@ export const CITIES = {
   frankfurt: {
     id: 'frankfurt',
     name: 'Frankfurt',
+    demonym: 'Frankfurter',
     term: 'Stadtteil',
     article: 'im',
     center: [8.682, 50.111],
@@ -51,7 +53,11 @@ export const CITIES = {
 }
 
 let _active = CITIES.berlin
+let _explicit = false // kam die aktive Stadt aus einer bewussten Wahl (URL/localStorage)?
 export function activeCity() { return _active }
+/** War die aktive Stadt bewusst gewählt (URL ?city= / gespeichert)? Wenn nein
+ *  (reiner Default), darf der Standort automatisch die Stadt bestimmen. */
+export function cityWasExplicit() { return _explicit }
 
 /** Which configured city's bbox contains the point (null = none). */
 export function cityIdForPoint(lon, lat) {
@@ -66,13 +72,14 @@ export function cityIdForPoint(lon, lat) {
  *  > Berlin. Points kiez.js at the city's data (setCityData). Idempotent. */
 export function resolveCity() {
   let id = 'berlin'
+  _explicit = false
   try {
     const q = new URL(location.href).searchParams.get('city')
-    if (q && CITIES[q]) id = q
+    if (q && CITIES[q]) { id = q; _explicit = true }
     else {
       const stored = localStorage.getItem('kf-city')
-      if (stored && CITIES[stored]) id = stored
-      else if (/(^|\.)frankfurt/i.test(location.hostname)) id = 'frankfurt'
+      if (stored && CITIES[stored]) { id = stored; _explicit = true }
+      else if (/(^|\.)frankfurt/i.test(location.hostname)) { id = 'frankfurt'; _explicit = true }
     }
   } catch (e) { /* SSR/no-DOM safety */ }
   _active = CITIES[id] || CITIES.berlin

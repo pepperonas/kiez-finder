@@ -4,7 +4,7 @@
 // Run with: npm test
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { CITIES, activeCity, cityIdForPoint, resolveCity, switchCity } from '../src/city.js'
+import { CITIES, activeCity, cityIdForPoint, cityWasExplicit, resolveCity, switchCity } from '../src/city.js'
 
 const setGlobal = (name, value) =>
   Object.defineProperty(globalThis, name, { value, configurable: true, writable: true })
@@ -51,6 +51,36 @@ test('resolveCity: ?city= wins, then localStorage, else Berlin', () => {
 
   setGlobal('location', { href: 'https://x.io/?city=paris', hostname: 'x.io' }) // unbekannt
   assert.equal(resolveCity().id, 'berlin') // fällt auf Default
+})
+
+test('cityWasExplicit: true nur bei bewusster Wahl (URL/localStorage/Subdomain), false beim Default', () => {
+  // reiner Default → NICHT explizit (Standort darf die Stadt bestimmen)
+  setGlobal('location', { href: 'https://x.io/', hostname: 'x.io' })
+  setGlobal('localStorage', storage())
+  resolveCity()
+  assert.equal(cityWasExplicit(), false)
+
+  // ?city= → explizit
+  setGlobal('location', { href: 'https://x.io/?city=frankfurt', hostname: 'x.io' })
+  resolveCity()
+  assert.equal(cityWasExplicit(), true)
+
+  // gespeicherte Wahl → explizit
+  setGlobal('location', { href: 'https://x.io/', hostname: 'x.io' })
+  setGlobal('localStorage', storage({ 'kf-city': 'berlin' }))
+  resolveCity()
+  assert.equal(cityWasExplicit(), true)
+
+  // unbekannte ?city= fällt auf Default → NICHT explizit
+  setGlobal('location', { href: 'https://x.io/?city=paris', hostname: 'x.io' })
+  setGlobal('localStorage', storage())
+  resolveCity()
+  assert.equal(cityWasExplicit(), false)
+})
+
+test('CITIES tragen demonym für die „Kein <demonym> <term>"-Karte', () => {
+  assert.equal(CITIES.berlin.demonym, 'Berliner')
+  assert.equal(CITIES.frankfurt.demonym, 'Frankfurter')
 })
 
 test('resolveCity: a frankfurt subdomain picks Frankfurt', () => {

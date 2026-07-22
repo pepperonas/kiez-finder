@@ -33,7 +33,7 @@ npm test         # unit tests (Node's built-in runner, no deps) — tests/*.test
 ```
 No linter configured. Geolocation needs a secure context (localhost or HTTPS).
 
-**Tests** (`tests/`, `node --test`, zero dependencies — 249 tests, 100% line coverage on
+**Tests** (`tests/`, `node --test`, zero dependencies — 251 tests, 100% line coverage on
 the ten unit-testable modules) cover the dependency-light pure logic: `search.js`
 (norm folding + the multi-tier scorer / type-priority / dedup), `kiez.js` (point-in-polygon
 classification incl. holes + MultiPolygon, `bezirkName`, `kmFromBerlin`, `bboxOf`,
@@ -75,7 +75,7 @@ measures the suite (test count + line coverage) and counts the LOC of `src/*.js`
 `N tests`/`N Tests` claims in README.md/CLAUDE.md, and commits the change back with
 `[skip ci]` (no loop). So the numbers never go stale and you never hand-edit them; run
 `node tools/badges.mjs` locally to preview, or `--check` to assert without writing. (This
-paragraph's `249 tests, 100% line` count is rewritten by that tool too.)
+paragraph's `251 tests, 100% line` count is rewritten by that tool too.)
 
 **README screenshots** (`docs/screenshot-*.png`) are regenerated with
 `tools/screenshots.cjs` against a `npm run preview -- --port 4190` server (needs a
@@ -93,13 +93,22 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
 - `src/main.js` — orchestrator + state machine (locating → found / outside-Berlin), builds the
   DOM with a safe `h()` helper (Kiez names via `textContent`, only static strings via innerHTML),
   owns the lock-on flow, theme toggle (View Transitions circular reveal), install prompt, card tilt.
-  **Location fallback:** a failed/denied geolocation OR a real check-in that lands outside Berlin does
+  **Cross-city detection (crucial for the multi-city app):** when a real check-in lands outside the
+  active city, `locateAt` first asks `cityIdForPoint(lon,lat)` whether the position is inside ANOTHER
+  configured city's bbox (e.g. you're standing in Frankfurt on the default Berlin app). If so and the
+  city was NOT explicitly chosen (`!cityWasExplicit()` — pure default, no `?city=`/`localStorage`), it
+  auto-`switchCity()`es there (reload → the right city loads → geolocation re-resolves to your Stadtteil).
+  If the city WAS explicitly chosen (respect remote-browsing), it falls through to `renderOutside` which
+  shows a prominent **"Zur <City>-Ansicht"** button instead of forcing the switch. `renderOutside` is
+  city-aware (`Kein ${demonym} ${term}`, `vom ${demonym} Zentrum`). This was the "in Frankfurt keine
+  Kieze anklickbar" report: the app was in Berlin mode showing the Frankfurt location as outside-Berlin.
+  **Location fallback:** a failed/denied geolocation OR a real check-in outside ALL cities does
   NOT show a dead-end card — `useFallback(reason)` places the user at `FALLBACK_POS` (Rathaus Neukölln,
   52.4814/13.4353 → Donaukiez) with a lock-on + a short "Start in Neukölln" toast. `locateAt(pos,
   {fly, discover})` splits the camera flight from POI discovery: the fallback flies but passes
-  `discover:false` (you're not really there → no scavenger-hunt hits). The outside-Berlin fallback is
-  guarded by `fly && !pos.fallback` (a deliberate map-click outside Berlin, `fly:false`, keeps the honest
-  `renderOutside` card; the fallback pos itself resolves to a Kiez so no recursion). There is no
+  `discover:false` (you're not really there → no scavenger-hunt hits). The outside fallback is
+  guarded by `fly && !pos.fallback && !otherCity` (a deliberate map-click outside, `fly:false`, keeps the
+  honest `renderOutside` card; the fallback pos itself resolves to a Kiez so no recursion). There is no
   geolocation-error card anymore. **Card always scrolls to top:** `setCard` resets `passScroll.scrollTop
   = 0` on every fresh render (opening/switching a POI, a new Kiez, search) — desktop side-panel AND
   mobile sheet; in-place patches (`selectLevel`, visited-toggle, `patchAddress`) don't touch the scroll.

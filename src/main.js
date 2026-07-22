@@ -26,7 +26,7 @@ import { fetchMe, syncProgress, pushProgress, logout, loginUrl, readLoginFlag, s
 import { getPosition, reverseGeocode } from './geo.js'
 import { revealStagger, tweenNumber, spring, SPRINGS, reduceMotion, finePointer, damdamper } from './motion.js'
 import { mountThemeScene } from './themeScene.js'
-import { CITIES, activeCity, resolveCity, switchCity } from './city.js'
+import { CITIES, activeCity, resolveCity, switchCity, cityIdForPoint, cityWasExplicit } from './city.js'
 
 // Stadt aus URL/localStorage/Subdomain auflösen und kiez.js darauf ausrichten —
 // MUSS vor dem ersten Datenladen (loadKieze im Boot) laufen. Berlin = Default.
@@ -1125,18 +1125,31 @@ function tweenCoords(el, pos) {
 
 function renderOutside({ pos, openSheet = true }) {
   const km = Math.round(kmFromBerlin(pos.lon, pos.lat))
-  const recheck = h('button', { class: 'btn btn-filled', type: 'button', 'data-reveal': '' },
+  // Stehst du in einer anderen unterstützten Stadt? Dann prominent dorthin anbieten.
+  const otherId = cityIdForPoint(pos.lon, pos.lat)
+  const other = otherId && otherId !== CITY.id ? CITIES[otherId] : null
+
+  const recheck = h('button', { class: `btn ${other ? 'btn-tonal' : 'btn-filled'}`, type: 'button', 'data-reveal': '' },
     h('span', { class: 'btn-icon', html: ICONS.refresh }), 'Erneut einchecken')
   recheck.addEventListener('click', () => checkIn())
+  const actions = [recheck]
+  if (other) {
+    const go = h('button', { class: 'btn btn-filled', type: 'button', 'data-reveal': '' },
+      h('span', { class: 'btn-icon', html: ICONS.pin }), `Zur ${other.name}-Ansicht`)
+    go.addEventListener('click', () => switchCity(other.id))
+    actions.unshift(go) // zuerst = primäre Aktion
+  }
+
   setCard(
     h('div', { class: 'pass-body pass-outside' },
       h('div', { class: 'stamp stamp--void', 'aria-hidden': 'true' },
         h('span', { class: 'stamp-ring' }), h('span', { class: 'stamp-pin', html: ICONS.pin })),
       h('p', { class: 'eyebrow', 'data-reveal': '', text: 'Außerhalb der Stadtgrenze' }),
-      h('h1', { class: 'kiez-name', 'data-reveal': '', text: 'Kein Berliner Kiez' }),
-      h('p', { class: 'muted', 'data-reveal': '', text:
-        `Du bist rund ${km} km vom Berliner Zentrum entfernt. Der Kiez-Pass gilt nur innerhalb der Stadtgrenze.` }),
-      h('div', { class: 'actions' }, recheck),
+      h('h1', { class: 'kiez-name', 'data-reveal': '', text: `Kein ${CITY.demonym} ${CITY.term}` }),
+      h('p', { class: 'muted', 'data-reveal': '', text: other
+        ? `Du bist rund ${km} km vom ${CITY.demonym} Zentrum entfernt — aber offenbar in ${other.name}. Wechsle zur ${other.name}-Ansicht, um deinen ${other.term} zu sehen.`
+        : `Du bist rund ${km} km vom ${CITY.demonym} Zentrum entfernt. Der ${CITY.term}-Pass gilt nur innerhalb der Stadtgrenze.` }),
+      h('div', { class: 'actions' }, ...actions),
     ), true, openSheet,
   )
 }
@@ -1234,10 +1247,17 @@ async function locateAt(pos, { fly = false, discover = fly } = {}) {
   }
 
   if (!kiez) {
-    // Echter Geo-Check-in außerhalb Berlins → Ersatz Neukölln (nicht der
-    // fallback selbst, sonst Endlosschleife). Ein bewusster Karten-Klick
-    // außerhalb (fly:false) behält die ehrliche „nicht in Berlin"-Karte.
-    if (fly && !pos.fallback) { await useFallback('outside'); return }
+    // Stehst du in einer ANDEREN unterstützten Stadt (z.B. Frankfurt, während
+    // die App im Berlin-Modus läuft)? Dann ist „Kein Berliner Kiez" nutzlos —
+    // in die richtige Stadt wechseln. Automatisch, wenn keine bewusste Stadtwahl
+    // vorlag (reiner Default); bei bewusster Wahl (URL/Switcher) nur der Button
+    // in renderOutside, um Remote-Browsing nicht zu überschreiben.
+    const otherCity = cityIdForPoint(pos.lon, pos.lat)
+    if (otherCity && otherCity !== CITY.id && !cityWasExplicit()) { switchCity(otherCity); return }
+    // Echter Geo-Check-in außerhalb aller Städte → Ersatz (nicht der fallback
+    // selbst, sonst Endlosschleife). Ein bewusster Karten-Klick außerhalb
+    // (fly:false) behält die ehrliche „nicht in <Stadt>"-Karte.
+    if (fly && !pos.fallback && !otherCity) { await useFallback('outside'); return }
     state.plr = null
     renderOutside({ pos, openSheet: fly })
     return
