@@ -19,6 +19,24 @@ async function loadJSON(url) {
   return res.json()
 }
 
+// ── City data config ──────────────────────────────────────────────────────
+// Berlin is the DEFAULT, so leaving this unset keeps 100% backward-compatible
+// Berlin behaviour (dataDir '/data', the Berlin outline, the Berlin centre).
+// setCityData() (called once at boot from src/city.js) repoints every loader +
+// the overview centre at another city's data folder.
+const EMPTY_FC = { type: 'FeatureCollection', features: [] }
+let _dataDir = '/data'
+let _outlineFile = 'berlin-outline.geojson'
+let _center = [13.404, 52.52]
+export function setCityData(cfg = {}) {
+  _dataDir = cfg.dataDir || '/data'
+  _outlineFile = cfg.outlineFile || 'berlin-outline.geojson'
+  if (cfg.center) _center = cfg.center
+}
+const dpath = (file) => `${_dataDir}/${file}`
+/** Die aktive Stadt-Mitte (für die Kamera-Übersicht). */
+export function cityCenter() { return _center }
+
 let _kiezAreaByGid = null // gid → merged colloquial-Kiez polygon (union of its Planungsräume)
 let _kiezAreas = null     // the raw kiez-areas FeatureCollection (for search)
 let _osmKieze = null       // OSM place=quarter/neighbourhood polygons (precise named Kieze)
@@ -27,9 +45,9 @@ let _osmBbox = null
 export async function loadKieze() {
   if (_kieze) return _kieze
   const [kieze, areas, osm] = await Promise.all([
-    loadJSON('/data/kieze.geojson'),
-    loadJSON('/data/kiez-areas.geojson').catch(() => null),
-    loadJSON('/data/osm-kieze.geojson').catch(() => null),
+    loadJSON(dpath('kieze.geojson')),
+    loadJSON(dpath('kiez-areas.geojson')).catch(() => null),
+    loadJSON(dpath('osm-kieze.geojson')).catch(() => null),
   ])
   _kieze = kieze
   _bbox = _kieze.features.map(featureBBox)
@@ -93,11 +111,11 @@ export const LEVELS = [
 export function loadLevels() {
   if (_levelsPromise) return _levelsPromise
   _levelsPromise = Promise.all([
-    loadJSON('/data/bezirke.geojson'),
-    loadJSON('/data/prognoseraeume.geojson'),
-    loadJSON('/data/bezirksregionen.geojson'),
-    loadJSON('/data/bezirke-pts.geojson'),
-    loadJSON('/data/bezirksregionen-pts.geojson'),
+    loadJSON(dpath('bezirke.geojson')),
+    loadJSON(dpath('prognoseraeume.geojson')).catch(() => EMPTY_FC),
+    loadJSON(dpath('bezirksregionen.geojson')).catch(() => EMPTY_FC),
+    loadJSON(dpath('bezirke-pts.geojson')).catch(() => EMPTY_FC),
+    loadJSON(dpath('bezirksregionen-pts.geojson')).catch(() => EMPTY_FC),
   ]).then(([bez, pgr, bzr, bezPts, bzrPts]) => {
     const toMap = (fc) => {
       const m = new Map()
@@ -149,7 +167,7 @@ export function bboxOf(feature) {
 
 export async function loadOutline() {
   if (_outline) return _outline
-  _outline = await loadJSON('/data/berlin-outline.geojson')
+  _outline = await loadJSON(dpath(_outlineFile))
   return _outline
 }
 
@@ -161,9 +179,9 @@ let _wallPromise = null
 export function loadWall() {
   if (!_wallPromise) {
     _wallPromise = Promise.all([
-      loadJSON('/data/mauer.geojson'),
-      loadJSON('/data/west-berlin.geojson').catch(() => null),
-      loadJSON('/data/ost-berlin.geojson').catch(() => null),
+      loadJSON(dpath('mauer.geojson')),
+      loadJSON(dpath('west-berlin.geojson')).catch(() => null),
+      loadJSON(dpath('ost-berlin.geojson')).catch(() => null),
     ]).then(([wall, west, ost]) => ({
       wall,
       west: west ? west.features[0] : null,
@@ -180,7 +198,7 @@ export function loadWall() {
 let _streetsPromise = null
 export function loadStreets() {
   if (!_streetsPromise) {
-    _streetsPromise = loadJSON('/data/strassen.json')
+    _streetsPromise = loadJSON(dpath('strassen.json'))
       .then((d) => d.streets.map(([name, bi, cx, cy, x1, y1, x2, y2]) => ({
         name, bez: d.bez[bi] || '', pt: [cx, cy], bbox: [x1, y1, x2, y2],
       })))
@@ -193,7 +211,7 @@ export function loadStreets() {
 let _kiezNames = null
 export async function loadKiezNames() {
   if (_kiezNames) return _kiezNames
-  _kiezNames = await loadJSON('/data/kiez-names.geojson')
+  _kiezNames = await loadJSON(dpath('kiez-names.geojson'))
   return _kiezNames
 }
 
@@ -266,7 +284,7 @@ export const BERLIN_CENTER = [13.404, 52.52]
 
 /** Squared-ish great-circle-lite distance in km from a point to Berlin centre. */
 export function kmFromBerlin(lon, lat) {
-  const [clon, clat] = BERLIN_CENTER
+  const [clon, clat] = _center
   const dy = (lat - clat) * 111.32
   const dx = (lon - clon) * 111.32 * Math.cos((clat * Math.PI) / 180)
   return Math.sqrt(dx * dx + dy * dy)

@@ -7,8 +7,8 @@
 ### Dein Kiez-Pass für Berlin — check ein und erfahre sofort, in welchem Kiez du gerade stehst.
 
 [![CI](https://img.shields.io/github/actions/workflow/status/pepperonas/kiez-finder/ci.yml?branch=main&label=CI&logo=githubactions&logoColor=white)](https://github.com/pepperonas/kiez-finder/actions/workflows/ci.yml)
-[![Unit Tests](https://img.shields.io/badge/unit_tests-233-4c9f70?logo=nodedotjs&logoColor=white)](#tests-ausf%C3%BChren)
-[![Lines of Code](https://img.shields.io/badge/lines_of_code-5138-8a7bd8?logo=javascript&logoColor=000)](#tech-stack)
+[![Unit Tests](https://img.shields.io/badge/unit_tests-238-4c9f70?logo=nodedotjs&logoColor=white)](#tests-ausf%C3%BChren)
+[![Lines of Code](https://img.shields.io/badge/lines_of_code-5272-8a7bd8?logo=javascript&logoColor=000)](#tech-stack)
 [![Coverage (Unit)](https://img.shields.io/badge/coverage_(unit)-100.00%25_lines-brightgreen)](#tests-ausf%C3%BChren)
 [![Live](https://img.shields.io/website?url=https%3A%2F%2Fkiezfinder.celox.io&label=kiezfinder.celox.io&logo=icloud&logoColor=white)](https://kiezfinder.celox.io)
 [![Version](https://img.shields.io/github/package-json/v/pepperonas/kiez-finder?logo=npm&logoColor=white)](package.json)
@@ -229,12 +229,12 @@ node tools/screenshots.cjs                        # Terminal 2 (braucht Playwrig
 ## Tests ausführen
 
 ```bash
-npm test                                                        # 233 Unit-Tests, Nodes eingebauter Runner, null Test-Dependencies
+npm test                                                        # 238 Unit-Tests, Nodes eingebauter Runner, null Test-Dependencies
 node --test --experimental-test-coverage tests/*.test.js        # dito + Coverage-Report
 node tools/badges.mjs                                           # misst + SCHREIBT die Badges (LOC/Tests/Coverage); --check = nur prüfen
 ```
 
-Getestet wird die **abhängigkeitsfreie Pure-Logik** — Stand heute **233 Tests, 100 % Line-Coverage**
+Getestet wird die **abhängigkeitsfreie Pure-Logik** — Stand heute **238 Tests, 100 % Line-Coverage**
 auf allen acht unit-testbaren Modulen (~97 % Branch):
 
 | Modul | Was abgesichert ist |

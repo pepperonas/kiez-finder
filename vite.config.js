@@ -26,7 +26,7 @@ export default defineConfig({
         // nur bei WebGL + ohne reduced-motion). Aus dem Precache raus → reduced-
         // motion/no-WebGL-Nutzer laden ihn nie; wer ihn braucht, holt ihn per
         // dynamischem Import und cached ihn dann CacheFirst (s. u.).
-        globIgnores: ['**/poi-info.json', '**/kiez-img.json', '**/three*.js'],
+        globIgnores: ['**/poi-info.json', '**/kiez-img.json', '**/three*.js', 'data/frankfurt/**'],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         navigateFallback: '/index.html',
         // /api/* sind ECHTE Server-Routen (OAuth-Redirects sind Navigationen!) —
@@ -34,6 +34,17 @@ export default defineConfig({
         // bricht wortlos ab.
         navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [
+          {
+            // Frankfurt-Stadtdaten: nur für Frankfurt-Nutzer, NICHT im Berlin-
+            // Precache (globIgnores). CacheFirst → einmal geladen = offline + instant.
+            urlPattern: ({ url }) => url.origin === self.location.origin && url.pathname.startsWith('/data/frankfurt/'),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'kf-frankfurt',
+              expiration: { maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 180 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
           {
             // three.js-Chunk (3D-Ebene): dynamisch importiert, content-gehasht →
             // unveränderlich → CacheFirst. Erst beim ersten Bedarf geladen, dann

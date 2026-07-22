@@ -1130,3 +1130,6 @@ html.theme-transition * {
 .kiez-media-slot .poi-figure { margin: .1rem 0 .7rem; }
 /* im Peek der Bottom-Sheet einklappen (wie stamp/radar/eyebrow) */
 .pass[data-sheet='peek'] .kiez-media-slot { max-height: 0; overflow: hidden; margin: 0; }
+
+/* Stadt-Umschalter (Berlin ⇄ Frankfurt) — Textbutton statt quadratischem Icon */
+.icon-btn.city-btn { width: auto; padding: 0 .6rem; font-size: .72rem; font-weight: 700; letter-spacing: .01em; }

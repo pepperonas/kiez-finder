@@ -6,7 +6,7 @@
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { spring, SPRINGS, reduceMotion } from './motion.js'
-import { BERLIN_CENTER, bboxOf, bezirkName } from './kiez.js'
+import { cityCenter, bboxOf, bezirkName } from './kiez.js'
 
 const STYLES = {
   dark: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
@@ -289,7 +289,7 @@ export class KiezMap {
     this.map = new maplibregl.Map({
       container,
       style: STYLES[theme],
-      center: BERLIN_CENTER,
+      center: cityCenter(),
       zoom: 9.4,
       attributionControl: { compact: true },
       cooperativeGestures: false,

@@ -4,9 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Kiez-Finder — a Berlin-specific PWA that uses browser geolocation to determine which official Berlin
-**Kiez** (LOR 2021 Planungsraum) the user is standing in, highlights its boundary on a map, and shows
-the full hierarchy (Kiez → Bezirksregion → Prognoseraum → Bezirk) plus address and coordinates.
+Kiez-Finder — a PWA that uses browser geolocation to determine which official neighbourhood the user
+is standing in, highlights its boundary on a map, and shows the full admin hierarchy plus address and
+coordinates. **Berlin** is the default + full-featured original (LOR 2021 **Kiez** → Bezirksregion →
+Prognoseraum → Bezirk). **The app is city-parameterized** (`src/city.js`): a second city, **Frankfurt
+am Main** (**Stadtteil** → Ortsbezirk, 46/16), reuses the exact same engine against its own data.
+The city is resolved once at boot — URL `?city=frankfurt` > `localStorage kf-city` > a `frankfurt.*`
+subdomain > Berlin — and a topbar switcher flips it. Berlin behaviour is unchanged (its `dataDir` is
+`/data`, so every loader path stays identical). **Etappen-Stand:** Frankfurt has the CORE (boundary
+classification, hierarchy, terminology, city switcher, Berlin-only Mauer feature hidden); the
+enrichment (streets/search index, stats, POI scavenger hunt, photos, price heatmap) is still
+Berlin-only and comes in later etappes.
 
 Live: **https://kiezfinder.celox.io** · deployed as a static build on the celox.io VPS (69.62.121.168),
 webroot `/var/www/kiezfinder.celox.io/`, nginx block `kiezfinder.celox.io`.
@@ -21,7 +29,7 @@ npm test         # unit tests (Node's built-in runner, no deps) — tests/*.test
 ```
 No linter configured. Geolocation needs a secure context (localhost or HTTPS).
 
-**Tests** (`tests/`, `node --test`, zero dependencies — 233 tests, 100% line coverage on
+**Tests** (`tests/`, `node --test`, zero dependencies — 238 tests, 100% line coverage on
 the ten unit-testable modules) cover the dependency-light pure logic: `search.js`
 (norm folding + the multi-tier scorer / type-priority / dedup), `kiez.js` (point-in-polygon
 classification incl. holes + MultiPolygon, `bezirkName`, `kmFromBerlin`, `bboxOf`,
@@ -63,7 +71,7 @@ measures the suite (test count + line coverage) and counts the LOC of `src/*.js`
 `N tests`/`N Tests` claims in README.md/CLAUDE.md, and commits the change back with
 `[skip ci]` (no loop). So the numbers never go stale and you never hand-edit them; run
 `node tools/badges.mjs` locally to preview, or `--check` to assert without writing. (This
-paragraph's `233 tests, 100% line` count is rewritten by that tool too.)
+paragraph's `238 tests, 100% line` count is rewritten by that tool too.)
 
 **README screenshots** (`docs/screenshot-*.png`) are regenerated with
 `tools/screenshots.cjs` against a `npm run preview -- --port 4190` server (needs a

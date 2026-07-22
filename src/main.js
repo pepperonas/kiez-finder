@@ -26,6 +26,11 @@ import { fetchMe, syncProgress, pushProgress, logout, loginUrl, readLoginFlag, s
 import { getPosition, reverseGeocode } from './geo.js'
 import { revealStagger, tweenNumber, spring, SPRINGS, reduceMotion, finePointer, damdamper } from './motion.js'
 import { mountThemeScene } from './themeScene.js'
+import { CITIES, activeCity, resolveCity, switchCity } from './city.js'
+
+// Stadt aus URL/localStorage/Subdomain auflösen und kiez.js darauf ausrichten —
+// MUSS vor dem ersten Datenladen (loadKieze im Boot) laufen. Berlin = Default.
+const CITY = resolveCity()
 
 // ── Service-Worker: Auto-Reload beim Update ────────────────────────────────
 // Das von vite-plugin-pwa injizierte registerSW.js REGISTRIERT nur, lädt aber
@@ -141,6 +146,18 @@ const wallBtn = h('button', {
   aria: { label: 'Berliner Mauer 1989: Retro-Schwarz-Weiß-Ansicht umschalten', pressed: 'false' },
   html: ICONS.wall,
 })
+// Stadt-Umschalter (Berlin ⇄ Frankfurt) — persistiert + lädt neu
+const CITY_IDS = Object.keys(CITIES)
+const cityBtn = h('button', {
+  class: 'icon-btn city-btn', type: 'button',
+  title: `Stadt: ${CITY.name} — umschalten`,
+  aria: { label: `Stadt umschalten (aktuell ${CITY.name})` },
+  text: CITY.name,
+})
+cityBtn.addEventListener('click', () => {
+  const i = CITY_IDS.indexOf(CITY.id)
+  switchCity(CITY_IDS[(i + 1) % CITY_IDS.length])
+})
 // Heatmap-Control: Button öffnet ein kompaktes Popover mit Metrik-Chips
 // (aus · Dichte · Ø Alter · Miete · Bodenrichtwert)
 const heatBtn = h('button', {
@@ -198,7 +215,8 @@ const topbar = h('header', { class: 'topbar' },
     h('span', { class: 'brand-name' },
       h('strong', { text: 'Kiez' }), h('span', { text: '-Finder' }))),
   searchBox,
-  h('div', { class: 'topbar-actions' }, installBtn, overlayBtn, heatBtn, wallBtn, autoZoomBtn, acctBtn, themeBtn),
+  h('div', { class: 'topbar-actions' }, cityBtn, installBtn, overlayBtn, heatBtn,
+    ...(CITY.features.wall ? [wallBtn] : []), autoZoomBtn, acctBtn, themeBtn),
 )
 
 // floating "current area" chip — names the coloured region under the map centre
@@ -998,11 +1016,11 @@ function renderFound({ kiez, pos, address, kiezName, openSheet = true }) {
   const body = h('div', { class: 'pass-body pass-found' },
     h('div', { class: 'stamp', 'aria-hidden': 'true' },
       h('span', { class: 'stamp-ring' }), h('span', { class: 'stamp-pin', html: ICONS.pin })),
-    h('p', { class: 'eyebrow', 'data-reveal': '', text: 'Du stehst im Kiez' }),
+    h('p', { class: 'eyebrow', 'data-reveal': '', text: `Du stehst ${CITY.article} ${CITY.term}` }),
     h('button', {
       class: 'level-title' + (titleActive ? ' is-active' : ''),
       type: 'button', 'data-level': 'kiez', 'data-reveal': '',
-      aria: { pressed: titleActive ? 'true' : 'false', label: `Kiez ${titleText} auf der Karte zeigen` },
+      aria: { pressed: titleActive ? 'true' : 'false', label: `${CITY.term} ${titleText} auf der Karte zeigen` },
     },
       h('h1', { class: 'kiez-name', text: titleText }),
       colloquial ? h('p', { class: 'kiez-official', text: `amtl. Planungsraum · ${p.plr_name}` }) : null),
@@ -1011,10 +1029,15 @@ function renderFound({ kiez, pos, address, kiezName, openSheet = true }) {
     // ordered by ascending area size (Kiez = title above; then bigger → biggest).
     // The Prognoseraum is hidden when it only duplicates the Bezirk name.
     h('div', { class: 'meta' },
-      levelRow('bzr', 'Bezirksregion', p.bzr_name),
-      p.pgr_name && p.pgr_name !== bezirkName(p.bez)
-        ? levelRow('pgr', 'Prognoseraum', p.pgr_name) : null,
-      levelRow('bez', 'Bezirk', bezirkName(p.bez)),
+      // Ebenen-Zeilen aus der City-Config (Frankfurt hat nur den Ortsbezirk).
+      // Leere Werte werden übersprungen; der Prognoseraum entfällt, wenn er nur
+      // den Bezirksnamen doppelt.
+      ...CITY.levels.map((lv) => {
+        const val = lv.key === 'bez' ? bezirkName(p.bez) : lv.key === 'bzr' ? p.bzr_name : lv.key === 'pgr' ? p.pgr_name : null
+        if (!val) return null
+        if (lv.key === 'pgr' && val === bezirkName(p.bez)) return null
+        return levelRow(lv.key, lv.label, val)
+      }),
       addressRow(address && address.line),
     ),
     buildStatsBlock(),
@@ -1155,14 +1178,14 @@ let _seq = 0 // guards against out-of-order results when picks overlap
 // („Freigabe nötig" / „außerhalb der Stadtgrenze") zu laufen. `fallback: true`
 // markiert die Position, damit sie nicht als echter Check-in gilt (keine
 // POI-Entdeckung) und die Rekursion beim Verorten sicher terminiert.
-const FALLBACK_POS = { lat: 52.4814, lon: 13.4353, accuracy: null, fallback: true }
+const FALLBACK_POS = { lat: CITY.fallback[1], lon: CITY.fallback[0], accuracy: null, fallback: true }
 
 async function useFallback(reason) {
   // Hinweis sofort zeigen (nicht erst nach der internen Adress­auflösung von
-  // locateAt), damit klar ist, WARUM die App gerade in Neukölln startet.
-  toast('📍', 'Start in Neukölln', reason === 'outside'
-    ? 'Du bist außerhalb Berlins — wir zeigen dir den Donaukiez.'
-    : 'Kein Standortzugriff — erlaube ihn für deinen echten Kiez.')
+  // locateAt), damit klar ist, WARUM die App gerade dort startet.
+  toast('📍', `Start in ${CITY.fallbackArea}`, reason === 'outside'
+    ? `Du bist außerhalb ${CITY.name}s — wir zeigen dir ${CITY.fallbackHint}.`
+    : `Kein Standortzugriff — erlaube ihn für deinen echten ${CITY.term}.`)
   await locateAt(FALLBACK_POS, { fly: true, discover: false })
 }
 
@@ -1916,7 +1939,7 @@ async function boot() {
   } catch (e) {}
   applyOverlay(state.overlay)
   // restore the persisted wall mode (lazy-loads its data on first activation)
-  try { if (localStorage.getItem('kf-wall') === '1') applyWall(true) } catch (e) {}
+  try { if (CITY.features.wall && localStorage.getItem('kf-wall') === '1') applyWall(true) } catch (e) {}
   // Bereichs-Statistiken + Wikipedia-Kurztexte (nicht-blockierend; die Karte
   // patcht sich nach, sobald sie da sind — ohne sie fehlt nur der Stats-Block)
   loadStats()
