@@ -17,6 +17,12 @@ export default defineConfig({
       // data updates bust the cache on deploy.
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2,geojson,json}'],
+        // Anreicherungs-Daten (POI-Infos/-Bilder, Kiez-Fotos) werden HÄUFIG
+        // aktualisiert und NICHT precached, sondern NetworkFirst geladen (s. u.).
+        // Precache aktualisiert nur beim SW-Shell-Update — ein Client mit noch
+        // altem JS bekam dadurch dauerhaft veraltete Daten (fehlende/getauschte
+        // Fotos). NetworkFirst = online immer frisch, offline Fallback auf Cache.
+        globIgnores: ['**/poi-info.json', '**/kiez-img.json'],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         navigateFallback: '/index.html',
         // /api/* sind ECHTE Server-Routen (OAuth-Redirects sind Navigationen!) —
@@ -24,6 +30,19 @@ export default defineConfig({
         // bricht wortlos ab.
         navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [
+          {
+            // Anreicherungs-Daten: NetworkFirst → immer frisch, wenn online;
+            // offline aus dem Cache. Entkoppelt Daten-Updates vom SW-Shell-Zyklus.
+            urlPattern: ({ url }) => url.origin === self.location.origin &&
+              (url.pathname === '/data/poi-info.json' || url.pathname === '/data/kiez-img.json'),
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'kf-enrich',
+              networkTimeoutSeconds: 4,
+              expiration: { maxEntries: 4, maxAgeSeconds: 60 * 60 * 24 * 180 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
           {
             // Selbst gehostete POI-Fotos: zu groß fürs Precache (~22 MB), aber
             // pro qid unveränderlich → CacheFirst. Einmal angeschaut = offline

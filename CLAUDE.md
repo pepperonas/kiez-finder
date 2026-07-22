@@ -412,11 +412,19 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   v4 also never fires `style.load` on setStyle. The reliable sequence (measured): wait for a
   `styledata` (swap begun) and only then accept `isStyleLoaded()===true` (checked on
   styledata/idle), with a 4 s hard-timeout + an `once('idle')` rebuild fallback.
-- **PWA/offline:** all `public/data/*` (13 geojson + `strassen.json` + `stats.json` + `kiez-info.json` + `preise.json` + `pois.json` + `poi-info.json`, ~3.4 MB) are **precached** by
+- **PWA/offline:** the *core* `public/data/*` (13 geojson + `strassen.json` + `stats.json` + `kiez-info.json` + `preise.json` + `pois.json`, ~3.4 MB) are **precached** by
   the SW (`geojson,json` in `workbox.globPatterns`) — revisioned by content hash, so data edits bust
   the cache on deploy; the app classifies fully offline after the first visit and the **street
   search works fully offline** too (verified: preview server killed → reload → search + Kiez
-  resolution intact). Only the basemap tiles are runtime-cached (StaleWhileRevalidate, 400 entries) —
+  resolution intact). **Exception — the two frequently-edited enrichment JSONs
+  (`poi-info.json` + `kiez-img.json`) are NOT precached** (`workbox.globIgnores`) but served
+  **NetworkFirst** (`kf-enrich` cache, 4 s timeout, offline→cache): precache only refreshes on a
+  SW-shell update, so a client still running old JS kept serving stale enrichment forever — a
+  swapped Kiez photo or a newly-added POI image never arrived (reported twice: Luisenstadt map,
+  SchwuZ missing image). NetworkFirst decouples data freshness from the SW-shell cycle → online
+  always fresh, offline falls back to the last fetch. (The *photo bytes* under `/img/` stay
+  CacheFirst; Kiez images carry a `?v=<file-hash>` so a swap busts, POI images are immutable per qid.)
+  Only the basemap tiles are runtime-cached (StaleWhileRevalidate, 400 entries) —
   offline the map shows just previously visited areas. Don't reintroduce a
   runtime-caching route for them (the old `CacheFirst` route capped at 4 entries and silently broke
   offline). If the core `kieze.geojson` fails on a *first* load (offline/404/SPA-fallback-HTML),
