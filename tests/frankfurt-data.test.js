@@ -13,6 +13,7 @@ const stats = load('stats.json')
 const strassen = load('strassen.json')
 const pois = load('pois.json')
 const preise = load('preise.json')
+const kiezInfo = load('kiez-info.json')
 
 test('kieze: 46 Stadtteile im App-Schema (plr_id/gid/kiez/bez, Polygon)', () => {
   assert.equal(kieze.features.length, 46)
@@ -87,6 +88,22 @@ test('preise: Bodenrichtwerte je Stadtteil (miete=null, brw plausibel, konsisten
   const byName = (n) => preise.plr[kieze.features.find((f) => f.properties.kiez === n).properties.plr_id][1]
   assert.ok(byName('Westend-Süd') > byName('Sindlingen'), 'Westend teurer als Sindlingen')
   assert.ok(byName('Westend-Süd') > 4000, 'Westend-Süd Top-Wohnlage')
+})
+
+test('kiez-info: Wikipedia-Beschreibung je Stadtteil + Ortsbezirk, Frankfurt-relevant', () => {
+  const info = kiezInfo.info
+  // jeder Stadtteil hat eine Beschreibung (die Card schlägt per kiez-Name nach)
+  for (const f of kieze.features) {
+    const e = info[f.properties.kiez]
+    assert.ok(e, `Beschreibung für Stadtteil ${f.properties.kiez}`)
+    assert.equal(e.src, 'wp')
+    assert.ok(e.x && e.x.length > 20)
+    assert.match(e.t + ' ' + e.x, /Frankfurt/) // keine Fehlzuordnung auf gleichnamige Orte
+  }
+  // Ortsbezirke sind als bez:<bez_name> hinterlegt (infoForBezirk-Format)
+  const bezKeys = Object.keys(info).filter((k) => k.startsWith('bez:'))
+  assert.ok(bezKeys.length >= 12, `Ortsbezirk-Beschreibungen ${bezKeys.length}`)
+  assert.ok(info['bez:Innenstadt I'], 'Ortsbezirk Innenstadt I')
 })
 
 test('pois: Schnitzeljagd-Datensatz (kompakte Records, in Stadtteilen verortet)', () => {
