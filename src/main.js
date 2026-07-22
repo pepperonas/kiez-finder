@@ -1194,11 +1194,17 @@ let _seq = 0 // guards against out-of-order results when picks overlap
 const FALLBACK_POS = { lat: CITY.fallback[1], lon: CITY.fallback[0], accuracy: null, fallback: true }
 
 async function useFallback(reason) {
-  // Hinweis sofort zeigen (nicht erst nach der internen Adress­auflösung von
-  // locateAt), damit klar ist, WARUM die App gerade dort startet.
-  toast('📍', `Start in ${CITY.fallbackArea}`, reason === 'outside'
-    ? `Du bist außerhalb ${CITY.name}s — wir zeigen dir ${CITY.fallbackHint}.`
-    : `Kein Standortzugriff — erlaube ihn für deinen echten ${CITY.term}.`)
+  // reason: 'denied'/'unavailable' = kein Standort · 'outside' = außerhalb aller
+  // Städte · '<cityId>' = du stehst in DIESER anderen Stadt, siehst aber (bewusst
+  // gewählt) die aktive. Hinweis sofort zeigen, damit klar ist, WARUM die App
+  // hier startet.
+  const otherCity = CITIES[reason] // reason ist eine Stadt-ID?
+  const detail = otherCity
+    ? `Du bist in ${otherCity.name}, nicht in ${CITY.name} — hier ist ${CITY.fallbackHint}.`
+    : reason === 'outside'
+      ? `Du bist außerhalb ${CITY.name}s — wir zeigen dir ${CITY.fallbackHint}.`
+      : `Kein Standortzugriff — erlaube ihn für deinen echten ${CITY.term}.`
+  toast('📍', `Start in ${CITY.fallbackArea}`, detail)
   await locateAt(FALLBACK_POS, { fly: true, discover: false })
 }
 
@@ -1234,6 +1240,21 @@ async function locateAt(pos, { fly = false, discover = fly } = {}) {
   state.level = 'kiez'
   if (!kiezeFC()) { state.plr = null; renderDataError(); return } // data never loaded ≠ outside Berlin
   const kiez = findKiez(pos.lon, pos.lat)
+
+  // Echter Geo-Check-in außerhalb der aktiven Stadt → VOR dem Kamera-Flug umleiten
+  // (sonst würde die Karte erst zu deinem echten Standort fliegen — z.B. ein
+  // Toggle nach Frankfurt fliegt zu deinem Berliner Standort und zeigt „außerhalb
+  // Frankfurts"):
+  if (!kiez && fly && !pos.fallback) {
+    const otherCity = cityIdForPoint(pos.lon, pos.lat)
+    // (a) KEINE bewusste Stadtwahl + du stehst in einer anderen unterstützten
+    //     Stadt → automatisch dorthin (die App folgt dir).
+    if (!cityWasExplicit() && otherCity && otherCity !== CITY.id) { switchCity(otherCity); return }
+    // (b) Bewusste Stadtwahl ODER außerhalb aller Städte → NICHT zum echten
+    //     Standort fliegen, sondern die GEWÄHLTE Stadt zeigen (Fallback-Gebiet).
+    await useFallback(otherCity && otherCity !== CITY.id ? otherCity : 'outside'); return
+  }
+
   // Prefer a precise OSM-defined Kiez (e.g. Scheunenviertel) when standing inside
   // one — finer than a Planungsraum; else the merged Planungsraum-group.
   const osm = kiez ? findOsmKiez(pos.lon, pos.lat) : null
@@ -1247,17 +1268,9 @@ async function locateAt(pos, { fly = false, discover = fly } = {}) {
   }
 
   if (!kiez) {
-    // Stehst du in einer ANDEREN unterstützten Stadt (z.B. Frankfurt, während
-    // die App im Berlin-Modus läuft)? Dann ist „Kein Berliner Kiez" nutzlos —
-    // in die richtige Stadt wechseln. Automatisch, wenn keine bewusste Stadtwahl
-    // vorlag (reiner Default); bei bewusster Wahl (URL/Switcher) nur der Button
-    // in renderOutside, um Remote-Browsing nicht zu überschreiben.
-    const otherCity = cityIdForPoint(pos.lon, pos.lat)
-    if (otherCity && otherCity !== CITY.id && !cityWasExplicit()) { switchCity(otherCity); return }
-    // Echter Geo-Check-in außerhalb aller Städte → Ersatz (nicht der fallback
-    // selbst, sonst Endlosschleife). Ein bewusster Karten-Klick außerhalb
-    // (fly:false) behält die ehrliche „nicht in <Stadt>"-Karte.
-    if (fly && !pos.fallback && !otherCity) { await useFallback('outside'); return }
+    // Nur noch: ein bewusster Karten-Klick außerhalb (fly:false) ODER der
+    // Fallback selbst → ehrliche „nicht in <Stadt>"-Karte (mit Wechsel-Button,
+    // falls der Punkt in einer anderen unterstützten Stadt liegt).
     state.plr = null
     renderOutside({ pos, openSheet: fly })
     return

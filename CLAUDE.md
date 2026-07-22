@@ -93,15 +93,24 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
 - `src/main.js` — orchestrator + state machine (locating → found / outside-Berlin), builds the
   DOM with a safe `h()` helper (Kiez names via `textContent`, only static strings via innerHTML),
   owns the lock-on flow, theme toggle (View Transitions circular reveal), install prompt, card tilt.
-  **Cross-city detection (crucial for the multi-city app):** when a real check-in lands outside the
-  active city, `locateAt` first asks `cityIdForPoint(lon,lat)` whether the position is inside ANOTHER
-  configured city's bbox (e.g. you're standing in Frankfurt on the default Berlin app). If so and the
-  city was NOT explicitly chosen (`!cityWasExplicit()` — pure default, no `?city=`/`localStorage`), it
-  auto-`switchCity()`es there (reload → the right city loads → geolocation re-resolves to your Stadtteil).
-  If the city WAS explicitly chosen (respect remote-browsing), it falls through to `renderOutside` which
-  shows a prominent **"Zur <City>-Ansicht"** button instead of forcing the switch. `renderOutside` is
-  city-aware (`Kein ${demonym} ${term}`, `vom ${demonym} Zentrum`). This was the "in Frankfurt keine
-  Kieze anklickbar" report: the app was in Berlin mode showing the Frankfurt location as outside-Berlin.
+  **Cross-city detection (crucial for the multi-city app).** A real geolocation check-in outside the
+  active city is resolved **before the camera flies** (`!kiez && fly && !pos.fallback`, at the TOP of
+  `locateAt` — else the map first flew to your real GPS, e.g. a Frankfurt toggle flew to your Berlin
+  location and showed "outside Frankfurt"). `cityIdForPoint(lon,lat)` says whether you're inside ANOTHER
+  configured city's bbox. Two intents:
+    · **"where am I?" (no explicit city choice, pure default):** if you're inside another supported city,
+      auto-`switchCity()` there (reload → right city loads → geolocation re-resolves to your Stadtteil).
+      The app follows you. This was the "in Frankfurt keine Kieze anklickbar" report (Berlin app showing
+      the Frankfurt location as outside-Berlin).
+    · **"show me this city" (explicit `?city=`/`localStorage`/toggle — `cityWasExplicit()`):** do NOT
+      fly to your real GPS elsewhere — `useFallback()` shows the CHOSEN city's fallback area (Frankfurt →
+      Altstadt) with a toast ("Du bist in Berlin, nicht in Frankfurt — hier ist die Altstadt"). This is
+      the city-toggle fix: toggling to a city you're not in shows that city, not your location.
+  Only a deliberate map-click outside (`fly:false`) still renders the honest `renderOutside` card, which
+  is city-aware (`Kein ${demonym} ${term}`, `vom ${demonym} Zentrum`) and shows a **"Zur <City>-Ansicht"**
+  button when the picked point lies in another supported city. `useFallback(reason)` reason is
+  `denied`/`unavailable` (no location) · `outside` (outside all cities) · a **cityId** (you're in that
+  other city but viewing this one).
   **Location fallback:** a failed/denied geolocation OR a real check-in outside ALL cities does
   NOT show a dead-end card — `useFallback(reason)` places the user at `FALLBACK_POS` (Rathaus Neukölln,
   52.4814/13.4353 → Donaukiez) with a lock-on + a short "Start in Neukölln" toast. `locateAt(pos,
