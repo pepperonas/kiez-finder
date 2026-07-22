@@ -227,12 +227,12 @@ node tools/screenshots.cjs                        # Terminal 2 (braucht Playwrig
 ## Tests ausführen
 
 ```bash
-npm test                                                        # 173 Unit-Tests, Nodes eingebauter Runner, null Test-Dependencies
+npm test                                                        # 177 Unit-Tests, Nodes eingebauter Runner, null Test-Dependencies
 node --test --experimental-test-coverage tests/*.test.js        # dito + Coverage-Report
 node tools/check-doc-sync.mjs                                   # dito + prüft, dass diese Doku-Zahlen der Messung entsprechen
 ```
 
-Getestet wird die **abhängigkeitsfreie Pure-Logik** — Stand heute **173 Tests, 100 % Line-Coverage**
+Getestet wird die **abhängigkeitsfreie Pure-Logik** — Stand heute **177 Tests, 100 % Line-Coverage**
 auf allen acht unit-testbaren Modulen (~97 % Branch):
 
 | Modul | Was abgesichert ist |

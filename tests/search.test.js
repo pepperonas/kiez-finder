@@ -42,11 +42,38 @@ buildSearchIndex({
     { name: 'Hauptstraße', bez: 'Pankow', pt: [13.43, 52.6], bbox: [13.42, 52.59, 13.44, 52.61] },
     { name: 'Hauptstraße', bez: 'Spandau', pt: [13.14, 52.53], bbox: [13.13, 52.52, 13.15, 52.54] },
     { name: 'Reuterkiez', bez: 'Neukölln', pt: [13.43, 52.49], bbox: [13.42, 52.48, 13.44, 52.5] }, // street named like a Kiez
+    { name: 'Doppelort', bez: 'Mitte', pt: [13.40, 52.50], bbox: [13.39, 52.49, 13.41, 52.51] }, // street named like the POIs below
   ],
   pois: [
     { qid: 151356, name: 'Berliner Fernsehturm', desc: 'Turm in Berlin', lon: 13.409, lat: 52.52 },
     { qid: 2, name: 'Schillerkiez', desc: 'Ein Ort namens wie ein Kiez', lon: 13.42, lat: 52.47 }, // POI named like a Kiez → priority test
+    { qid: 900, name: 'Doppelort', desc: 'Standort A', lon: 13.40, lat: 52.50 }, // same name…
+    { qid: 901, name: 'Doppelort', desc: 'Standort B', lon: 13.50, lat: 52.55 }, // …different place → both stay (no dedup)
+    { qid: 902, name: 'Ohnebeschreibung', lon: 13.41, lat: 52.49 }, // no desc → sub falls back to "Ort"
   ],
+})
+
+test('POI-Suche ist faltungs-unempfindlich (Kleinschreibung, keine Diakritika/ß)', () => {
+  assert.equal(search('fernsehturm', 5)[0].type, 'poi') // Wort-Präfix auf „Fernsehturm"
+})
+
+test('gleichnamige POIs bleiben separate Treffer (nicht dedupliziert, distinkte qids)', () => {
+  const hits = search('Doppelort', 8).filter((h) => h.type === 'poi')
+  assert.equal(hits.length, 2)
+  assert.deepEqual(hits.map((h) => h.qid).sort((a, b) => a - b), [900, 901])
+})
+
+test('POI ohne Beschreibung → Sub-Zeile fällt auf "Ort" zurück', () => {
+  const hit = search('Ohnebeschreibung', 5).find((h) => h.type === 'poi')
+  assert.equal(hit.sub, 'Ort')
+})
+
+test('ein POI schlägt auch eine gleichnamige Straße (Typ-Priorität 7 > 1)', () => {
+  const hits = search('Doppelort', 8)
+  const firstPoi = hits.findIndex((h) => h.type === 'poi')
+  const firstStr = hits.findIndex((h) => h.type === 'str')
+  assert.ok(firstPoi >= 0 && firstStr >= 0, 'POI und Straße beide gefunden')
+  assert.ok(firstPoi < firstStr, 'POI rankt vor der gleichnamigen Straße')
 })
 
 test('POIs sind suchbar und tragen qid + Punkt statt eines Features', () => {
