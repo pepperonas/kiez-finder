@@ -1231,6 +1231,10 @@ async function locateAt(pos, { fly = false, discover = fly } = {}) {
 function renderPoi(qid) {
   const p = state.poiList && state.poiList.find((x) => x.qid === qid)
   if (!p) return
+  // Ein POI-Klick soll die Info IMMER zeigen: auf Desktop ein eingeklapptes
+  // Panel wieder ausfahren (sonst rendert die Card unsichtbar ins Off-Screen-
+  // Panel), auf Mobil öffnet setCard(forceOpen) das Bottom-Sheet.
+  if (!sheetEnabled() && app.classList.contains('panel-collapsed')) setPanelCollapsed(false)
   const kat = (poisData() && poisData().kat[p.kat]) || 'Ort'
   const show = h('button', { class: 'btn btn-tonal', type: 'button', 'data-reveal': '' },
     h('span', { class: 'btn-icon', html: ICONS.target }), 'Auf Karte zentrieren')
