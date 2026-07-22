@@ -77,7 +77,10 @@ const BAD_NAME = /stra[sß]enbrunnen|stolperstein|\bDOP\d|orthophoto|luftbild|ka
 // „Stolpersteine in…"). Fängt Karten/Pläne/Wappen/Siegelmarken/Stolpersteine/
 // Luftbilder/Logos/Diagramme — verschont echte Orts-Fotos.
 const BAD_CAT = /\b(maps?|old maps|coats? of arms|emblems|sealing stamps|siegelmarke|stolperstein(e)?|wappen|logos?|diagrams?|floor ?plans?|site ?plans?|aerial (photograph|view)|orthophoto|panoramas?)\b/i
-const GOOD = /park|kirche|\bdom\b|kathedrale|platz|schloss|denkmal|brücke|rathaus|museum|kanal|ufer|garten|synagoge|dorf|siedlung|allee|markt|turm|theater|schule|kino|bahnhof/i
+const GOOD = /park|kirche|\bdom\b|kathedrale|platz|schloss|denkmal|brücke|brunnen|fountain|rathaus|museum|kanal|ufer|garten|synagoge|dorf|siedlung|allee|markt|turm|theater|schule|kino|bahnhof/i
+// „Straße 1897" o. Ä. → historische (meist B&W) Aufnahme; ein Kiez soll heute
+// aussehen, also demoten (nicht rejecten — als letzte Option besser als nichts).
+const histYear = (t) => { const m = t.match(/\b(1[89]\d\d)\b/); return m && +m[1] < 1995 }
 const DULL = /playground|spielplatz|\btable\b|tisch|water barrier|detail|mülleimer|papierkorb|hydrant|ampel|verkehrs|parkplatz|garage|toilet|abfall|star ?walk|walk of fame|tattoomat|vending|automat|gedenktafel|memorial plaque|briefkasten|bank ?\d/i
 
 // Kandidaten-Pool aus drei Quellen (dedupliziert): kuratiertes WP-Artikelfoto,
@@ -138,6 +141,7 @@ async function resolveImage(k) {
     if (info.source === 'wp') s += 55                          // kuratiertes Artikelfoto
     if (info.source === 'cat') s += 30                          // kuratierte Orts-Kategorie
     if (GOOD.test(t)) s += 45; if (DULL.test(t)) s -= 40
+    if (histYear(t)) s -= 55
     if (nn.length > 3 && t.toLowerCase().includes(nn)) s += 35
     return { title: t, s }
   }).filter(Boolean).sort((a, b) => b.s - a.s)
