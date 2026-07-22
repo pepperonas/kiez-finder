@@ -25,11 +25,16 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { pointInGeometry, bezirkName } from '../src/kiez.js'
 
-const rawPath = process.argv[2]
-if (!rawPath) { console.error('usage: node tools/build-streets.js <streets-raw.json>'); process.exit(1) }
+// Usage: node tools/build-streets.js <streets-raw.json> [--city=frankfurt]
+// Ohne --city: Berlin (public/data/…); mit --city=<id>: public/data/<id>/…
+const args = process.argv.slice(2)
+const rawPath = args.find((a) => !a.startsWith('--'))
+const city = (args.find((a) => a.startsWith('--city=')) || '').split('=')[1] || ''
+if (!rawPath) { console.error('usage: node tools/build-streets.js <streets-raw.json> [--city=<id>]'); process.exit(1) }
+const sub = city ? `${city}/` : ''
 
 const raw = JSON.parse(readFileSync(rawPath, 'utf8'))
-const bezFC = JSON.parse(readFileSync(new URL('../public/data/bezirke.geojson', import.meta.url), 'utf8'))
+const bezFC = JSON.parse(readFileSync(new URL(`../public/data/${sub}bezirke.geojson`, import.meta.url), 'utf8'))
 
 // merge gap: bounds expanded by this much still touching → same street
 const GAP_LAT = 0.0028 // ≈ 310 m
@@ -103,7 +108,7 @@ for (const [name, list] of byName) {
 streets.sort((a, b) => a[0].localeCompare(b[0], 'de') || a[1] - b[1])
 
 const out = { v: 1, source: 'OpenStreetMap via Overpass (ODbL)', bez: bezNames, streets }
-const dest = new URL('../public/data/strassen.json', import.meta.url)
+const dest = new URL(`../public/data/${sub}strassen.json`, import.meta.url)
 writeFileSync(dest, JSON.stringify(out))
 console.log(`ways: ${raw.elements.length}, names: ${byName.size}, clusters: ${streets.length}`)
-console.log(`→ public/data/strassen.json (${(JSON.stringify(out).length / 1024).toFixed(0)} KB)`)
+console.log(`→ public/data/${sub}strassen.json (${(JSON.stringify(out).length / 1024).toFixed(0)} KB)`)

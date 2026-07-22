@@ -173,3 +173,21 @@ test('street search folds "straße" in the query', () => {
   assert.ok(search('hauptstrasse').some((r) => r.type === 'str'))
   assert.ok(search('hauptstr').some((r) => r.type === 'str'))
 })
+
+// ── city-aware Labels (Frankfurt: Stadtteil/Ortsbezirk) ──
+// MUSS am Dateiende stehen: baut den Index neu → alle Tests danach würden ihn sehen.
+test('buildSearchIndex: city labels override the type labels + defaultSub for streets', () => {
+  buildSearchIndex({
+    bez: fc([feat({ bez: '01 - Innenstadt I' })]),
+    areas: fc([feat({ kiez: 'Bornheim', gid: 1 })]),
+    kieze: fc([feat({ gid: 1, bez: '04 - Bornheim/Ostend', plr_name: 'Bornheim', bzr_name: null })]),
+    streets: [{ name: 'Zeil', bez: '', pt: [8.68, 50.11], bbox: [8.67, 50.11, 8.69, 50.12] }],
+    labels: { kiez: 'Stadtteil', bez: 'Ortsbezirk' },
+    defaultSub: 'Frankfurt',
+  })
+  assert.equal(search('Bornheim')[0].typeLabel, 'Stadtteil') // kiez → Stadtteil
+  assert.equal(search('Innenstadt')[0].typeLabel, 'Ortsbezirk') // bez → Ortsbezirk
+  const zeil = search('Zeil')[0]
+  assert.equal(zeil.typeLabel, 'Straße')
+  assert.equal(zeil.sub, 'Frankfurt') // leerer Straßen-bez → defaultSub
+})
