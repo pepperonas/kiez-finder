@@ -25,6 +25,7 @@ import { loadPreise, preiseData, METRICS, metricByKey, standFor, buildHeatFC,
 import { fetchMe, syncProgress, pushProgress, logout, loginUrl, readLoginFlag, stripLoginFlag } from './account.js'
 import { getPosition, reverseGeocode } from './geo.js'
 import { revealStagger, tweenNumber, spring, SPRINGS, reduceMotion, finePointer, damdamper } from './motion.js'
+import { mountThemeScene } from './themeScene.js'
 
 // ── Service-Worker: Auto-Reload beim Update ────────────────────────────────
 // Das von vite-plugin-pwa injizierte registerSW.js REGISTRIERT nur, lädt aber
@@ -209,6 +210,11 @@ const areaChip = h('div', { class: 'area-chip', hidden: true, aria: { live: 'pol
   areaChipDot, areaChipName, areaChipLevel)
 
 const mapEl = h('div', { id: 'map', aria: { hidden: 'true' } })
+// Atmosphärische 3D-Ebene (über der Karte, unter der UI, pointer-events:none).
+// Der WebGL-Motor wird lazy in themeScene.js nachgeladen; hier nur der Container.
+const themeSceneEl = h('div', { class: 'theme-scene', aria: { hidden: 'true' } })
+let themeScene = null
+const effectiveTheme = () => (app.classList.contains('wall-mode') ? 'wall' : state.theme)
 const card = h('section', { class: 'pass', aria: { live: 'polite' } })
 // drag handle (mobile bottom-sheet grabber) + scrolling content region
 const sheetHandle = h('button', {
@@ -239,7 +245,7 @@ const toastWrap = h('div', { class: 'toasts', aria: { live: 'polite' } })
 // Orte-Übersicht (Schnitzeljagd): durchsuch-/filterbare POI-Liste, slide-up
 const poiBrowser = h('section', { class: 'poi-browser', hidden: true, aria: { label: 'Orte durchstöbern', modal: 'true' }, role: 'dialog' })
 
-app.append(mapEl, stage, topbar, heatPop, acctPop, heatLegend, areaChip, reopenBtn, poiBrowser, toastWrap)
+app.append(mapEl, themeSceneEl, stage, topbar, heatPop, acctPop, heatLegend, areaChip, reopenBtn, poiBrowser, toastWrap)
 
 // ── desktop: collapse / expand the info panel ────────────────────────────────
 function setPanelCollapsed(collapsed, moveFocus = true) {
@@ -1348,6 +1354,8 @@ function applyTheme(next, origin) {
   // Theme aufdeckt; entfernt, sobald der echte Style geladen ist (setTheme).
   const swap = () => {
     document.documentElement.setAttribute('data-theme', state.theme)
+    // Die 3D-Ebene liest die neuen Akzent-Tokens und lerpt Farbe/Deckkraft weich.
+    if (themeScene) themeScene.setTheme(effectiveTheme())
     // Ein noch aktives Veil vom VORHERIGEN Wechsel muss hier weg (läuft im
     // VT-Callback → der alte Snapshot behält den Veil-Look, die neue Seite
     // zeigt das Canvas): sonst deckt es mit seinem festen alten Look den
@@ -1541,6 +1549,8 @@ async function applyWall(on) {
   wallBtn.setAttribute('aria-pressed', String(on))
   wallBtn.classList.toggle('is-active', on)
   app.classList.toggle('wall-mode', on)
+  // Mauer-Modus überschreibt den Akzent (Tinte) → 3D-Ebene weich mit-tönen.
+  if (themeScene) themeScene.setTheme(effectiveTheme())
   if (on && state.overlay !== 'off') {
     state.overlayBeforeWall = state.overlay // restore when leaving wall mode
     applyOverlay('off')
@@ -1896,6 +1906,9 @@ async function boot() {
   state.map = new KiezMap(mapEl, state.theme, outline)
   state.map.onPick((lon, lat) => pickAt(lon, lat))
   state.map.onMove(refreshAreaChip)
+  // Atmosphärische 3D-Ebene mounten (self-defers via requestIdleCallback; kein
+  // WebGL bei reduced-motion / fehlendem Support → CSS-Fallback).
+  themeScene = mountThemeScene({ container: themeSceneEl, getTheme: effectiveTheme })
   // restore the persisted overlay mode in the button immediately (map applies once ready)
   try {
     const saved = localStorage.getItem('kf-overlay')

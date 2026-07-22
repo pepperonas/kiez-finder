@@ -22,7 +22,11 @@ export default defineConfig({
         // Precache aktualisiert nur beim SW-Shell-Update — ein Client mit noch
         // altem JS bekam dadurch dauerhaft veraltete Daten (fehlende/getauschte
         // Fotos). NetworkFirst = online immer frisch, offline Fallback auf Cache.
-        globIgnores: ['**/poi-info.json', '**/kiez-img.json'],
+        // Zusätzlich der three.js-Chunk: er wird NUR dynamisch geladen (3D-Ebene,
+        // nur bei WebGL + ohne reduced-motion). Aus dem Precache raus → reduced-
+        // motion/no-WebGL-Nutzer laden ihn nie; wer ihn braucht, holt ihn per
+        // dynamischem Import und cached ihn dann CacheFirst (s. u.).
+        globIgnores: ['**/poi-info.json', '**/kiez-img.json', '**/three*.js'],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         navigateFallback: '/index.html',
         // /api/* sind ECHTE Server-Routen (OAuth-Redirects sind Navigationen!) —
@@ -30,6 +34,18 @@ export default defineConfig({
         // bricht wortlos ab.
         navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [
+          {
+            // three.js-Chunk (3D-Ebene): dynamisch importiert, content-gehasht →
+            // unveränderlich → CacheFirst. Erst beim ersten Bedarf geladen, dann
+            // offline + instant. Nicht im Precache (s. globIgnores).
+            urlPattern: ({ url }) => url.origin === self.location.origin && /\/three[.-].*\.js$/.test(url.pathname),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'kf-three',
+              expiration: { maxEntries: 3, maxAgeSeconds: 60 * 60 * 24 * 180 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
           {
             // Anreicherungs-Daten: NetworkFirst → immer frisch, wenn online;
             // offline aus dem Cache. Entkoppelt Daten-Updates vom SW-Shell-Zyklus.

@@ -111,6 +111,16 @@ body {
 
 /* ── map ── */
 #map { position: absolute; inset: 0; }
+
+/* ── atmosphärische 3D-Ebene (themeScene.js) ──
+   Über der Karte, unter aller UI (z-index klein), nie interaktiv. Der WebGL-
+   Canvas wird von three.js hier eingehängt; ohne WebGL / bei reduced-motion
+   bleibt sie leer und zeigt nur das statische, theme-getönte Fallback-Gradient. */
+.theme-scene { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+.theme-scene[data-fallback] {
+  background: radial-gradient(130% 90% at 50% -20%,
+    color-mix(in srgb, var(--accent) 12%, transparent), transparent 62%);
+}
 .maplibregl-ctrl-bottom-right { margin-bottom: 6px; }
 .maplibregl-ctrl-group {
   border-radius: var(--r-m) !important;

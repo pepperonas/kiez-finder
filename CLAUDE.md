@@ -21,8 +21,8 @@ npm test         # unit tests (Node's built-in runner, no deps) — tests/*.test
 ```
 No linter configured. Geolocation needs a secure context (localhost or HTTPS).
 
-**Tests** (`tests/`, `node --test`, zero dependencies — 177 tests, 100% line coverage on
-the nine unit-testable modules) cover the dependency-light pure logic: `search.js`
+**Tests** (`tests/`, `node --test`, zero dependencies — 182 tests, 100% line coverage on
+the ten unit-testable modules) cover the dependency-light pure logic: `search.js`
 (norm folding + the multi-tier scorer / type-priority / dedup), `kiez.js` (point-in-polygon
 classification incl. holes + MultiPolygon, `bezirkName`, `kmFromBerlin`, `bboxOf`,
 `levelName` — plus, via a **fetch mock**, the loaders and the loaded-state functions:
@@ -357,6 +357,21 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   `prefers-reduced-motion` everywhere. Also: `revealStagger`, `tweenNumber`, `damdamper` (pointer tilt).
 - `src/style.css` — MD3 Expressive tokens (motion/shape/state), tonal dark+light palettes,
   all component styles, beacon/radar/stamp animations, reduced-motion guard.
+- `src/themeScene.js` + `src/scenePresets.js` — **atmospheric 3D layer** (`.theme-scene`, a
+  `pointer-events:none` div at `z-index:1` — over `#map`, under all UI). ONE WebGL canvas: a
+  sparse field of slow-drifting accent-tinted particles (three.js `Points` + additive blending,
+  opacity ~0.05–0.09) that reads as ambience, not effect. **three.js is loaded ONLY via a dynamic
+  `import('three')`** (its own Vite chunk, ~176 KB gz — never in the initial bundle) and only after
+  `requestIdleCallback`. `scenePresets.js` is the pure, unit-tested per-theme config (density/
+  speed/opacity/depth + which accent token to read — colours are NOT duplicated, they come live
+  from the CSS tokens); `resolvedPreset` enforces the mobile constraints (particles ×0.4, DPR ≤ 2).
+  `mountThemeScene({container, getTheme})` → `{setTheme, destroy}`. On a theme change (`applyTheme`
+  swap + `applyWall`) `setTheme` re-reads the tokens and **lerps colour+opacity over 900 ms — no
+  scene rebuild**. **Fallbacks:** `prefers-reduced-motion` / no-WebGL / context-loss → three.js is
+  never even loaded, the layer just shows a static `[data-fallback]` accent-tinted CSS radial
+  gradient. Rendering **pauses** on `document.hidden` and when the layer leaves the viewport
+  (`IntersectionObserver`). `destroy()` disposes geometry/material/texture/renderer (leak-free).
+  Covered by `tests/scenePresets.test.js` (the WebGL engine itself isn't unit-testable, like map.js).
 
 ## Key facts & gotchas
 
