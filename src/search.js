@@ -7,6 +7,7 @@
 import { bezirkName } from './kiez.js'
 
 const TYPE = {
+  poi:  { label: 'Ort',           prio: 7 }, // Schnitzeljagd-POIs — höchste Priorität
   bez:  { label: 'Bezirk',        prio: 6 },
   kiez: { label: 'Kiez',          prio: 5 },
   bzr:  { label: 'Bezirksregion', prio: 4 },
@@ -29,7 +30,7 @@ export function norm(s) {
 
 let _index = []
 
-export function buildSearchIndex({ kieze, areas, osmKieze, bez, bzr, pgr, streets }) {
+export function buildSearchIndex({ kieze, areas, osmKieze, bez, bzr, pgr, streets, pois }) {
   const out = []
   const seen = new Set() // dedup by norm|type
   const add = (label, type, sub, feature) => {
@@ -48,6 +49,14 @@ export function buildSearchIndex({ kieze, areas, osmKieze, bez, bzr, pgr, street
     if (g != null && !gidBez.has(g)) gidBez.set(g, bezirkName(f.properties.bez))
   }
 
+  // Schnitzeljagd-POIs (Fernsehturm, SchwuZ, …): kein LOR-Polygon, aber ein Punkt
+  // + qid → beim Treffer öffnet sich die POI-Card. Höchste Typ-Priorität (prio 7),
+  // damit ein POI-Name die Suche anführt. Nicht dedupliziert (distinkte qids).
+  if (pois) for (const p of pois) {
+    const n = norm(p.name)
+    if (!n) continue
+    out.push({ label: p.name, norm: n, words: n.split(' '), type: 'poi', typeLabel: TYPE.poi.label, prio: TYPE.poi.prio, sub: p.desc || 'Ort', feature: null, pt: [p.lon, p.lat], qid: p.qid })
+  }
   if (bez) for (const f of bez.features) add(bezirkName(f.properties.bez), 'bez', 'Berlin', f)
   // OSM Kiez polygons first → precise named Kieze (e.g. Scheunenviertel) win the
   // norm|type dedup over a same-named Planungsraum-union

@@ -43,6 +43,25 @@ buildSearchIndex({
     { name: 'Hauptstraße', bez: 'Spandau', pt: [13.14, 52.53], bbox: [13.13, 52.52, 13.15, 52.54] },
     { name: 'Reuterkiez', bez: 'Neukölln', pt: [13.43, 52.49], bbox: [13.42, 52.48, 13.44, 52.5] }, // street named like a Kiez
   ],
+  pois: [
+    { qid: 151356, name: 'Berliner Fernsehturm', desc: 'Turm in Berlin', lon: 13.409, lat: 52.52 },
+    { qid: 2, name: 'Schillerkiez', desc: 'Ein Ort namens wie ein Kiez', lon: 13.42, lat: 52.47 }, // POI named like a Kiez → priority test
+  ],
+})
+
+test('POIs sind suchbar und tragen qid + Punkt statt eines Features', () => {
+  const [top] = search('Fernsehturm', 5)
+  assert.equal(top.type, 'poi')
+  assert.equal(top.qid, 151356)
+  assert.equal(top.feature, null)
+  assert.deepEqual(top.pt, [13.409, 52.52])
+  assert.equal(top.typeLabel, 'Ort')
+})
+
+test('ein POI hat Vorrang vor einem gleichnamigen Kiez (Typ-Priorität)', () => {
+  const hits = search('Schillerkiez', 5)
+  assert.equal(hits[0].type, 'poi') // prio 7 > kiez prio 5
+  assert.ok(hits.some((h) => h.type === 'kiez')) // der Kiez ist weiterhin da
 })
 
 test('empty query returns nothing', () => {

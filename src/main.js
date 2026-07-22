@@ -26,6 +26,25 @@ import { fetchMe, syncProgress, pushProgress, logout, loginUrl, readLoginFlag, s
 import { getPosition, reverseGeocode } from './geo.js'
 import { revealStagger, tweenNumber, spring, SPRINGS, reduceMotion, finePointer, damdamper } from './motion.js'
 
+// ── Service-Worker: Auto-Reload beim Update ────────────────────────────────
+// Das von vite-plugin-pwa injizierte registerSW.js REGISTRIERT nur, lädt aber
+// NIE neu. Der neue SW übernimmt via skipWaiting+clientsClaim sofort die
+// Kontrolle (→ `controllerchange`), aber die bereits geladene Seite blieb auf
+// altem JS + altem Precache hängen — Daten-Updates (getauschte/neue Fotos in
+// poi-info) erreichten wiederkehrende Nutzer erst nach manuellem Doppel-Reload.
+// Fix: beim ersten controllerchange EINMAL neu laden. Guard `hadController`
+// unterdrückt den Reload bei der ERST-Installation (null→SW ist auch ein
+// controllerchange, soll aber nicht reloaden).
+if ('serviceWorker' in navigator) {
+  const hadController = !!navigator.serviceWorker.controller
+  let reloading = false
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (reloading || !hadController) return
+    reloading = true
+    window.location.reload()
+  })
+}
+
 // ── tiny safe DOM builder (no innerHTML for dynamic content) ───────────────
 function h(tag, props = {}, ...kids) {
   const el = document.createElement(tag)
@@ -162,7 +181,7 @@ const autoZoomBtn = h('button', {
 // ── fuzzy search (Bezirke / Bezirksregionen / Prognoseräume / Kieze / Planungsräume) ──
 const searchInput = h('input', {
   class: 'search-input', type: 'search', enterkeyhint: 'search',
-  placeholder: 'Kiez, Bezirk, Ortsteil …', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false',
+  placeholder: 'Ort, Kiez, Bezirk, Straße …', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false',
   aria: { label: 'Berlin durchsuchen', autocomplete: 'list', controls: 'search-results', expanded: 'false' },
   role: 'combobox',
 })
@@ -1656,7 +1675,7 @@ function applyAutoZoom(on) {
 autoZoomBtn.addEventListener('click', () => applyAutoZoom(!state.autoZoom))
 
 // ── search controller ────────────────────────────────────────────────────────
-const TYPE_ICON = { bez: ICONS.layers, bzr: ICONS.layers, pgr: ICONS.layers, kiez: ICONS.pin, plr: ICONS.pin, str: ICONS.road }
+const TYPE_ICON = { poi: ICONS.target, bez: ICONS.layers, bzr: ICONS.layers, pgr: ICONS.layers, kiez: ICONS.pin, plr: ICONS.pin, str: ICONS.road }
 let _hits = [], _active = -1
 
 function highlightMatch(label, query) {
@@ -1715,8 +1734,16 @@ function selectPlace(e) {
   searchInput.blur()
   state.selectedPlace = e
   if (e.type === 'str') { selectStreet(e); return }
+  if (e.type === 'poi') { selectPoi(e); return }
   if (state.map) state.map.highlight(e.feature, { fit: true })
   renderPlace(e)
+}
+
+// A POI search hit → fly the camera to it and open its Schnitzeljagd card
+// (same `renderPoi` as a map-click; suche entdeckt NICHT, öffnet nur).
+function selectPoi(e) {
+  if (state.map) state.map.flyToPoi(e.pt[0], e.pt[1])
+  renderPoi(e.qid)
 }
 
 // A street has no LOR polygon — resolve its Kiez from the on-street point,
@@ -1906,6 +1933,8 @@ async function boot() {
   loadPois().then((d) => {
     if (!d || !state.map) return
     state.poiList = d.list
+    // POIs jetzt in die Suche aufnehmen (falls die Level-Args schon stehen)
+    if (state._searchArgs) buildSearchIndex({ ...state._searchArgs, pois: state.poiList })
     state.map.setPoiData({
       type: 'FeatureCollection',
       features: d.list.map((p) => ({
@@ -1950,8 +1979,11 @@ async function boot() {
       })
     }
     // build the fuzzy search index across all levels + colloquial Kieze + streets
+    // + POIs. POIs load on their own async (loadPois below) — stash the level args
+    // so either completion order rebuilds the full index (buildSearchIndex replaces).
     if (fc) {
-      buildSearchIndex({ kieze: kiezeFC(), areas: kiezAreasFC(), osmKieze: osmKiezeFC(), bez: fc.bez, bzr: fc.bzr, pgr: fc.pgr, streets })
+      state._searchArgs = { kieze: kiezeFC(), areas: kiezAreasFC(), osmKieze: osmKiezeFC(), bez: fc.bez, bzr: fc.bzr, pgr: fc.pgr, streets }
+      buildSearchIndex({ ...state._searchArgs, pois: state.poiList })
       state.searchReady = true
     }
   }).catch(() => null)
