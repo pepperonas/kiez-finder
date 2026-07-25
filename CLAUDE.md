@@ -33,7 +33,7 @@ npm test         # unit tests (Node's built-in runner, no deps) — tests/*.test
 ```
 No linter configured. Geolocation needs a secure context (localhost or HTTPS).
 
-**Tests** (`tests/`, `node --test`, zero dependencies — 251 tests, 100% line coverage on
+**Tests** (`tests/`, `node --test`, zero dependencies — 260 tests, 100% line coverage on
 the ten unit-testable modules) cover the dependency-light pure logic: `search.js`
 (norm folding + the multi-tier scorer / type-priority / dedup), `kiez.js` (point-in-polygon
 classification incl. holes + MultiPolygon, `bezirkName`, `kmFromBerlin`, `bboxOf`,
@@ -75,7 +75,7 @@ measures the suite (test count + line coverage) and counts the LOC of `src/*.js`
 `N tests`/`N Tests` claims in README.md/CLAUDE.md, and commits the change back with
 `[skip ci]` (no loop). So the numbers never go stale and you never hand-edit them; run
 `node tools/badges.mjs` locally to preview, or `--check` to assert without writing. (This
-paragraph's `251 tests, 100% line` count is rewritten by that tool too.)
+paragraph's `260 tests, 100% line` count is rewritten by that tool too.)
 
 **README screenshots** (`docs/screenshot-*.png`) are regenerated with
 `tools/screenshots.cjs` against a `npm run preview -- --port 4190` server (needs a
@@ -317,7 +317,14 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   built by `tools/build-pois.mjs`, then enriched with 1–2 Eckdaten (`facts`, field [9]) by
   `tools/build-poi-facts.mjs` (one Wikidata SPARQL POST for inception/opening/architect/height/style/
   heritage over all 1000 QIDs — 853/1000 get ≥1 fact; shown as chips in the POI card + first fact in
-  the browser row) from ONE Wikidata SPARQL query: sight-like classes under
+  the browser row). **`tools/reconcile-poi-year-facts.mjs` (run after poi-info exists) STRIPS a
+  year-chip that contradicts the Wikipedia prose above it** — Wikidata P1619 is sometimes a
+  *reopening* (S-Bahnhof Köllnische Heide showed "Eröffnet 1993" while the article says "1920
+  eröffnet"; no P571 Baujahr existed). Rule: drop (never replace — the verb-adjacent extract year
+  often belongs to a *different* noun, e.g. Ruhleben's "1908 errichtete Trabrennbahn") only when the
+  chip year is absent from the extract AND the extract states another opening year at a non-"Wieder…"
+  verb; architect birth-years in parens `(* 1953)` and life-ranges are stripped first. Pure core +
+  tests: `tools/lib/year-reconcile.mjs`, `tests/year-reconcile.test.js`. From ONE Wikidata SPARQL query: sight-like classes under
   Q811979/Q2065736/Q570116/Q22698/Q33506/Q4989906/Q839954/Q39614, ranked by `wikibase:sitelinks`.
   Two correctives make it playable: a **district quota** (≥45/Bezirk — else 2/3 land in Mitte) and a
   **category cap** (13 % — uncapped, 207 ordinary U-/S-Bahn stations crowded out real sights). Each POI

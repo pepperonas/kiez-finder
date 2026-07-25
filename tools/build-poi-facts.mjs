@@ -13,6 +13,9 @@
 //
 // Reihenfolge: erst `build-pois.mjs` (erzeugt pois.json), dann DIESES Skript
 // (liest pois.json, hängt facts an, schreibt zurück — re-runnable/idempotent).
+// DANACH (sobald poi-info.json existiert): `reconcile-poi-year-facts.mjs`, das
+// ein Jahr-Eckdatum streicht, wenn es der Wikipedia-Prosa widerspricht (Wikidata
+// P1619 ist manchmal eine Wiedereröffnung, z.B. Köllnische Heide 1993 vs. 1920).
 // Usage: node tools/build-poi-facts.mjs   (~30 s)
 import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
