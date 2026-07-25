@@ -29,9 +29,12 @@ const BAD_EXT = /\.(tif|tiff|svg|pdf|xcf|gif|webp)$/i
 const BAD_NAME = /stra[sß]enbrunnen|stolperstein|\bDOP\d|orthophoto|luftbild|karte|\bmap\b|\bplan\b|wappen|coat of arms|logo|diagram|schild|gedenktafel|star ?walk|\.stl/i
 const BAD_CAT = /\b(maps?|old maps|coats? of arms|emblems|sealing stamps|siegelmarke|stolperstein(e)?|wappen|logos?|diagrams?|floor ?plans?|site ?plans?|aerial (photograph|view)|orthophoto)\b/i
 
-const poiData = JSON.parse(readFileSync(join(root, 'public/data/pois.json'), 'utf8')).pois
+// --city=frankfurt → public/data/frankfurt/*. Die Bild-WebPs sind SHARED
+// (public/img/poi/, per qid, keine Kollision) → OUT bleibt gleich.
+const sub = ((process.argv.find((a) => a.startsWith('--city=')) || '').split('=')[1] || '') ? 'frankfurt/' : ''
+const poiData = JSON.parse(readFileSync(join(root, `public/data/${sub}pois.json`), 'utf8')).pois
 const coords = new Map(poiData.map((r) => [String(r[0]), { name: r[1], lon: r[3], lat: r[4] }]))
-const piPath = join(root, 'public/data/poi-info.json')
+const piPath = join(root, `public/data/${sub}poi-info.json`)
 const pi = JSON.parse(readFileSync(piPath, 'utf8'))
 
 async function apiJson(base, params) {
