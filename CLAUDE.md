@@ -7,18 +7,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Kiez-Finder — a PWA that uses browser geolocation to determine which official neighbourhood the user
 is standing in, highlights its boundary on a map, and shows the full admin hierarchy plus address and
 coordinates. **Berlin** is the default + full-featured original (LOR 2021 **Kiez** → Bezirksregion →
-Prognoseraum → Bezirk). **The app is city-parameterized** (`src/city.js`): a second city, **Frankfurt
-am Main** (**Stadtteil** → Ortsbezirk, 46/16), reuses the exact same engine against its own data.
-The city is resolved once at boot — URL `?city=frankfurt` > `localStorage kf-city` > a `frankfurt.*`
-subdomain > Berlin — and a topbar switcher flips it. Berlin behaviour is unchanged (its `dataDir` is
-`/data`, so every loader path stays identical). **Etappen-Stand:** Frankfurt has the CORE (boundary
-classification, hierarchy, terminology, city switcher, Berlin-only Mauer feature hidden) PLUS the full
-enrichment: streets/search index, stats (Einwohner/Dichte), POI scavenger hunt with photos+text,
-Stadtteil photos, and the heatmap — **density** (always) and **Bodenrichtwert Wohnbauland** (BORIS
-Hessen 2024, `tools/build-frankfurt-heat-prices.mjs`; no open per-Stadtteil rent source → Miete stays
-null). `availableMetrics(stats,preise)` in heat.js filters the heat popover to metrics that actually
-have data, so Frankfurt shows only Dichte + Bodenrichtwert (no empty Alter/Miete). All Frankfurt data
-lives under `public/data/frankfurt/` (runtime-cached, not in Berlin's precache — see PWA note).
+Prognoseraum → Bezirk). **The app is city-parameterized** (`src/city.js`): **Frankfurt am Main**
+(**Stadtteil** → Ortsbezirk, 46/16) and **Darmstadt** (**Viertel** = statistischer Bezirk →
+**Stadtteil**, 37/9) reuse the exact same engine against their own data. The city is resolved once at
+boot — URL `?city=` > `localStorage kf-city` > a matching subdomain (`frankfurt.*` / `darmstadt.*`) >
+Berlin — and a topbar switcher cycles cities. Berlin behaviour is unchanged (its `dataDir` is
+`/data`, so every loader path stays identical). **Etappen-Stand:** Frankfurt and Darmstadt both have
+the CORE (boundary classification, hierarchy, terminology, city switcher, Berlin-only Mauer feature
+hidden) PLUS the full enrichment: streets/search index, stats (Einwohner/Dichte), POI scavenger hunt
+with photos+text, area photos, and the heatmap — **density** (always) and **Bodenrichtwert
+Wohnbauland** (BORIS Hessen 2024; no open per-area rent source → Miete stays null).
+`availableMetrics(stats,preise)` in heat.js filters the heat popover to metrics that actually have
+data. Satellite-city data lives under `public/data/<city>/` (runtime-cached, not in Berlin's
+precache — see PWA note). Darmstadt POI target is ~120 (smaller city).
 
 Live: **https://kiezfinder.celox.io** · deployed as a static build on the celox.io VPS (69.62.121.168),
 webroot `/var/www/kiezfinder.celox.io/`, nginx block `kiezfinder.celox.io`.
@@ -33,7 +34,7 @@ npm test         # unit tests (Node's built-in runner, no deps) — tests/*.test
 ```
 No linter configured. Geolocation needs a secure context (localhost or HTTPS).
 
-**Tests** (`tests/`, `node --test`, zero dependencies — 260 tests, 100% line coverage on
+**Tests** (`tests/`, `node --test`, zero dependencies — 280 tests, 100% line coverage on
 the ten unit-testable modules) cover the dependency-light pure logic: `search.js`
 (norm folding + the multi-tier scorer / type-priority / dedup), `kiez.js` (point-in-polygon
 classification incl. holes + MultiPolygon, `bezirkName`, `kmFromBerlin`, `bboxOf`,
@@ -75,7 +76,7 @@ measures the suite (test count + line coverage) and counts the LOC of `src/*.js`
 `N tests`/`N Tests` claims in README.md/CLAUDE.md, and commits the change back with
 `[skip ci]` (no loop). So the numbers never go stale and you never hand-edit them; run
 `node tools/badges.mjs` locally to preview, or `--check` to assert without writing. (This
-paragraph's `260 tests, 100% line` count is rewritten by that tool too.)
+paragraph's `280 tests, 100% line` count is rewritten by that tool too.)
 
 **README screenshots** (`docs/screenshot-*.png`) are regenerated with
 `tools/screenshots.cjs` against a `npm run preview -- --port 4190` server (needs a

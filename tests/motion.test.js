@@ -26,6 +26,17 @@ setGlobal('cancelAnimationFrame', (id) => clearTimeout(id))
 test.after(() => { performance.now = realPerfNow })
 
 const settle = (ms = 50) => new Promise((r) => setTimeout(r, ms)) // real ms — enough timer ticks to converge
+/** Wait until `pred()` is true or `ms` elapses (under parallel suite load, fixed
+ *  settles can starve before the spring finishes). */
+const until = (pred, ms = 1500) => new Promise((resolve, reject) => {
+  const t0 = Date.now()
+  const tick = () => {
+    if (pred()) return resolve()
+    if (Date.now() - t0 > ms) return reject(new Error('until-timeout'))
+    setTimeout(tick, 5)
+  }
+  tick()
+})
 
 // ── media queries ────────────────────────────────────────────────────────────
 test('reduceMotion / finePointer reflect the live matchMedia state', () => {
@@ -43,7 +54,7 @@ test('spring converges exactly to the target and calls onDone', async () => {
   const seen = []
   let done = false
   spring(0, 100, SPRINGS.spatialDefault, (v) => seen.push(v), () => { done = true })
-  await settle(200)
+  await until(() => done)
   assert.ok(done, 'onDone fired')
   assert.equal(seen[seen.length - 1], 100) // snapped exactly, not just close
   assert.ok(seen.length > 5, 'animated over multiple frames')
@@ -51,8 +62,9 @@ test('spring converges exactly to the target and calls onDone', async () => {
 
 test('spring with damping 0.6 (spatial-fast) overshoots — the signature bounce', async () => {
   const seen = []
-  spring(0, 100, SPRINGS.spatialFast, (v) => seen.push(v))
-  await settle(200)
+  let done = false
+  spring(0, 100, SPRINGS.spatialFast, (v) => seen.push(v), () => { done = true })
+  await until(() => done)
   const max = Math.max(...seen)
   assert.ok(max > 100.5, `underdamped spring must overshoot the target (max was ${max})`)
   assert.equal(seen[seen.length - 1], 100) // ...and still settle exactly
@@ -60,8 +72,9 @@ test('spring with damping 0.6 (spatial-fast) overshoots — the signature bounce
 
 test('spring with damping 0.8 (spatial-default) stays essentially overshoot-free', async () => {
   const seen = []
-  spring(0, 100, SPRINGS.spatialDefault, (v) => seen.push(v))
-  await settle(200)
+  let done = false
+  spring(0, 100, SPRINGS.spatialDefault, (v) => seen.push(v), () => { done = true })
+  await until(() => done)
   assert.ok(Math.max(...seen) < 102, 'well-damped: no signature bounce')
 })
 
@@ -91,7 +104,7 @@ test('spring already at the target settles immediately (from === to)', async () 
   const seen = []
   let done = false
   spring(42, 42, SPRINGS.spatialDefault, (v) => seen.push(v), () => { done = true })
-  await settle(50)
+  await until(() => done, 500)
   assert.ok(done, 'onDone still fires')
   assert.equal(seen[seen.length - 1], 42) // never leaves the target
   assert.ok(seen.every((v) => v === 42), 'no spurious excursion off the target')
@@ -100,7 +113,7 @@ test('spring already at the target settles immediately (from === to)', async () 
 test('spring works without an onDone callback (optional)', async () => {
   const seen = []
   assert.doesNotThrow(() => spring(0, 10, SPRINGS.spatialDefault, (v) => seen.push(v)))
-  await settle(100)
+  await until(() => seen.length && seen[seen.length - 1] === 10)
   assert.equal(seen[seen.length - 1], 10)
 })
 
@@ -108,7 +121,7 @@ test('spring works without an onDone callback (optional)', async () => {
 test('tweenNumber eases to the target and formats every frame', async () => {
   const el = { textContent: '' }
   tweenNumber(el, 0, 50, (v) => v.toFixed(1), 100)
-  await settle(100)
+  await until(() => el.textContent === '50.0')
   assert.equal(el.textContent, '50.0')
 })
 
@@ -134,7 +147,7 @@ test('revealStagger primes elements hidden, then reveals them (staggered)', asyn
     assert.equal(e.props['--reveal'], '0')
     assert.equal(e.props['--reveal-y'], '18px')
   }
-  await settle(300)
+  await until(() => els.every((e) => e.props['--reveal'] === '1' && e.props['--reveal-y'] === '0.00px'))
   for (const e of els) {
     assert.equal(e.props['--reveal'], '1')
     assert.equal(e.props['--reveal-y'], '0.00px') // spring settled at 0
@@ -157,7 +170,11 @@ test('damdamper chases the target with inertia and settles on it', async () => {
   const frames = []
   const d = damdamper((x, y) => frames.push([x, y]))
   d.set(4, -2)
-  await settle(200)
+  await until(() => {
+    if (!frames.length) return false
+    const [x, y] = frames[frames.length - 1]
+    return Math.abs(x - 4) < 0.01 && Math.abs(y - -2) < 0.01
+  })
   const [x, y] = frames[frames.length - 1]
   assert.ok(Math.abs(x - 4) < 0.01 && Math.abs(y - -2) < 0.01, `settled near target (got ${x}, ${y})`)
   assert.ok(frames.length > 5, 'moved over multiple frames — inertia, not a jump')

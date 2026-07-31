@@ -16,11 +16,12 @@ const storage = (seed = {}) => {
 test('cityIdForPoint maps a point to the city whose bbox contains it', () => {
   assert.equal(cityIdForPoint(13.404, 52.52), 'berlin') // Alexanderplatz
   assert.equal(cityIdForPoint(8.682, 50.111), 'frankfurt') // Römer
+  assert.equal(cityIdForPoint(8.6515, 49.8726), 'darmstadt') // Luisenplatz
   assert.equal(cityIdForPoint(9.99, 53.55), null) // Hamburg → keine
 })
 
-test('CITIES: Berlin + Frankfurt with the expected shape', () => {
-  assert.deepEqual(Object.keys(CITIES).sort(), ['berlin', 'frankfurt'])
+test('CITIES: Berlin + Frankfurt + Darmstadt with the expected shape', () => {
+  assert.deepEqual(Object.keys(CITIES).sort(), ['berlin', 'darmstadt', 'frankfurt'])
   for (const c of Object.values(CITIES)) {
     assert.ok(c.term && c.article, `${c.id}: term + article`)
     assert.equal(c.center.length, 2)
@@ -31,8 +32,12 @@ test('CITIES: Berlin + Frankfurt with the expected shape', () => {
   }
   assert.equal(CITIES.berlin.dataDir, '/data') // Berlin bleibt rückwärts-kompatibel
   assert.equal(CITIES.berlin.features.wall, true)
-  assert.equal(CITIES.frankfurt.features.wall, false) // keine Mauer in Frankfurt
+  assert.equal(CITIES.frankfurt.features.wall, false)
   assert.equal(CITIES.frankfurt.term, 'Stadtteil')
+  assert.equal(CITIES.darmstadt.features.wall, false)
+  assert.equal(CITIES.darmstadt.term, 'Viertel')
+  assert.equal(CITIES.darmstadt.dataDir, '/data/darmstadt')
+  assert.equal(CITIES.darmstadt.levels[0].label, 'Stadtteil')
 })
 
 test('resolveCity: ?city= wins, then localStorage, else Berlin', () => {
@@ -81,12 +86,26 @@ test('cityWasExplicit: true nur bei bewusster Wahl (URL/localStorage/Subdomain),
 test('CITIES tragen demonym für die „Kein <demonym> <term>"-Karte', () => {
   assert.equal(CITIES.berlin.demonym, 'Berliner')
   assert.equal(CITIES.frankfurt.demonym, 'Frankfurter')
+  assert.equal(CITIES.darmstadt.demonym, 'Darmstädter')
 })
 
 test('resolveCity: a frankfurt subdomain picks Frankfurt', () => {
   setGlobal('location', { href: 'https://frankfurt.celox.io/', hostname: 'frankfurt.celox.io' })
   setGlobal('localStorage', storage())
   assert.equal(resolveCity().id, 'frankfurt')
+})
+
+test('resolveCity: a darmstadt subdomain picks Darmstadt', () => {
+  setGlobal('location', { href: 'https://darmstadt.celox.io/', hostname: 'darmstadt.celox.io' })
+  setGlobal('localStorage', storage())
+  assert.equal(resolveCity().id, 'darmstadt')
+  assert.equal(cityWasExplicit(), true)
+})
+
+test('resolveCity: ?city=darmstadt wins', () => {
+  setGlobal('location', { href: 'https://x.io/?city=darmstadt', hostname: 'x.io' })
+  setGlobal('localStorage', storage())
+  assert.equal(resolveCity().id, 'darmstadt')
 })
 
 test('switchCity persists + navigates; no-op for the already-active city', () => {

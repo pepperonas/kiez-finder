@@ -4,11 +4,11 @@
 
 # 🧭 Kiez-Finder
 
-### Dein Kiez-Pass für Berlin — check ein und erfahre sofort, in welchem Kiez du gerade stehst.
+### Dein Kiez-Pass für Berlin, Frankfurt & Darmstadt — check ein und erfahre sofort, in welchem Kiez du gerade stehst.
 
 [![CI](https://img.shields.io/github/actions/workflow/status/pepperonas/kiez-finder/ci.yml?branch=main&label=CI&logo=githubactions&logoColor=white)](https://github.com/pepperonas/kiez-finder/actions/workflows/ci.yml)
-[![Unit Tests](https://img.shields.io/badge/unit_tests-260-4c9f70?logo=nodedotjs&logoColor=white)](#tests-ausf%C3%BChren)
-[![Lines of Code](https://img.shields.io/badge/lines_of_code-5354-8a7bd8?logo=javascript&logoColor=000)](#tech-stack)
+[![Unit Tests](https://img.shields.io/badge/unit_tests-280-4c9f70?logo=nodedotjs&logoColor=white)](#tests-ausf%C3%BChren)
+[![Lines of Code](https://img.shields.io/badge/lines_of_code-5378-8a7bd8?logo=javascript&logoColor=000)](#tech-stack)
 [![Coverage (Unit)](https://img.shields.io/badge/coverage_(unit)-100.00%25_lines-brightgreen)](#tests-ausf%C3%BChren)
 [![Live](https://img.shields.io/website?url=https%3A%2F%2Fkiezfinder.celox.io&label=kiezfinder.celox.io&logo=icloud&logoColor=white)](https://kiezfinder.celox.io)
 [![Version](https://img.shields.io/github/package-json/v/pepperonas/kiez-finder?logo=npm&logoColor=white)](package.json)
@@ -29,6 +29,12 @@ zeichnet die Grenze deines Kiezes auf die Karte und zeigt dir die volle Hierarch
 
 Die Klassifizierung läuft gegen die **amtlichen Kiez-Grenzen** (Point-in-Polygon im Browser) —
 nicht gegen ungenaues Reverse-Geocoding. Stehst du außerhalb der Stadtgrenze, sagt der Pass dir das auch.
+
+**Mehrere Städte, eine Engine.** Neben Berlin laufen **Frankfurt am Main** (46 Stadtteile → 16 Ortsbezirke)
+und **Darmstadt** (37 Viertel → 9 Stadtteile) über dieselbe Codebasis — eigene Daten unter
+`public/data/<city>/`, Umschalten per Topbar-Switcher, `?city=frankfurt` / `?city=darmstadt` oder
+passender Subdomain. Berlin bleibt der Default inkl. Mauer-Modus; die anderen Städte blenden
+Berlin-only Features aus und zeigen nur Metriken, für die es Daten gibt (Dichte + Bodenrichtwert).
 
 **Das Konzept: ein Kiez-Pass.** Eine einzige Idee, durch jede Schicht gezogen: *Du checkst an
 deinem Standort ein, und die Stadt verrät dir, welcher Kiez dich gerade beherbergt.* Die Sprache
@@ -139,6 +145,7 @@ automatisch in `localStorage` persistiert:
 
 | Key | Werte | Bedeutung |
 |---|---|---|
+| `kf-city` | `berlin` \| `frankfurt` \| `darmstadt` | aktive Stadt (auch via `?city=` / Subdomain) |
 | `kf-theme` | `dark` \| `light` | Farbschema (Default: dunkel bzw. `prefers-color-scheme`) |
 | `kf-overlay` | `off` \| `bezirke` \| `bzr` \| `kiez` | aktives Sektoren-Overlay |
 | `kf-wall` | `1` \| `0` | Berliner-Mauer-Modus |
@@ -215,6 +222,34 @@ node tools/build-heat-prices.mjs # → public/data/preise.json (Angebotsmieten j
                                 #   dl-de-zero-2.0; validiert Abdeckung + Plausibilitäts-Median)
 ```
 
+### Frankfurt / Darmstadt (Satelliten-Städte)
+
+Beide Städte liegen unter `public/data/<city>/` und werden analog gebaut (Open-Data-Grenzen →
+App-Schema → Enrichment). Darmstadt-Beispiel:
+
+```bash
+# Grenzen (vendor: tools/vendor/da-*.geojson, EPSG:25832 → WGS84 im Skript)
+node tools/build-darmstadt.mjs
+node tools/build-darmstadt-stats.mjs          # Einwohner Q4/2025 aus tools/vendor/da-bestand-*.csv
+node tools/build-darmstadt-heat-prices.mjs    # BORIS Hessen BRW (live WFS)
+node tools/build-darmstadt-kiez-info.mjs      # Wikipedia-Kurztexte
+
+# Straßen (Overpass-Dump in tools/vendor/da-streets-raw.json)
+node tools/build-streets.js tools/vendor/da-streets-raw.json --city=darmstadt
+
+# Schnitzeljagd (~120 POIs) + Anreicherung — --city= schreibt nach public/data/darmstadt/
+node tools/build-pois.mjs --city=darmstadt
+node tools/build-poi-facts.mjs --city=darmstadt
+node tools/build-poi-info.mjs --city=darmstadt
+node tools/build-poi-images.mjs --city=darmstadt
+node tools/recover-poi-images.mjs --city=darmstadt
+node tools/reconcile-poi-year-facts.mjs --city=darmstadt
+node tools/build-kiez-images.mjs --city=darmstadt
+```
+
+Frankfurt analog (`tools/build-frankfurt*.mjs`, `--city=frankfurt`). Aktivierung in der App:
+`?city=darmstadt`, Topbar-Switcher oder Subdomain `darmstadt.*`.
+
 Neuer EWR-Stichtag: aktuelle `EWR_L21_*E_Matrix.csv` besorgen (daten.berlin.de bzw. Mirror,
 siehe `tools/vendor/README.md`), nach `tools/vendor/` legen, `STAND` in `build-stats.mjs`
 anpassen, Skript validiert den Rest (542 IDs, Plausibilitäts-Summe).
@@ -229,12 +264,12 @@ node tools/screenshots.cjs                        # Terminal 2 (braucht Playwrig
 ## Tests ausführen
 
 ```bash
-npm test                                                        # 260 Unit-Tests, Nodes eingebauter Runner, null Test-Dependencies
+npm test                                                        # 280 Unit-Tests, Nodes eingebauter Runner, null Test-Dependencies
 node --test --experimental-test-coverage tests/*.test.js        # dito + Coverage-Report
 node tools/badges.mjs                                           # misst + SCHREIBT die Badges (LOC/Tests/Coverage); --check = nur prüfen
 ```
 
-Getestet wird die **abhängigkeitsfreie Pure-Logik** — Stand heute **260 Tests, 100 % Line-Coverage**
+Getestet wird die **abhängigkeitsfreie Pure-Logik** — Stand heute **280 Tests, 100 % Line-Coverage**
 auf allen acht unit-testbaren Modulen (~97 % Branch):
 
 | Modul | Was abgesichert ist |

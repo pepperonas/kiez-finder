@@ -17,6 +17,10 @@ test('setDataDir repoints every subsequent path; falsy → back to /data', () =>
   assert.equal(dpath('stats.json'), '/data/frankfurt/stats.json')
   assert.equal(dpath('strassen.json'), '/data/frankfurt/strassen.json')
 
+  setDataDir('/data/darmstadt')
+  assert.equal(dpath('kieze.geojson'), '/data/darmstadt/kieze.geojson')
+  assert.equal(dpath('pois.json'), '/data/darmstadt/pois.json')
+
   setDataDir(undefined) // unset → Berlin-Default
   assert.equal(dataDir(), '/data')
   setDataDir('') // ebenfalls Default

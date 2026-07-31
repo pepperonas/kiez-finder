@@ -35,6 +35,8 @@ const cityId = (process.argv.slice(2).find((a) => a.startsWith('--city=')) || ''
 const CITY = {
   '':         { wd: 'Q64',   target: 1000, quota: 45, bezMin: 12, minBez: 20, sub: '',           verortung: 'LOR 2021', name: 'Berlins' },
   frankfurt:  { wd: 'Q1794', target: 400,  quota: 12, bezMin: 12, minBez: 1,  sub: 'frankfurt/', verortung: 'Stadtteile (Point-in-Polygon)', name: 'Frankfurts' },
+  // ~120 POIs: skaliert vs. Frankfurt (400); Quota ≈ gleichmäßig über 9 Stadtteile
+  darmstadt:  { wd: 'Q2973', target: 120,  quota: 8,  bezMin: 8,  minBez: 1,  sub: 'darmstadt/',  verortung: 'Viertel (Point-in-Polygon)', name: 'Darmstadts' },
 }[cityId]
 if (!CITY) { console.error(`unbekannte --city=${cityId}`); process.exit(1) }
 const TARGET = CITY.target

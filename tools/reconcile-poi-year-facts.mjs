@@ -26,7 +26,8 @@ import { fileURLToPath } from 'node:url'
 import { reconcileFacts } from './lib/year-reconcile.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const sub = ((process.argv.find((a) => a.startsWith('--city=')) || '').split('=')[1] || '') ? 'frankfurt/' : ''
+const cityId = (process.argv.find((a) => a.startsWith('--city=')) || '').split('=')[1] || ''
+const sub = cityId ? `${cityId}/` : ''
 const dry = process.argv.includes('--dry')
 
 const pois = JSON.parse(readFileSync(join(root, `public/data/${sub}pois.json`), 'utf8'))

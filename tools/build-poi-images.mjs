@@ -25,7 +25,8 @@ import { tmpdir } from 'node:os'
 
 const run = promisify(execFile)
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const sub = ((process.argv.slice(2).find((a) => a.startsWith('--city=')) || '').split('=')[1] || '') ? 'frankfurt/' : ''
+const cityId = (process.argv.find((a) => a.startsWith('--city=')) || '').split('=')[1] || ''
+const sub = cityId ? `${cityId}/` : ''
 const OUT = join(root, 'public/img/poi')
 const UA = 'kiez-finder/1.0 (https://kiezfinder.celox.io; Build-Skript, einmalig)'
 // SEQUENZIELL + Pacing: Wikimedia Commons rate-limitet parallele Zugriffe hart

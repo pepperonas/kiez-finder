@@ -22,3 +22,20 @@ Pankower Tor, Landweg — praktisch unbewohnt).
 **Amtliche Flächeninhalte** (m², Attribut `finhalt`) je Planungsraum, einmalig vom
 Geoportal-WFS `gdi.berlin.de/services/wfs/lor_2021` gezogen (2026-07-19).
 Kontrollsumme: 891,1 km² (amtliche Landesfläche 891,7 km² — Differenz = LOR-Zuschnitt).
+
+## da-bezirke.geojson / da-stadtteile.geojson
+
+**Statistische Bezirke (37) und Stadtteile (9) der Wissenschaftsstadt Darmstadt**,
+EPSG:25832, Open Data Portal Darmstadt / Hessen, **dl-zero-de/2.0**.
+Quelle: `opendata.darmstadt.de` (`DA_ST_Bezirke.geojson`, `DA_ST_Stadtteile.geojson`).
+Reprojektion + App-Schema: `tools/build-darmstadt.mjs`.
+
+## da-bestand-2025-q4.csv
+
+**Bevölkerungsbestand Q4/2025** je statistischem Bezirk (Spalte `ewhg` = Hauptwohnsitz),
+dl-zero-de/2.0. Build: `tools/build-darmstadt-stats.mjs`.
+
+## da-streets-raw.json
+
+Overpass-Dump aller benannten highway-ways in der Darmstadt-BBox (ODbL).
+Build: `node tools/build-streets.js tools/vendor/da-streets-raw.json --city=darmstadt`.

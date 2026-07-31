@@ -26,7 +26,9 @@ export default defineConfig({
         // nur bei WebGL + ohne reduced-motion). Aus dem Precache raus → reduced-
         // motion/no-WebGL-Nutzer laden ihn nie; wer ihn braucht, holt ihn per
         // dynamischem Import und cached ihn dann CacheFirst (s. u.).
-        globIgnores: ['**/poi-info.json', '**/kiez-img.json', '**/three*.js', 'data/frankfurt/**'],
+        // Satellite-city trees (frankfurt/, darmstadt/, …) stay out of the
+        // Berlin precache — each is CacheFirst'd below only for its users.
+        globIgnores: ['**/poi-info.json', '**/kiez-img.json', '**/three*.js', 'data/*/**'],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         navigateFallback: '/index.html',
         // /api/* sind ECHTE Server-Routen (OAuth-Redirects sind Navigationen!) —
@@ -35,13 +37,14 @@ export default defineConfig({
         navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [
           {
-            // Frankfurt-Stadtdaten: nur für Frankfurt-Nutzer, NICHT im Berlin-
-            // Precache (globIgnores). CacheFirst → einmal geladen = offline + instant.
-            urlPattern: ({ url }) => url.origin === self.location.origin && url.pathname.startsWith('/data/frankfurt/'),
+            // Satellite-city data (/data/<city>/…): not in Berlin precache
+            // (globIgnores data/*/**). CacheFirst → once loaded = offline + instant.
+            urlPattern: ({ url }) => url.origin === self.location.origin &&
+              /^\/data\/[^/]+\//.test(url.pathname),
             handler: 'CacheFirst',
             options: {
-              cacheName: 'kf-frankfurt',
-              expiration: { maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 180 },
+              cacheName: 'kf-city-data',
+              expiration: { maxEntries: 60, maxAgeSeconds: 60 * 60 * 24 * 180 },
               cacheableResponse: { statuses: [0, 200] },
             },
           },

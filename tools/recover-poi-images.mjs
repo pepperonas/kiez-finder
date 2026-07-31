@@ -31,7 +31,8 @@ const BAD_CAT = /\b(maps?|old maps|coats? of arms|emblems|sealing stamps|siegelm
 
 // --city=frankfurt → public/data/frankfurt/*. Die Bild-WebPs sind SHARED
 // (public/img/poi/, per qid, keine Kollision) → OUT bleibt gleich.
-const sub = ((process.argv.find((a) => a.startsWith('--city=')) || '').split('=')[1] || '') ? 'frankfurt/' : ''
+const cityId = (process.argv.find((a) => a.startsWith('--city=')) || '').split('=')[1] || ''
+const sub = cityId ? `${cityId}/` : ''
 const poiData = JSON.parse(readFileSync(join(root, `public/data/${sub}pois.json`), 'utf8')).pois
 const coords = new Map(poiData.map((r) => [String(r[0]), { name: r[1], lon: r[3], lat: r[4] }]))
 const piPath = join(root, `public/data/${sub}poi-info.json`)

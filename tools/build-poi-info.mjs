@@ -24,7 +24,8 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const sub = ((process.argv.slice(2).find((a) => a.startsWith('--city=')) || '').split('=')[1] || '') ? 'frankfurt/' : ''
+const cityId = (process.argv.find((a) => a.startsWith('--city=')) || '').split('=')[1] || ''
+const sub = cityId ? `${cityId}/` : ''
 const UA = 'kiez-finder/1.0 (https://kiezfinder.celox.io; Build-Skript, einmalig)'
 const API = 'https://de.wikipedia.org/w/api.php'
 const COMMONS = 'https://commons.wikimedia.org/w/api.php'

@@ -10,7 +10,8 @@ import { fileURLToPath } from 'node:url'
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const UA = 'kiez-finder/1.0 (https://kiezfinder.celox.io; Text-Nachtrag, einmalig)'
 const API = 'https://de.wikipedia.org/w/api.php'
-const sub = ((process.argv.find((a) => a.startsWith('--city=')) || '').split('=')[1] || '') ? 'frankfurt/' : ''
+const cityId = (process.argv.find((a) => a.startsWith('--city=')) || '').split('=')[1] || ''
+const sub = cityId ? `${cityId}/` : ''
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function apiGet(params) {

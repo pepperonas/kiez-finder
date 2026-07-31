@@ -1,14 +1,13 @@
 // ─────────────────────────────────────────────────────────────────────────
 // City config — the app is city-parameterized. Berlin is the default (and the
-// full-featured original); Frankfurt reuses the exact same engine against its
-// own data. A city is resolved once at boot (URL ?city= > localStorage > sub-
-// domain > Berlin) and points kiez.js at that city's data folder + centre.
+// full-featured original); Frankfurt + Darmstadt reuse the same engine against
+// their own data. A city is resolved once at boot (URL ?city= > localStorage >
+// subdomain > Berlin) and points kiez.js at that city's data folder + centre.
 //
-// Colloquial unit ("Kiez") ≙ Berlin Planungsraum-group / Frankfurt Stadtteil.
-// "Bezirk" ≙ Berlin Bezirk (12) / Frankfurt Ortsbezirk (16).
-// Frankfurt's 3-tier admin (Stadtbezirk→Stadtteil→Ortsbezirk) uses two app
-// levels; Berlin's finer LOR tiers (Bezirksregion/Prognoseraum) simply don't
-// exist there and are omitted from `levels`.
+// Colloquial unit ("Kiez") ≙ Berlin Planungsraum-group / Frankfurt Stadtteil /
+// Darmstadt Viertel (statistischer Bezirk).
+// "Bezirk" ≙ Berlin Bezirk / Frankfurt Ortsbezirk / Darmstadt Stadtteil.
+// Non-Berlin cities omit LOR mid-tiers (Bezirksregion/Prognoseraum) from `levels`.
 // ─────────────────────────────────────────────────────────────────────────
 import { setCityData } from './kiez.js'
 
@@ -50,6 +49,22 @@ export const CITIES = {
     levels: [{ key: 'bez', label: 'Ortsbezirk' }],
     features: { wall: false },
   },
+  darmstadt: {
+    id: 'darmstadt',
+    name: 'Darmstadt',
+    demonym: 'Darmstädter',
+    term: 'Viertel',
+    article: 'im',
+    center: [8.651, 49.873],
+    bbox: [8.558, 49.796, 8.750, 49.954],
+    fallback: [8.6515, 49.8726], // Luisenplatz → Stadtzentrum
+    fallbackArea: 'der Mitte',
+    fallbackHint: 'das Stadtzentrum',
+    dataDir: '/data/darmstadt',
+    outlineFile: 'outline.geojson',
+    levels: [{ key: 'bez', label: 'Stadtteil' }],
+    features: { wall: false },
+  },
 }
 
 let _active = CITIES.berlin
@@ -79,7 +94,15 @@ export function resolveCity() {
     else {
       const stored = localStorage.getItem('kf-city')
       if (stored && CITIES[stored]) { id = stored; _explicit = true }
-      else if (/(^|\.)frankfurt/i.test(location.hostname)) { id = 'frankfurt'; _explicit = true }
+      else {
+        // Subdomain-Match: frankfurt.* / darmstadt.* → jeweilige Stadt
+        for (const cid of Object.keys(CITIES)) {
+          if (cid === 'berlin') continue
+          if (new RegExp(`(^|\\.)${cid}`, 'i').test(location.hostname)) {
+            id = cid; _explicit = true; break
+          }
+        }
+      }
     }
   } catch (e) { /* SSR/no-DOM safety */ }
   _active = CITIES[id] || CITIES.berlin
