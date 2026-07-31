@@ -31,10 +31,13 @@ Die Klassifizierung läuft gegen die **amtlichen Kiez-Grenzen** (Point-in-Polygo
 nicht gegen ungenaues Reverse-Geocoding. Stehst du außerhalb der Stadtgrenze, sagt der Pass dir das auch.
 
 **Mehrere Städte, eine Engine.** Neben Berlin laufen **Frankfurt am Main** (46 Stadtteile → 16 Ortsbezirke)
-und **Darmstadt** (37 Viertel → 9 Stadtteile) über dieselbe Codebasis — eigene Daten unter
+und **Darmstadt** (37 Viertel → 9 Stadtteile, ~120 POIs) über dieselbe Codebasis — eigene Daten unter
 `public/data/<city>/`, Umschalten per Topbar-Switcher, `?city=frankfurt` / `?city=darmstadt` oder
-passender Subdomain. Berlin bleibt der Default inkl. Mauer-Modus; die anderen Städte blenden
-Berlin-only Features aus und zeigen nur Metriken, für die es Daten gibt (Dichte + Bodenrichtwert).
+passender Subdomain. Alle drei Städte sind live auf [kiezfinder.celox.io](https://kiezfinder.celox.io)
+(Direktlinks: [Frankfurt](https://kiezfinder.celox.io/?city=frankfurt) ·
+[Darmstadt](https://kiezfinder.celox.io/?city=darmstadt)). Berlin bleibt der Default inkl. Mauer-Modus;
+die anderen Städte blenden Berlin-only Features aus und zeigen nur Metriken, für die es Daten gibt
+(Dichte + Bodenrichtwert).
 
 **Das Konzept: ein Kiez-Pass.** Eine einzige Idee, durch jede Schicht gezogen: *Du checkst an
 deinem Standort ein, und die Stadt verrät dir, welcher Kiez dich gerade beherbergt.* Die Sprache
@@ -321,15 +324,19 @@ Fade sieht kaputt aus. Ein Timing-System, überall wiederverwendet.
 
 ## Deploy
 
-Statischer Build → `rsync` auf den celox.io-VPS, TLS via Let's Encrypt (certbot). Die Nginx-Config
-muss `Permissions-Policy: geolocation=(self)` auf dem HTML-Dokument setzen (siehe
+Statischer Build → `rsync` auf den celox.io-VPS (`69.62.121.168`), TLS via Let's Encrypt (certbot).
+`dist/` enthält Berlin-Precache **und** die Satelliten-Ordner `data/frankfurt/` + `data/darmstadt/`
+(zur Laufzeit CacheFirst, nicht im Berlin-Precache). Die Nginx-Config muss
+`Permissions-Policy: geolocation=(self)` auf dem HTML-Dokument setzen (siehe
 [Konfiguration](#konfiguration)):
 
 ```bash
 npm run build
-rsync -avz --delete dist/ root@<vps>:/var/www/kiezfinder.celox.io/
+rsync -avz --delete dist/ root@69.62.121.168:/var/www/kiezfinder.celox.io/
 ```
 
+Live prüfen: [kiezfinder.celox.io/?city=darmstadt](https://kiezfinder.celox.io/?city=darmstadt) ·
+`/data/darmstadt/pois.json` → 120 POIs.
 ### Backend für den Konto-Sync (optional)
 
 ```bash

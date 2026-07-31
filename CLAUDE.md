@@ -19,7 +19,8 @@ with photos+text, area photos, and the heatmap — **density** (always) and **Bo
 Wohnbauland** (BORIS Hessen 2024; no open per-area rent source → Miete stays null).
 `availableMetrics(stats,preise)` in heat.js filters the heat popover to metrics that actually have
 data. Satellite-city data lives under `public/data/<city>/` (runtime-cached, not in Berlin's
-precache — see PWA note). Darmstadt POI target is ~120 (smaller city).
+precache — see PWA note). Darmstadt POI target is ~120 (smaller city). **Live (2026-07-31):**
+Berlin + Frankfurt + Darmstadt on https://kiezfinder.celox.io (`?city=frankfurt` / `?city=darmstadt`).
 
 Live: **https://kiezfinder.celox.io** · deployed as a static build on the celox.io VPS (69.62.121.168),
 webroot `/var/www/kiezfinder.celox.io/`, nginx block `kiezfinder.celox.io`.
