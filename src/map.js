@@ -7,6 +7,7 @@ import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { spring, SPRINGS, reduceMotion } from './motion.js'
 import { cityCenter, bboxOf, bezirkName } from './kiez.js'
+import { labelCandidates, viewBox, pickLabelPoint, shouldKeepLabel, selectionAnchor } from './overlayLabels.js'
 
 const STYLES = {
   dark: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
@@ -215,68 +216,7 @@ function pipEvenOdd(pt, geom) {
   for (const ring of ringsOf(geom)) if (ringHas(pt, ring)) inside = !inside
   return inside
 }
-// interior point for a single feature (bbox centre if inside, else the interior
-// grid point nearest it) — anchors the selection label
-function interiorPoint(feature) {
-  const bb = bboxOf(feature)
-  const cx = (bb[0] + bb[2]) / 2, cy = (bb[1] + bb[3]) / 2
-  if (pipEvenOdd([cx, cy], feature.geometry)) return [cx, cy]
-  const N = 5
-  let best = null, bd = Infinity
-  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
-    const x = bb[0] + (bb[2] - bb[0]) * (i + 0.5) / N
-    const y = bb[1] + (bb[3] - bb[1]) * (j + 0.5) / N
-    if (!pipEvenOdd([x, y], feature.geometry)) continue
-    const d = (x - cx) ** 2 + (y - cy) ** 2
-    if (d < bd) { bd = d; best = [x, y] }
-  }
-  return best || [cx, cy]
-}
-
-// planar shoelace area (relative units are enough — only used for RANKING)
-function approxArea(geom) {
-  let tot = 0
-  const polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.type === 'MultiPolygon' ? geom.coordinates : []
-  for (const poly of polys) {
-    poly.forEach((ring, ri) => {
-      let s = 0
-      for (let i = 0; i < ring.length - 1; i++) s += ring[i][0] * ring[i + 1][1] - ring[i + 1][0] * ring[i][1]
-      tot += (ri === 0 ? 1 : -1) * Math.abs(s) / 2
-    })
-  }
-  return tot
-}
-
-// For each feature: a name + bbox + a small grid of interior points. At render
-// time we pick, per visible feature, the interior point on screen nearest its
-// centre → one label per visible area, at any zoom (centroid points fall off the
-// screen when you zoom in; these don't).
-// Cartographic hierarchy: every candidate carries a collision priority (`sort`,
-// area rank — big areas beat slivers when space is tight) and a size tier
-// (`szf`, data-driven text-size factor) so important areas read bigger.
-function labelCandidates(featureColl, nameOf) {
-  const N = 4
-  const cands = featureColl.features.map((f, i) => {
-    const bb = bboxOf(f) // [minLon, minLat, maxLon, maxLat]
-    const pts = []
-    for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
-      const x = bb[0] + (bb[2] - bb[0]) * (i + 0.5) / N
-      const y = bb[1] + (bb[3] - bb[1]) * (j + 0.5) / N
-      if (pipEvenOdd([x, y], f.geometry)) pts.push([x, y])
-    }
-    const cx = (bb[0] + bb[2]) / 2, cy = (bb[1] + bb[3]) / 2
-    if (!pts.length) pts.push([cx, cy])
-    return { id: i, name: nameOf(f), c: [cx, cy], bb, pts, area: approxArea(f.geometry) }
-  })
-  // area rank → collision priority (0 = biggest wins first) + size tier
-  const byArea = cands.slice().sort((a, b) => b.area - a.area)
-  byArea.forEach((c, rank) => {
-    c.sort = rank
-    const q = rank / Math.max(1, byArea.length - 1) // 0 = biggest … 1 = smallest
-    c.szf = q < 0.2 ? 1.14 : q < 0.6 ? 1 : 0.88
-  })
-  return cands
-}
+// selectionAnchor / labelCandidates live in overlayLabels.js (unit-tested)
 
 export class KiezMap {
   constructor(container, theme, outline) {
@@ -912,10 +852,12 @@ export class KiezMap {
           // not shout over the fine-grained context you zoomed in for
           'text-size': ['interpolate', ['linear'], ['zoom'], 8, 11, 10, 14.5, 12, 18, 14, 20, 16, 21],
           'text-transform': 'uppercase', 'text-letter-spacing': 0.09,
-          'text-max-width': 8, 'text-padding': 8,
+          'text-max-width': 8, 'text-padding': 10,
           'symbol-sort-key': ['coalesce', ['get', 'sort'], 0],
-          'text-variable-anchor': ['center', 'top', 'bottom', 'left', 'right'],
-          'text-radial-offset': 0.3,
+          // prefer centre; slide to side anchors before colliding/clipping
+          'text-variable-anchor': ['center', 'top', 'bottom', 'left', 'right', 'top-left', 'top-right', 'bottom-left', 'bottom-right'],
+          'text-radial-offset': 0.45,
+          'text-justify': 'auto',
         },
         paint: {
           'text-color': dark ? '#eef2ff' : '#10131c',
@@ -944,29 +886,40 @@ export class KiezMap {
         },
       })
     }
-    // the SELECTED area's own label — top collision priority, never lost in the
-    // crowd (the highlight is the map's most important object; on mobile the
-    // card is often peeked, so the map itself must name it)
+    // SELECTED area label — same weight as Bezirk overlay labels (uppercase,
+    // large), anchored at the visual centre (pole of inaccessibility).
     if (!this.map.getSource('sel-pt')) this.map.addSource('sel-pt', { type: 'geojson', data: emptyFC() })
     if (!this.map.getLayer('lbl-sel')) {
       this.map.addLayer({
         id: 'lbl-sel', type: 'symbol', source: 'sel-pt',
         layout: {
           'text-field': ['get', 'name'], 'text-font': FONT_BOLD,
-          'text-size': ['interpolate', ['linear'], ['zoom'], 9, 12, 12, 15, 15, 18],
-          'text-max-width': 8, 'text-padding': 6, 'text-letter-spacing': 0.06,
+          // Match lbl-bez scale so a selected Bezirk doesn't shrink vs neighbours
+          'text-size': ['interpolate', ['linear'], ['zoom'],
+            8, ['*', 11, ['coalesce', ['get', 'szf'], 1]],
+            10, ['*', 14.5, ['coalesce', ['get', 'szf'], 1]],
+            12, ['*', 18, ['coalesce', ['get', 'szf'], 1]],
+            14, ['*', 20, ['coalesce', ['get', 'szf'], 1]],
+            16, ['*', 21, ['coalesce', ['get', 'szf'], 1]]],
+          'text-transform': 'uppercase', 'text-letter-spacing': 0.09,
+          'text-max-width': 8, 'text-padding': 10,
           'symbol-sort-key': -1,
-          'text-variable-anchor': ['center', 'top', 'bottom', 'left', 'right'],
-          'text-radial-offset': 0.4,
+          'text-variable-anchor': ['center', 'top', 'bottom', 'left', 'right', 'top-left', 'top-right', 'bottom-left', 'bottom-right'],
+          'text-radial-offset': 0.35,
+          'text-justify': 'auto',
         },
         paint: {
-          'text-color': ACCENT[this.theme],
-          'text-halo-color': dark ? haloDark : haloLight,
-          'text-halo-width': 2.4, 'text-halo-blur': 0.8,
+          'text-color': dark ? '#ffffff' : '#0b1020',
+          'text-halo-color': dark ? 'rgba(5,9,17,0.92)' : 'rgba(255,255,255,0.95)',
+          'text-halo-width': 2.6, 'text-halo-blur': 0.6,
+          'text-opacity': ['interpolate', ['linear'], ['zoom'], 8, 0.95, 11, 1, 15.5, 0.85],
         },
       })
     }
-    if (this.map.getLayer('lbl-sel')) this.map.setPaintProperty('lbl-sel', 'text-color', ACCENT[this.theme])
+    if (this.map.getLayer('lbl-sel')) {
+      this.map.setPaintProperty('lbl-sel', 'text-color', dark ? '#ffffff' : '#0b1020')
+      this.map.setPaintProperty('lbl-sel', 'text-halo-color', dark ? 'rgba(5,9,17,0.92)' : 'rgba(255,255,255,0.95)')
+    }
     this._applyMode()
   }
 
@@ -1200,10 +1153,14 @@ export class KiezMap {
     return [c.lng, c.lat]
   }
 
-  // Per visible area, choose the interior grid point nearest its centre that's on
-  // screen → one label inside each visible area, at any zoom/pan. Inactive levels
-  // get an empty source so only the active overlay is labelled.
+  // Per visible area: visual-centre anchor (PoI), clipped → mid of visible slice.
+  // Also refreshes the selection label with the same algorithm.
   _updateOverlayLabels() {
+    const b = this.map.getBounds()
+    const W = b.getWest(), E = b.getEast(), S = b.getSouth(), No = b.getNorth()
+    const view = viewBox(W, E, S, No, 0.12)
+    this._updateSelLabel(view)
+
     if (!this._labelCands) return
     const lvl = this._mode === 'bezirke' ? 'bez' : this._mode === 'bzr' ? 'bzr' : this._mode === 'kiez' ? 'kiez' : null
     // empty the now-inactive sources only when the level actually changes —
@@ -1217,12 +1174,18 @@ export class KiezMap {
       }
     }
     const cands = lvl && this._labelCands[lvl]
-    if (!cands) return
-    const b = this.map.getBounds()
-    const W = b.getWest(), E = b.getEast(), S = b.getSouth(), No = b.getNorth()
-    const inView = (p) => p[0] >= W && p[0] <= E && p[1] >= S && p[1] <= No
+    if (!cands) {
+      if (!lvl) {
+        const empty = emptyFC()
+        for (const k of ['bez', 'bzr', 'kiez']) {
+          const s = this.map.getSource('pt-' + k)
+          if (s) s.setData(empty)
+        }
+      }
+      return
+    }
     // anti-jitter hysteresis: keep a feature's previously chosen point while it
-    // is still on screen — labels must not hop around during a pan
+    // stays *comfortably* on screen (margin) — edge-hugging keeps are dropped
     if (this._lblKeepLvl !== lvl) { this._lblKeepLvl = lvl; this._lblKeep = new Map() }
     const keep = this._lblKeep
     const selName = this._selName || null
@@ -1231,14 +1194,8 @@ export class KiezMap {
       if (c.bb[2] < W || c.bb[0] > E || c.bb[3] < S || c.bb[1] > No) { keep.delete(c.id); continue } // off-screen
       if (selName && c.name === selName) { keep.delete(c.id); continue } // the selection carries its own label
       let best = keep.get(c.id)
-      if (!best || !inView(best)) {
-        best = null
-        let bd = Infinity
-        for (const p of c.pts) {
-          if (!inView(p)) continue
-          const dx = p[0] - c.c[0], dy = p[1] - c.c[1], d = dx * dx + dy * dy
-          if (d < bd) { bd = d; best = p }
-        }
+      if (!shouldKeepLabel(best, view)) {
+        best = pickLabelPoint(c, view)
         if (best) keep.set(c.id, best)
         else keep.delete(c.id)
       }
@@ -1249,6 +1206,30 @@ export class KiezMap {
     }
     const src = this.map.getSource('pt-' + lvl)
     if (src) src.setData({ type: 'FeatureCollection', features: feats })
+  }
+
+  /** Selection label at visual centre (or mid of visible slice when clipped). */
+  _updateSelLabel(view) {
+    const selSrc = this.map.getSource('sel-pt')
+    if (!selSrc) return
+    const feature = this._activeFeature
+    const name = this._selName
+    if (!feature || !name) { selSrc.setData(emptyFC()); return }
+    const v = view || (() => {
+      const b = this.map.getBounds()
+      return viewBox(b.getWest(), b.getEast(), b.getSouth(), b.getNorth(), 0.12)
+    })()
+    const pt = selectionAnchor(feature, v)
+    if (!pt) { selSrc.setData(emptyFC()); return }
+    selSrc.setData({
+      type: 'FeatureCollection',
+      features: [{
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: pt },
+        // szf 1.14 → same top-tier size as the largest Bezirk overlay labels
+        properties: { name, szf: 1.14 },
+      }],
+    })
   }
 
   _applyMode() {
@@ -1375,6 +1356,7 @@ export class KiezMap {
 
   _paint(feature, instant = false) {
     this._cancelPendingPaint()
+    this._activeFeature = feature || null
     const src = this.map.getSource('kiez')
     if (!src) return // mid-restyle: layers not re-added yet — skip (will repaint after)
     src.setData(fc(feature))
@@ -1383,10 +1365,9 @@ export class KiezMap {
     const p = feature.properties || {}
     const name = p.kiez || p.name || p.plr_name || p.bzr_name || p.pgr_name || (p.bez ? bezirkName(p.bez) : '')
     this._selName = name || null
-    const selSrc = this.map.getSource('sel-pt')
-    if (selSrc) selSrc.setData(name
-      ? { type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: interiorPoint(feature) }, properties: { name } }] }
-      : emptyFC())
+    // visual-centre anchor (same algo as overlay); also refreshed on pan via
+    // _updateOverlayLabels → _updateSelLabel
+    this._updateSelLabel()
     // the ambient OSM name point of the same Kiez would double the selection label
     if (this.map.getLayer('lbl-kiez')) this.map.setFilter('lbl-kiez', name ? ['!=', ['get', 'name'], name] : null)
     this._updateOverlayLabels()

@@ -25,6 +25,11 @@ import { loadPreise, preiseData, METRICS, metricByKey, availableMetrics, standFo
 import { fetchMe, syncProgress, pushProgress, logout, loginUrl, readLoginFlag, stripLoginFlag } from './account.js'
 import { getPosition, reverseGeocode } from './geo.js'
 import { revealStagger, tweenNumber, spring, SPRINGS, reduceMotion, finePointer, damdamper } from './motion.js'
+import {
+  cardReveal, toastIn, toastOut, stampHit, titleArrive, levelPulse, chipPulse,
+  topbarIntro, factsIn, visitPop, celebrate, bindPressFx, searchItemsIn,
+  browserOpen, statsPop, fxEnabled, coarsePointer,
+} from './fx.js'
 import { mountThemeScene } from './themeScene.js'
 import { CITIES, activeCity, resolveCity, switchCity, cityIdForPoint, cityWasExplicit } from './city.js'
 
@@ -294,7 +299,16 @@ function setCard(node, animate = true, forceOpen = true) {
   passScroll.scrollTop = 0 // frischer Kart­eninhalt (POI öffnen/wechseln, Kiez, Suche) IMMER von oben — Desktop-Panel + Mobil-Sheet; In-Place-Patches (Level, Besucht) rühren den Scroll nicht an
   requestAnimationFrame(fitKiezName)
   sheetOnRender(forceOpen)
-  if (animate && !reduceMotion()) {
+  if (animate && fxEnabled()) {
+    const rows = node.querySelectorAll('[data-reveal]')
+    if (rows.length) cardReveal([...rows])
+    const stamp = node.querySelector('.stamp:not(.stamp--void)')
+    if (stamp) stampHit(stamp)
+    const title = node.querySelector('.level-title .kiez-name, .pass-found > .kiez-name, h1.kiez-name')
+    if (title && node.classList.contains('pass-found')) titleArrive(title)
+    const facts = node.querySelectorAll('.poi-fact')
+    if (facts.length) factsIn(facts)
+  } else if (animate && !reduceMotion()) {
     const rows = node.querySelectorAll('[data-reveal]')
     if (rows.length) revealStagger([...rows])
   }
@@ -539,9 +553,12 @@ function toast(icon, title, sub) {
       h('strong', { text: title }),
       sub ? h('span', { text: sub }) : null))
   toastWrap.append(el)
+  toastIn(el)
   // selbst-schließend; kein Klick-Handler, da .toast pointer-events:none hat
   // (sonst blockierten Toasts die Topbar-Controls)
-  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 400) }, 4200)
+  setTimeout(() => {
+    toastOut(el).then(() => el.remove())
+  }, 4200)
 }
 
 // Snackbar MIT Aktion (z. B. „Rückgängig") — im Gegensatz zum passiven Toast
@@ -552,9 +569,10 @@ function snackbar(text, actionLabel, onAction) {
   clearTimeout(_snackTimer)
   const btn = h('button', { class: 'snack-action', type: 'button', text: actionLabel })
   const el = h('div', { class: 'toast snack' }, h('span', { class: 'toast-text' }, h('strong', { text })), btn)
-  const kill = () => { el.classList.add('out'); setTimeout(() => el.remove(), 400) }
+  const kill = () => { toastOut(el).then(() => el.remove()) }
   btn.addEventListener('click', () => { clearTimeout(_snackTimer); onAction(); kill() })
   toastWrap.append(el)
+  toastIn(el)
   _snackTimer = setTimeout(kill, 6000)
 }
 
@@ -581,6 +599,7 @@ function discoverAt(pos) {
     saveHunt()
     const before = overallProgress(state.poiList, state.hunt).visited - found.length
     for (const p of found) toast('🎉', 'Entdeckt: ' + p.name, p.desc || '')
+    celebrate(toastWrap)
     // Rangaufstieg extra feiern
     const now = rankFor(before + found.length), was = rankFor(before)
     if (now.title !== was.title) toast('🏅', 'Neuer Rang: ' + now.title, `${before + found.length} POIs entdeckt`)
@@ -601,6 +620,9 @@ function setPoiVisited(qid, mark, onDone, { undoable = true } = {}) {
   saveHunt()
   patchHunt()
   onDone && onDone()
+  const visitBtn = passScroll.querySelector('.visit-btn')
+  if (visitBtn) visitPop(visitBtn, mark)
+  if (mark) celebrate(visitBtn || toastWrap, { count: coarsePointer() ? 6 : 10 })
   const poi = state.poiList && state.poiList.find((x) => x.qid === qid)
   const name = poi ? poi.name : 'Ort'
   if (!undoable) { toast(mark ? '✓' : '↩︎', mark ? 'Als besichtigt markiert' : 'Besuch zurückgenommen', name); return }
@@ -713,7 +735,10 @@ function openPoiBrowser(sel) {
   browserState.cap = 60
   renderPoiBrowser()
   poiBrowser.hidden = false
-  requestAnimationFrame(() => poiBrowser.classList.add('open'))
+  requestAnimationFrame(() => {
+    poiBrowser.classList.add('open')
+    browserOpen(poiBrowser)
+  })
   poiBrowser.querySelector('.pb-search')?.focus({ preventScroll: true })
 }
 function closePoiBrowser() {
@@ -986,6 +1011,7 @@ function patchStats(selection) {
   } else els.about.hidden = true
 
   els.root.hidden = !hasNumbers && els.about.hidden
+  if (!els.root.hidden) statsPop(els.root)
 }
 
 function renderFound({ kiez, pos, address, kiezName, openSheet = true }) {
@@ -1098,6 +1124,8 @@ async function selectLevel(level) {
   syncLevelUI()
   patchStats(statsSelection(level)) // Stats folgen der gewählten Ebene (kein Re-Render)
   patchHunt()
+  const active = passScroll.querySelector(`[data-level="${level}"]`)
+  if (active) levelPulse(active)
   await loadLevels().catch(() => null)
   const feature = levelFeature(level)
   if (feature) state.map.highlight(feature, { fit: true })
@@ -1231,6 +1259,15 @@ async function pickAt(lon, lat) {
   await locateAt({ lat, lon, accuracy: null }, { fly: false })
 }
 
+/** Map-pick / selection grain follows the active overlay: Bezirke → whole Bezirk,
+ *  Regionen → Bezirksregion, Kieze → colloquial Kiez. Independent of fly/lock-on. */
+function levelForOverlayPick(overlay) {
+  if (overlay === 'bezirke') return 'bez'
+  if (overlay === 'bzr') return 'bzr'
+  if (overlay === 'kiez') return 'kiez'
+  return 'kiez'
+}
+
 // Shared: resolve a position → Kiez, move the map, render the card.
 // `discover` (default = fly) steuert die POI-Entdeckung getrennt vom Kamera-Flug
 // — der Neukölln-Ersatz fliegt zwar hin, entdeckt aber KEINE POIs (man ist nicht
@@ -1262,9 +1299,22 @@ async function locateAt(pos, { fly = false, discover = fly } = {}) {
   const kiezName = osm ? osm.properties.name : null
   state.kiezArea = area
 
+  // Overlay-Korn: Bezirke → ganzer Bezirk (die farbige Fläche), Regionen → BZR,
+  // Kieze → Kiez. Geo-Lock-on fliegt weiter auf den Kiez (Signature), hebt die
+  // Highlight-Fläche danach aber auf die Overlay-Ebene.
+  let highlight = area
+  const pickLevel = levelForOverlayPick(state.overlay)
+  if (kiez && pickLevel !== 'kiez') {
+    await loadLevels().catch(() => null)
+    const feat = featureForLevel(pickLevel, kiez)
+    if (feat) { highlight = feat; state.level = pickLevel }
+  }
+
   if (state.map) {
-    if (fly) state.map.lockOn(pos.lon, pos.lat, area)
-    else state.map.goTo(pos.lon, pos.lat, area, { fit: state.autoZoom })
+    // Signature-Lock-on und Map-Pick nutzen dieselbe Overlay-Korn-Fläche
+    // (Bezirke → ganzer Bezirk), damit die weiße Selektion = die farbige Fläche.
+    if (fly) state.map.lockOn(pos.lon, pos.lat, highlight || area)
+    else state.map.goTo(pos.lon, pos.lat, highlight, { fit: state.autoZoom })
   }
 
   if (!kiez) {
@@ -1525,11 +1575,13 @@ function applyAreaChip() {
   if (!state.map || !state.overlayReady) return false
   const a = state.map.areaAtCenter(state.overlay)
   if (!a || !a.name) return false
+  const changed = areaChipName.textContent !== a.name
   areaChipDot.style.background = a.col
   areaChipName.textContent = a.name
   areaChipLevel.textContent = OVERLAY_LEVEL_LABEL[state.overlay] || ''
   positionAreaChip()
   areaChip.hidden = false
+  if (changed) chipPulse(areaChip)
   return true
 }
 // Refresh on move/toggle: try now, then retry on rAF until the area lands (tiles
@@ -1591,7 +1643,27 @@ function applyOverlay(mode) {
   overlayLabelEl.textContent = m.label
   if (state.map && state.overlayReady) state.map.setOverlayMode(mode)
   refreshAreaChip()
+  // Bezirke/Regionen/Kieze: bestehende Auswahl sofort auf die farbige Overlay-
+  // Fläche heben (nicht erst beim nächsten Klick) — genau die Fläche, die
+  // gerade eingefärbt ist.
+  syncSelectionToOverlay(mode)
 }
+
+/** Map the active overlay onto the current card selection + map highlight.
+ *  No camera fit — toggling layers shouldn't yank the viewport. */
+async function syncSelectionToOverlay(mode) {
+  if (!state.plr || !state.map) return
+  const level = mode === 'bezirke' ? 'bez' : mode === 'bzr' ? 'bzr' : mode === 'kiez' ? 'kiez' : null
+  if (!level) return
+  state.level = level
+  syncLevelUI()
+  patchStats(statsSelection(level))
+  patchHunt()
+  if (level !== 'kiez') await loadLevels().catch(() => null)
+  const feature = levelFeature(level)
+  if (feature) state.map.highlight(feature, { fit: false })
+}
+
 overlayBtn.addEventListener('click', () => {
   const i = OVERLAY_ORDER.indexOf(state.overlay)
   applyOverlay(OVERLAY_ORDER[(i + 1) % OVERLAY_ORDER.length])
@@ -1792,6 +1864,7 @@ function renderSearchResults(hits) {
   searchResults.replaceChildren(...items)
   searchResults.hidden = false
   searchInput.setAttribute('aria-expanded', 'true')
+  searchItemsIn(items)
 }
 
 function selectPlace(e) {
@@ -1957,6 +2030,8 @@ window.addEventListener('keydown', (e) => {
 // ── boot ───────────────────────────────────────────────────────────────────
 async function boot() {
   updateThemeColor(state.theme) // match the browser chrome to the (possibly persisted) theme
+  bindPressFx(app)
+  requestAnimationFrame(() => topbarIntro(topbar))
   renderLocating()
   const outline = await loadOutline().catch(() => null)
   state.map = new KiezMap(mapEl, state.theme, outline)

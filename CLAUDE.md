@@ -35,7 +35,7 @@ npm test         # unit tests (Node's built-in runner, no deps) — tests/*.test
 ```
 No linter configured. Geolocation needs a secure context (localhost or HTTPS).
 
-**Tests** (`tests/`, `node --test`, zero dependencies — 280 tests, 100% line coverage on
+**Tests** (`tests/`, `node --test`, zero dependencies — 293 tests, 100% line coverage on
 the ten unit-testable modules) cover the dependency-light pure logic: `search.js`
 (norm folding + the multi-tier scorer / type-priority / dedup), `kiez.js` (point-in-polygon
 classification incl. holes + MultiPolygon, `bezirkName`, `kmFromBerlin`, `bboxOf`,
@@ -62,10 +62,13 @@ and `account.js` (the optional account/progress-sync CLIENT — a `fetch` stub a
 every function degrades to a harmless value on failure: `fetchMe`→offline sentinel,
 `fetchProgress`/`pushProgress`→null, `logout` never throws, `syncProgress` merges
 local ∪ remote and still applies the merge if the upload fails; plus `readLoginFlag`/
-`stripLoginFlag` via `location`/`history` stubs).
+`stripLoginFlag` via `location`/`history` stubs),
+`overlayLabels.js` (visual-centre / PoI approx, clipped-slice pick, selectionAnchor —
+maplibre-free so label placement is testable without WebGL),
+and `fx.js` (reduced-motion / coarse-pointer media helpers behind the anime delight layer).
 `main.js`/`map.js` aren't covered — they pull in MapLibre + CSS, so pure logic worth
-testing (persistence, graph-colouring, label candidates) is **extracted into a
-maplibre-free module first** (that's what `prefs.js` is). Add tests alongside as
+testing (persistence, graph-colouring, label anchors) is **extracted into a
+maplibre-free module first** (`prefs.js`, `overlayLabels.js`). Add tests alongside as
 `tests/<name>.test.js`. Coverage: `node --test --experimental-test-coverage tests/*.test.js`
 (glob, NOT a bare `tests/` directory arg — Node 22 tries to execute the directory as a
 module and dies with MODULE_NOT_FOUND; Node 20 happened to glob it).
@@ -77,7 +80,7 @@ measures the suite (test count + line coverage) and counts the LOC of `src/*.js`
 `N tests`/`N Tests` claims in README.md/CLAUDE.md, and commits the change back with
 `[skip ci]` (no loop). So the numbers never go stale and you never hand-edit them; run
 `node tools/badges.mjs` locally to preview, or `--check` to assert without writing. (This
-paragraph's `280 tests, 100% line` count is rewritten by that tool too.)
+paragraph's `293 tests, 100% line` count is rewritten by that tool too.)
 
 **README screenshots** (`docs/screenshot-*.png`) are regenerated with
 `tools/screenshots.cjs` against a `npm run preview -- --port 4190` server (needs a
@@ -90,7 +93,9 @@ look). Compress afterwards with
 
 ## Architecture
 
-Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion system.
+Vanilla JS + Vite, deliberately dependency-light. **One JS island**; spatial sheet/map physics stay
+on the M3 spring core (`motion.js`); DOM delight (card/toast/chip) is a thin **anime.js v4** layer
+(`fx.js`). MapLibre + optional dynamic `three` for the atmosphere scene.
 
 - `src/main.js` — orchestrator + state machine (locating → found / outside-Berlin), builds the
   DOM with a safe `h()` helper (Kiez names via `textContent`, only static strings via innerHTML),
@@ -128,7 +133,12 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   **Default highlight = the merged colloquial Kiez** (`level: 'kiez'` → `kiezAreaFor`), so the whole
   Kiez is one area, not the single Planungsraum. Title = precomputed colloquial `kiez` (instant),
   subline = the exact `plr_name`. A **map click** → `pickAt()` → `locateAt()` (shared with geolocation
-  `checkIn()`, `_seq`-guarded), which highlights `kiezAreaFor(kiez)`. Address row patched async.
+  `checkIn()`, `_seq`-guarded). **Overlay grain:** when a sector overlay is active, selection follows
+  the *coloured* level — Bezirke → whole Bezirk, Regionen → Bezirksregion, Kieze → colloquial Kiez
+  (`levelForOverlayPick` + `featureForLevel`; geo lock-on still flies to the point but paints that
+  same overlay feature). Toggling the overlay (`applyOverlay` → `syncSelectionToOverlay`) upgrades an
+  existing card selection immediately without a camera fit. Without overlay, highlight stays
+  `kiezAreaFor(kiez)`. Address row patched async.
   **Sheet stays put on a map-pick:** `locateAt({fly})` passes `openSheet: fly` → `renderFound`/
   `renderOutside` → `setCard(node, animate, forceOpen)` → `sheetOnRender(forceOpen)`. Only the geolocation
   lock-on (`fly:true`) re-opens the bottom sheet; a casual map-pick keeps the current state (a peeked
@@ -191,25 +201,25 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   **Colloquial Kiez labels:** `lbl-kiez` renders OSM `place=quarter/neighbourhood` names
   (`public/data/kiez-names.geojson`, 537 pts from Overpass) accent-tinted at z≥12.5 — the vernacular
   Kieze (Flughafenkiez, Reuterkiez …), distinct from the official labels.
-  **Dynamic area labels:** every *visible* area of the active overlay is labelled, not just the one
-  whose centroid is on screen. At `setOverlayData` we precompute `_labelCands` (a 4×4 grid of interior
-  points per feature via even-odd point-in-polygon); on `moveend`/`zoomend` + mode change,
-  `_updateOverlayLabels()` picks, per feature whose bbox is in view, the interior point on screen nearest
-  its centre → one point per visible area into `pt-bez`/`pt-bzr`/`pt-kiez`, rendered by `lbl-bez`/`lbl-bzr`/
-  `lbl-kiezarea`. Inactive levels' sources are emptied; `lbl-kiez` (ambient OSM names) is hidden in Kieze
-  mode so it doesn't double the merged-area labels. This replaced the single static centroid point per
-  area (which vanished when you zoomed past it). `main.js` also keeps a floating **"current area" chip**
+  **Dynamic area labels:** every *visible* area of the active overlay is labelled. Placement lives in
+  maplibre-free `src/overlayLabels.js` (unit-tested): each feature gets a **visual centre ≈ pole of
+  inaccessibility** (max distance to boundary — not bbox mid, which sits outside L-shapes and drifts
+  SE on Neukölln) plus a dense interior grid; on `moveend`/`zoomend` + mode change,
+  `_updateOverlayLabels()` picks the on-screen point nearest that centre (or the mid of
+  bbox∩viewport when the centre is clipped), with edge-margin + anti-jitter hysteresis →
+  `pt-bez`/`pt-bzr`/`pt-kiez` → `lbl-bez`/`lbl-bzr`/`lbl-kiezarea`. Inactive levels' sources are
+  emptied; `lbl-kiez` (ambient OSM names) is hidden in Kieze mode so it doesn't double the
+  merged-area labels. `main.js` also keeps a floating **"current area" chip**
   (`map.areaAtCenter` via `queryRenderedFeatures` on `ov-*-fill`) as a live centre readout while panning.
   **Label UX rules (cartographic hierarchy):** each candidate carries `sort` (area rank →
   `symbol-sort-key`: big areas beat slivers in collisions) and `szf` (data-driven text-size factor:
   top-20% areas ×1.14, bottom-40% ×0.88 → visual size hierarchy). All area/ambient labels use
   `text-variable-anchor` (center/top/bottom/left/right + radial offset) so crowded labels slide aside
   instead of vanishing. **Anti-jitter hysteresis:** `_lblKeep` keeps a feature's chosen interior point
-  while it stays on screen (verified: 11/11 points stable across a pan; cache dropped when
-  `_labelCands` rebuild or level changes). **Selection label `lbl-sel`:** `_paint` writes the
-  highlighted area's name to `sel-pt` (interior point via `interiorPoint()`, name from
-  kiez/name/plr_name/bzr_name/pgr_name/bez), accent-tinted, `symbol-sort-key: -1` (always wins);
-  the same-named overlay label is suppressed in `_updateOverlayLabels` (`_selName`) so it isn't
+  while it stays *comfortably* on screen (margin); edge-hugging keeps are dropped. **Selection label
+  `lbl-sel`:** same visual-centre algorithm (`selectionAnchor`, refreshed on pan) + **same weight as
+  Bezirk overlay labels** (uppercase, zoom size scale, high-contrast white + dark halo — not a
+  smaller accent mixed-case). The same-named overlay label is suppressed (`_selName`) so it isn't
   written twice; cleared in `clearHighlight`. `lbl-bez` sizes are capped ~21px and fade to 0.75
   past z15 so the Bezirk name stops shouting once you're deep in a Kiez; ambient `lbl-kiez` has
   `symbol-sort-key: 10000` (must yield — the overlay `sort` ranks can reach ~400).
@@ -399,12 +409,20 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**, one motion 
   localStorage-backed boolean preferences (storage injected → unit-testable, throwing/absent storage
   falls back to the default). Backs the Auto-Zoom toggle (`kf-autozoom`); `main.js` passes the real
   `localStorage`. Covered by `tests/prefs.test.js`.
-- `src/motion.js` — **the spring system.** CSS has no springs, so spatial motion uses a tiny Euler
-  spring integrator with the verbatim **M3 Expressive** tokens (spatial-fast 800/0.6,
-  spatial-default 380/0.8, spatial-slow 200/0.8). Opacity/colour stay on CSS easing. Honors
-  `prefers-reduced-motion` everywhere. Also: `revealStagger`, `tweenNumber`, `damdamper` (pointer tilt).
+- `src/motion.js` — **the spring system** (sheet snap, map fill reveal, card tilt). CSS has no springs,
+  so spatial motion uses a tiny Euler spring integrator with the verbatim **M3 Expressive** tokens
+  (spatial-fast 800/0.6, spatial-default 380/0.8, spatial-slow 200/0.8). Opacity/colour stay on CSS
+  easing. Honors `prefers-reduced-motion` everywhere. Also: `revealStagger`, `tweenNumber`, `damdamper`.
+- `src/fx.js` — **delight layer** on top of `motion.js`, driven by **anime.js v4** (timelines, stagger,
+  spring easings). Card reveal, toast pop, stamp slam, chip/level pulses, discovery burst, topbar
+  cascade — **no `filter:blur` on text** (WebKit left an illegible white smear). Topbar press/mode
+  kicks skip scale so fixed badge slots don't jitter. Honors `prefers-reduced-motion` + shortens on
+  coarse pointers. Covered by `tests/fx.test.js` (media helpers).
+- `src/overlayLabels.js` — maplibre-free label anchors: `visualCenter` (PoI approx), `labelCandidates`,
+  `pickLabelPoint`, `selectionAnchor`. Covered by `tests/overlayLabels.test.js`.
 - `src/style.css` — MD3 Expressive tokens (motion/shape/state), tonal dark+light palettes,
-  all component styles, beacon/radar/stamp animations, reduced-motion guard.
+  all component styles, beacon/radar/stamp animations, reduced-motion guard. **Desktop topbar:**
+  fixed-width slots for city pill + overlay toggle so mode changes don't shove neighbouring badges.
 - `src/themeScene.js` + `src/scenePresets.js` — **atmospheric 3D layer** (`.theme-scene`, a
   `pointer-events:none` div at `z-index:1` — over `#map`, under all UI). ONE WebGL canvas: a
   sparse field of slow-drifting accent-tinted particles (three.js `Points` + additive blending,

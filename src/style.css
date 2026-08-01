@@ -167,7 +167,19 @@ body {
 .brand-name strong { font-weight: 700; }
 .brand-name span { font-weight: 500; color: var(--on-surface-var); }
 
-.topbar-actions { display: flex; gap: .5rem; }
+.topbar-actions {
+  display: flex; gap: .5rem; align-items: center;
+  flex: 0 0 auto;
+}
+.topbar-actions .icon-btn {
+  flex: 0 0 46px; width: 46px; height: 46px;
+}
+/* Stadt-Pill: feste Breite (längster Name = Darmstadt) — sonst springt die Leiste */
+.topbar-actions .city-btn {
+  flex: 0 0 auto; width: 6.6rem; min-width: 6.6rem; max-width: 6.6rem;
+  padding: 0 .55rem; justify-content: center;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 
 /* ── fuzzy search ── */
 .search {
@@ -208,17 +220,21 @@ body {
 
 /* floating "current area" chip — which coloured region is under the map centre */
 .area-chip {
-  position: fixed; top: 5rem; left: 50%; transform: translateX(-50%); z-index: 5;
+  position: fixed; top: 5rem; left: 50%;
+  translate: -50% 0; /* separate from transform so anime scale pops don't un-center */
+  z-index: 5;
   display: inline-flex; align-items: center; gap: .5rem; max-width: min(86vw, 30rem);
   padding: .42rem .8rem; border-radius: 999px;
   background: color-mix(in srgb, var(--sc-high) 90%, transparent);
   border: 1px solid var(--outline-faint); box-shadow: var(--shadow-2);
   backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-  pointer-events: none; animation: md-pop var(--dur-med) var(--ease-emphasized) both;
+  pointer-events: none; transform-origin: center center;
+  will-change: transform;
 }
 .area-chip[hidden] { display: none; }
 .area-chip-dot { flex: 0 0 auto; width: 11px; height: 11px; border-radius: 50%;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--on-surface) 14%, transparent); }
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--on-surface) 14%, transparent);
+  transform-origin: center; }
 .area-chip-name { font-weight: 700; font-size: .92rem; color: var(--on-surface);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .area-chip-level { flex: 0 0 auto; font-size: .72rem; font-weight: 600; letter-spacing: .04em;
@@ -340,24 +356,23 @@ body {
   .heat-legend { left: auto; right: 12px; bottom: 116px; }
 }
 
-/* ── 3-state sector overlay toggle (icon morphs into a labelled pill) ── */
+/* ── 3-state sector overlay toggle (labelled pill; fixed desktop width) ── */
 .seg-btn {
   width: auto; min-width: 46px; padding: 0 .7rem;
   display: inline-flex; align-items: center; gap: 0;
-  transition: transform var(--dur-short) var(--ease-emphasized),
-              background-color var(--dur-med) var(--ease-standard),
-              border-color var(--dur-med) var(--ease-standard);
+  transition: background-color var(--dur-med) var(--ease-standard),
+              border-color var(--dur-med) var(--ease-standard),
+              color var(--dur-med) var(--ease-standard);
 }
-.seg-icon { display: inline-flex; }
+.seg-icon { display: inline-flex; flex: 0 0 auto; }
 .seg-label {
   max-width: 0; margin-left: 0; opacity: 0; overflow: hidden; white-space: nowrap;
   font-size: .82rem; font-weight: 600; letter-spacing: .01em;
-  transition: max-width var(--dur-med) var(--ease-emphasized),
-              margin-left var(--dur-med) var(--ease-emphasized),
-              opacity var(--dur-short) var(--ease-standard);
+  transition: opacity var(--dur-short) var(--ease-standard);
 }
 .seg-btn:not([data-mode='off']) .seg-label { max-width: 8rem; margin-left: .45rem; opacity: 1; }
-.seg-btn[data-mode='bezirke'] {
+.seg-btn[data-mode='bezirke'],
+.seg-btn[data-mode='kiez'] {
   color: var(--accent);
   border-color: color-mix(in srgb, var(--accent) 50%, var(--outline));
   background: color-mix(in srgb, var(--accent) 16%, var(--sc-high));
@@ -366,6 +381,18 @@ body {
   color: var(--accent-2);
   border-color: color-mix(in srgb, var(--accent-2) 50%, var(--outline));
   background: color-mix(in srgb, var(--accent-2) 16%, var(--sc-high));
+}
+/* Desktop: feste Slot-Breite — Aus↔Bezirke/Regionen/Kieze verschiebt Nachbarn nicht */
+@media (min-width: 840px) {
+  .topbar-actions .seg-btn {
+    flex: 0 0 9.4rem; width: 9.4rem; min-width: 9.4rem; max-width: 9.4rem;
+    justify-content: center; padding: 0 .65rem;
+  }
+  .topbar-actions .seg-btn .seg-label,
+  .topbar-actions .seg-btn[data-mode='off'] .seg-label {
+    max-width: 7rem; margin-left: .4rem;
+  }
+  .topbar-actions .seg-btn[data-mode='off'] .seg-label { opacity: 0; }
 }
 
 :where(button, a, [tabindex]):focus-visible {
@@ -681,14 +708,15 @@ body {
   border-radius: var(--r-l); background: color-mix(in srgb, var(--sc-high) 94%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--outline-faint));
   box-shadow: var(--shadow-2); backdrop-filter: blur(14px) saturate(1.2);
-  animation: md-pop var(--dur-med) var(--ease-emphasized) both;
+  /* entrance/exit via fx.toastIn/Out (anime springs) — no CSS race */
+  transform-origin: top center;
   /* Toasts schließen sich selbst (4,2 s) und dürfen NIE ein Bedienelement
      blockieren — auf Desktop liegen sie sonst über den Topbar-Controls und
      schluckten deren Klicks (im Screenshot-Lauf reproduziert). */
   pointer-events: none;
 }
-.toast.out { animation: none; opacity: 0; transition: opacity var(--dur-med) var(--ease-standard); }
-.toast-icon { font-size: 1.3rem; line-height: 1; }
+.toast.out { opacity: 0; }
+.toast-icon { font-size: 1.3rem; line-height: 1; display: inline-block; transform-origin: center; }
 .toast-text { min-width: 0; display: flex; flex-direction: column; }
 .toast-text strong { font-size: .88rem; }
 .toast-text span {
@@ -783,7 +811,8 @@ body {
 .stamp {
   position: relative; width: 56px; height: 56px; margin-bottom: .2rem;
   display: grid; place-items: center;
-  animation: stamp-in 700ms var(--ease-emphasized) both;
+  transform-origin: center;
+  /* slam via fx.stampHit — CSS keyframes only as reduced-motion-safe fallback */
 }
 /* Peeked bottom sheet: everything decorative/secondary above+below the title
    collapses, so the strip is just grabber + Kiez name — the sheet claims as
@@ -850,11 +879,50 @@ body {
 .beacon-ring--2 { animation-delay: 1.2s; }
 @keyframes beacon { 0% { transform: translate(-50%,-50%) scale(.5); opacity: .9; } 100% { transform: translate(-50%,-50%) scale(3.4); opacity: 0; } }
 
-/* ── staggered reveal (driven by motion.js: --reveal opacity, --reveal-y spring) ── */
+/* ── staggered reveal (CSS vars OR anime fx-live) ── */
 [data-reveal] {
   opacity: var(--reveal, 1);
   transform: translateY(var(--reveal-y, 0));
   transition: opacity var(--dur-med) var(--ease-standard);
+  filter: none; /* never inherit a stuck anime blur */
+}
+[data-reveal].fx-live {
+  transition: none;
+  will-change: transform, opacity;
+  /* never leave a stuck filter from older anime builds */
+  filter: none !important;
+}
+
+/* letter-split kiez titles (desktop delight) */
+.fx-char {
+  display: inline-block;
+  transform-origin: bottom center;
+  white-space: pre;
+}
+.level-title .kiez-name { /* keep wrapping for long unsplit titles */
+  text-wrap: balance;
+}
+
+/* discovery burst particles (fixed overlay, pointer-none) */
+.fx-burst {
+  position: fixed; inset: 0; z-index: 40; pointer-events: none; overflow: hidden;
+}
+.fx-burst-dot {
+  position: fixed; width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 55%, transparent);
+  will-change: transform, opacity;
+}
+.fx-burst-dot:nth-child(3n) { background: var(--accent-2); }
+.fx-burst-dot:nth-child(3n+1) { width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; }
+
+/* icon press spring — anime owns scale; avoid fighting :active on icon-btns */
+.icon-btn, .seg-btn, .city-btn { transform-origin: center; }
+@media (pointer: coarse) {
+  /* phones: slightly stronger press feedback, shorter choreography lives in fxDur() */
+  .btn:active { transform: scale(.95); }
+  .fx-burst-dot { width: 6px; height: 6px; }
 }
 
 /* ── view transition (theme circular reveal) ── */
@@ -924,12 +992,15 @@ html.theme-transition * {
   .brand { display: none; }
   .topbar-actions { order: 1; flex: 1 0 100%; margin-left: 0; gap: .3rem;
     justify-content: space-between; }
-  .topbar-actions .icon-btn { width: 44px; height: 44px; }
+  .topbar-actions .icon-btn { width: 44px; height: 44px; flex-basis: 44px; }
   /* Overlay-Button bleibt ein gleichförmiger Kreis — sein Label würde die
      Reihe sprengen; der aktive Zustand ist über die Tönung + die
      „Aktueller-Bereich"-Plakette ohnehin erkennbar. */
-  .topbar-actions .seg-btn { width: 44px; min-width: 44px; padding: 0; justify-content: center; }
-  .topbar-actions .seg-label { display: none; }
+  .topbar-actions .seg-btn {
+    width: 44px; min-width: 44px; max-width: 44px; flex-basis: 44px;
+    padding: 0; justify-content: center;
+  }
+  .topbar-actions .seg-label { display: none !important; max-width: 0 !important; margin: 0 !important; }
   .search { order: 2; flex: 1 0 100%; max-width: none; min-width: 0; height: 46px; }
 }
 /* Nur die extrem schmale Klasse (<360px, faktisch nur Uralt-Geräte): mit
@@ -994,6 +1065,8 @@ html.theme-transition * {
   .pass { animation: none; } /* keep mobile translateY (sheet position); snaps are instant via JS */
   .radar-sweep, .radar-ring, .stamp-ring, .beacon-ring { animation: none; }
   [data-reveal] { opacity: 1 !important; transform: none !important; }
+  .fx-burst { display: none !important; }
+  .fx-char { transform: none !important; opacity: 1 !important; }
 }
 
 /* ── Konto-Zeile der Schnitzeljagd (optionaler Fortschritts-Sync) ── */
@@ -1131,5 +1204,14 @@ html.theme-transition * {
 /* im Peek der Bottom-Sheet einklappen (wie stamp/radar/eyebrow) */
 .pass[data-sheet='peek'] .kiez-media-slot { max-height: 0; overflow: hidden; margin: 0; }
 
-/* Stadt-Umschalter (Berlin ⇄ Frankfurt) — Textbutton statt quadratischem Icon */
-.icon-btn.city-btn { width: auto; padding: 0 .6rem; font-size: .72rem; font-weight: 700; letter-spacing: .01em; }
+/* Stadt-Umschalter — feste Desktop-Breite (s. .topbar-actions .city-btn);
+   Mobil bleibt kompakt über die Icon-Slot-Regeln */
+.icon-btn.city-btn {
+  font-size: .72rem; font-weight: 700; letter-spacing: .01em;
+}
+@media (max-width: 839.98px) {
+  .topbar-actions .city-btn {
+    width: auto; min-width: 0; max-width: 5.5rem; flex: 0 1 auto;
+    padding: 0 .45rem;
+  }
+}
