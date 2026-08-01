@@ -8,6 +8,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { spring, SPRINGS, reduceMotion } from './motion.js'
 import { cityCenter, bboxOf, bezirkName } from './kiez.js'
 import { labelCandidates, viewBox, pickLabelPoint, shouldKeepLabel, selectionAnchor } from './overlayLabels.js'
+import { poiDotTol } from './poiHit.js'
 
 const STYLES = {
   dark: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
@@ -368,20 +369,24 @@ export class KiezMap {
   }
 
   /** qid des dem Klick-/Cursorpunkt nächsten POI innerhalb der Toleranz — oder null.
-   *  Toleranz ~15 px als Kasten um den Punkt (nicht die winzige Punkt-Geometrie). */
-  _poiAtPoint(point, tol = 10) {
+   *  Dot-Toleranz ist zoomabhängig (`poiDotTol`): Stadtübersicht = zielsicher auf
+   *  den gerenderten Kreis, ab Kiez-Zoom = fingerfreundliches Pad. */
+  _poiAtPoint(point) {
     // Zwei getrennte Abfragen, damit POIs nicht die halbe Karte als Tap-Target
     // belegen und jeden Kiez-Klick abfangen (Frankfurts Altstadt ist POI-dicht):
-    //  · poi-dot: tol-Box um den Punkt — die Dots sind nur 4–9 px, ein kleiner
-    //    Toleranzkasten macht sie DPI-unabhängig fair antippbar (touch), ohne
-    //    wie die alten 15 px die Zwischenräume zuzudecken.
+    //  · poi-dot: zoomabhängige Box (0 px bei Stadtübersicht → 10 px ab z14) —
+    //    bei vielen km² auf dem Screen stehlen die Dots sonst jeden Kiez-Tap.
     //  · poi-label: nur ein DIREKTER Treffer (Punkt-Query, keine Aufblähung) —
-    //    ein breites Textlabel zählt nur, wenn man wirklich draufklickt (sonst
-    //    belegte ein 100-px-Label ±15 px die ganze Umgebung).
+    //    Labels ab z14; ein 100-px-Label ±pad würde die ganze Umgebung fressen.
+    const tol = poiDotTol(this.map.getZoom())
     let hits = []
     try {
-      const box = [[point.x - tol, point.y - tol], [point.x + tol, point.y + tol]]
-      hits = this.map.queryRenderedFeatures(box, { layers: ['poi-dot'] })
+      if (tol > 0) {
+        const box = [[point.x - tol, point.y - tol], [point.x + tol, point.y + tol]]
+        hits = this.map.queryRenderedFeatures(box, { layers: ['poi-dot'] })
+      } else {
+        hits = this.map.queryRenderedFeatures(point, { layers: ['poi-dot'] })
+      }
       if (this.map.getLayer('poi-label')) {
         hits = hits.concat(this.map.queryRenderedFeatures(point, { layers: ['poi-label'] }))
       }

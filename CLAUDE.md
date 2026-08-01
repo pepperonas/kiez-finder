@@ -35,7 +35,7 @@ npm test         # unit tests (Node's built-in runner, no deps) — tests/*.test
 ```
 No linter configured. Geolocation needs a secure context (localhost or HTTPS).
 
-**Tests** (`tests/`, `node --test`, zero dependencies — 293 tests, 100% line coverage on
+**Tests** (`tests/`, `node --test`, zero dependencies — 297 tests, 100% line coverage on
 the ten unit-testable modules) cover the dependency-light pure logic: `search.js`
 (norm folding + the multi-tier scorer / type-priority / dedup), `kiez.js` (point-in-polygon
 classification incl. holes + MultiPolygon, `bezirkName`, `kmFromBerlin`, `bboxOf`,
@@ -65,10 +65,11 @@ local ∪ remote and still applies the merge if the upload fails; plus `readLogi
 `stripLoginFlag` via `location`/`history` stubs),
 `overlayLabels.js` (visual-centre / PoI approx, clipped-slice pick, selectionAnchor —
 maplibre-free so label placement is testable without WebGL),
-and `fx.js` (reduced-motion / coarse-pointer media helpers behind the anime delight layer).
+`fx.js` (reduced-motion / coarse-pointer media helpers behind the anime delight layer),
+and `poiHit.js` (`poiDotTol` — zoom-dependent POI hit pad so city-wide views don't steal Kiez taps).
 `main.js`/`map.js` aren't covered — they pull in MapLibre + CSS, so pure logic worth
-testing (persistence, graph-colouring, label anchors) is **extracted into a
-maplibre-free module first** (`prefs.js`, `overlayLabels.js`). Add tests alongside as
+testing (persistence, graph-colouring, label anchors, hit pads) is **extracted into a
+maplibre-free module first** (`prefs.js`, `overlayLabels.js`, `poiHit.js`). Add tests alongside as
 `tests/<name>.test.js`. Coverage: `node --test --experimental-test-coverage tests/*.test.js`
 (glob, NOT a bare `tests/` directory arg — Node 22 tries to execute the directory as a
 module and dies with MODULE_NOT_FOUND; Node 20 happened to glob it).
@@ -80,7 +81,7 @@ measures the suite (test count + line coverage) and counts the LOC of `src/*.js`
 `N tests`/`N Tests` claims in README.md/CLAUDE.md, and commits the change back with
 `[skip ci]` (no loop). So the numbers never go stale and you never hand-edit them; run
 `node tools/badges.mjs` locally to preview, or `--check` to assert without writing. (This
-paragraph's `293 tests, 100% line` count is rewritten by that tool too.)
+paragraph's `297 tests, 100% line` count is rewritten by that tool too.)
 
 **README screenshots** (`docs/screenshot-*.png`) are regenerated with
 `tools/screenshots.cjs` against a `npm run preview -- --port 4190` server (needs a
@@ -359,9 +360,11 @@ on the M3 spring core (`motion.js`); DOM delight (card/toast/chip) is a thin **a
   + an `e.originalEvent.__poi` flag DID NOT WORK (the general handler runs first, before the flag is
   set) — that's why POIs seemed unclickable. **Two separate queries so POIs don't blanket the map and
   eat every Kiez-click (Frankfurt's Altstadt is POI-dense — reported as "can't click Kieze"):** the
-  **poi-dot** gets a small **10px** tolerance box (a fair, DPI-independent touch target without the old
-  15px halo covering the gaps), the **poi-label** counts only on a **direct** point-query hit (no
-  inflation — a 100px-wide label ±15px used to make far-away POIs clickable across a huge area). Measured
+  **poi-dot** gets a **zoom-dependent** tolerance (`src/poiHit.js` `poiDotTol`): **0 px** at city-wide
+  zooms (≤12 — many km² on screen, must land on the rendered circle) ramping to **10 px** by z14
+  (neighbourhood / finger-friendly); the **poi-label** counts only on a **direct** point-query hit
+  (no inflation — a 100px-wide label ±15px used to make far-away POIs clickable across a huge area;
+  labels anyway only appear from z14). Measured
   on the dense Altstadt view (real clicks, camera reset): POI over-capture **50%→25%**, Kiez selection
   50%→75%. `mousemove` uses the same helper for the desktop pointer cursor. main.js: `discoverAt` on the real
   check-in only, toasts (`pointer-events: none` — they used to swallow topbar clicks), `huntSection`/
@@ -420,6 +423,8 @@ on the M3 spring core (`motion.js`); DOM delight (card/toast/chip) is a thin **a
   coarse pointers. Covered by `tests/fx.test.js` (media helpers).
 - `src/overlayLabels.js` — maplibre-free label anchors: `visualCenter` (PoI approx), `labelCandidates`,
   `pickLabelPoint`, `selectionAnchor`. Covered by `tests/overlayLabels.test.js`.
+- `src/poiHit.js` — zoom-dependent `poiDotTol` for `_poiAtPoint` (0 px ≤z12 → 10 px by z14). Covered
+  by `tests/poiHit.test.js`.
 - `src/style.css` — MD3 Expressive tokens (motion/shape/state), tonal dark+light palettes,
   all component styles, beacon/radar/stamp animations, reduced-motion guard. **Desktop topbar:**
   fixed-width slots for city pill + overlay toggle so mode changes don't shove neighbouring badges.
