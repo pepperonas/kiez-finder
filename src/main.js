@@ -32,6 +32,7 @@ import {
 } from './fx.js'
 import { mountThemeScene } from './themeScene.js'
 import { CITIES, activeCity, resolveCity, switchCity, cityIdForPoint, cityWasExplicit } from './city.js'
+import { topbarPlan, isCompact } from './topbarLayout.js'
 
 // Stadt aus URL/localStorage/Subdomain auflösen und kiez.js darauf ausrichten —
 // MUSS vor dem ersten Datenladen (loadKieze im Boot) laufen. Berlin = Default.
@@ -92,6 +93,7 @@ const ICONS = {
   road: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4 5.5 20M16 4l2.5 16" stroke-linecap="round"/><path d="M12 4.6v3M12 10.7v3M12 16.8v3" stroke-linecap="round"/></svg>',
   // auto-fit frame (corner brackets + centre) — reads as "auto-zoom to the area"
   autozoom: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.5V5.5A1.5 1.5 0 0 1 5.5 4h3M15.5 4h3A1.5 1.5 0 0 1 20 5.5v3M20 15.5v3a1.5 1.5 0 0 1-1.5 1.5h-3M8.5 20h-3A1.5 1.5 0 0 1 4 18.5v-3" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="2.3"/></svg>',
+  more: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5.2" r="1.75"/><circle cx="12" cy="12" r="1.75"/><circle cx="12" cy="18.8" r="1.75"/></svg>',
 }
 
 const state = {
@@ -214,15 +216,88 @@ const searchBox = h('div', { class: 'search' },
   h('span', { class: 'search-icon', 'aria-hidden': 'true', html: ICONS.search }),
   searchInput, searchClear, searchResults)
 
+// Overflow („Mehr") — M3: was nicht in die Leiste passt, wandert in ein Menü,
+// statt die Reihe über den Rand zu schieben (s. topbarLayout.js).
+const moreBtn = h('button', {
+  class: 'icon-btn more-btn', type: 'button', hidden: true,
+  title: 'Weitere Optionen',
+  aria: { label: 'Weitere Optionen', haspopup: 'true', expanded: 'false' },
+  html: ICONS.more,
+})
+const morePop = h('div', { class: 'heat-pop more-pop', hidden: true, role: 'menu', aria: { label: 'Weitere Optionen' } })
+
+const actionsEl = h('div', { class: 'topbar-actions' })
 const topbar = h('header', { class: 'topbar' },
   h('a', { class: 'brand', href: '/', aria: { label: 'Kiez-Finder Startseite' } },
     h('span', { class: 'brand-mark', html: ICONS.pin }),
     h('span', { class: 'brand-name' },
       h('strong', { text: 'Kiez' }), h('span', { text: '-Finder' }))),
   searchBox,
-  h('div', { class: 'topbar-actions' }, cityBtn, installBtn, overlayBtn, heatBtn,
-    ...(CITY.features.wall ? [wallBtn] : []), autoZoomBtn, acctBtn, themeBtn),
+  actionsEl,
 )
+
+// Die Buttons WANDERN zwischen Leiste und Menü (append verschiebt den Knoten) —
+// damit bleiben Listener, Zustand (is-active) und die innerHTML-Wechsel von
+// Theme/Konto unangetastet. Kein zweiter Satz Proxy-Buttons, der synchron
+// gehalten werden müsste.
+// gecachte Unterkante der Leiste (Positionierung des Bereichs-Chips); hier oben
+// deklariert, weil applyTopbarLayout sie beim Umbau invalidiert
+let _topbarBottom = -1
+
+const ACTION_EL = {
+  overlay: overlayBtn, heat: heatBtn, wall: wallBtn,
+  autozoom: autoZoomBtn, account: acctBtn, theme: themeBtn, install: installBtn,
+}
+const ACTION_LABEL = {
+  overlay: 'Flächen einblenden', heat: 'Heatmap', wall: 'Berliner Mauer 1989',
+  autozoom: 'Auto-Zoom beim Antippen', account: 'Konto & Fortschritt',
+  theme: 'Hell/Dunkel', install: 'App installieren',
+}
+const moreRows = {}
+function moreRow(key) {
+  if (!moreRows[key]) {
+    const label = h('span', { class: 'more-label', text: ACTION_LABEL[key] })
+    const row = h('div', { class: 'more-row' }, label)
+    // Die ganze Zeile ist Trefferfläche (M3-Menüeintrag), nicht nur das Icon.
+    row.addEventListener('click', (e) => {
+      if (!e.target.closest('button')) ACTION_EL[key].click()
+    })
+    moreRows[key] = row
+  }
+  return moreRows[key]
+}
+/** Verteilt die Aktionen laut Plan auf Leiste und Überlauf-Menü. */
+function applyTopbarLayout() {
+  const width = window.innerWidth
+  const plan = topbarPlan({ compact: isCompact(width), width, hasWall: !!CITY.features.wall })
+  actionsEl.append(cityBtn)
+  for (const key of plan.bar) actionsEl.append(ACTION_EL[key])
+  actionsEl.append(moreBtn)
+  for (const key of plan.menu) {
+    const row = moreRow(key)
+    row.prepend(ACTION_EL[key])
+    row.hidden = ACTION_EL[key].hidden // Install-Zeile bleibt weg, solange nicht installierbar
+    morePop.append(row)
+  }
+  moreBtn.hidden = plan.menu.length === 0
+  if (moreBtn.hidden) closeMorePop()
+  _topbarBottom = -1 // Leiste kann die Höhe gewechselt haben
+}
+function openMorePop() {
+  closeHeatPop(); closeAcctPop()
+  for (const key of Object.keys(moreRows)) moreRows[key].hidden = ACTION_EL[key].hidden
+  morePop.hidden = false
+  const r = moreBtn.getBoundingClientRect()
+  morePop.style.top = (r.bottom + 8) + 'px'
+  morePop.style.right = Math.max(8, innerWidth - r.right) + 'px'
+  moreBtn.setAttribute('aria-expanded', 'true')
+}
+function closeMorePop() { morePop.hidden = true; moreBtn.setAttribute('aria-expanded', 'false') }
+moreBtn.addEventListener('click', () => (morePop.hidden ? openMorePop() : closeMorePop()))
+document.addEventListener('click', (e) => {
+  if (!morePop.hidden && !morePop.contains(e.target) && !moreBtn.contains(e.target)) closeMorePop()
+})
+window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !morePop.hidden) closeMorePop() })
 
 // floating "current area" chip — names the coloured region under the map centre
 // whenever an overlay is active (so every colour always has a label, at any zoom)
@@ -268,7 +343,8 @@ const toastWrap = h('div', { class: 'toasts', aria: { live: 'polite' } })
 // Orte-Übersicht (Schnitzeljagd): durchsuch-/filterbare POI-Liste, slide-up
 const poiBrowser = h('section', { class: 'poi-browser', hidden: true, aria: { label: 'Orte durchstöbern', modal: 'true' }, role: 'dialog' })
 
-app.append(mapEl, themeSceneEl, stage, topbar, heatPop, acctPop, heatLegend, areaChip, reopenBtn, poiBrowser, toastWrap)
+app.append(mapEl, themeSceneEl, stage, topbar, heatPop, acctPop, morePop, heatLegend, areaChip, reopenBtn, poiBrowser, toastWrap)
+applyTopbarLayout() // Aktionen auf Leiste + Überlauf verteilen (breitenabhängig)
 
 // ── desktop: collapse / expand the info panel ────────────────────────────────
 function setPanelCollapsed(collapsed, moveFocus = true) {
@@ -1563,7 +1639,6 @@ const OVERLAY_META = {
 const OVERLAY_LEVEL_LABEL = { bezirke: 'Bezirk', bzr: 'Bezirksregion', kiez: 'Kiez' }
 // the topbar only moves on resize — cache its bottom edge instead of forcing a
 // layout read inside the chip's per-frame retry loop
-let _topbarBottom = -1
 function positionAreaChip() {
   if (_topbarBottom < 0) _topbarBottom = topbar.getBoundingClientRect().bottom
   areaChip.style.top = (_topbarBottom + 8) + 'px'
@@ -1987,6 +2062,7 @@ window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault()
   state.deferredInstall = e
   installBtn.hidden = false
+  applyTopbarLayout() // Install-Aktion einsortieren (Leiste oder Menü)
 })
 installBtn.addEventListener('click', async () => {
   if (!state.deferredInstall) return
@@ -2147,6 +2223,7 @@ async function boot() {
       resizeRaf = 0
       state.map && state.map.resize()
       fitKiezName()
+      applyTopbarLayout() // Breakpoint/Breite geändert → Leiste vs. Überlauf neu verteilen
       _topbarBottom = -1 // topbar may have rewrapped — re-measure lazily
       if (!areaChip.hidden) positionAreaChip()
       if (sheetEnabled()) { measureSheet(); snapTo(sheet.state, true) }

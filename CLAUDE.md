@@ -50,7 +50,7 @@ Boundaries/stats/prices/info have **dedicated per-city scripts** instead
 (`build-{frankfurt,darmstadt}{,-stats,-heat-prices,-kiez-info}.mjs`) because every city's open-data
 source has its own schema. Vendored source files + their licences: `tools/vendor/README.md`.
 
-**Tests** (`tests/`, `node --test`, zero dependencies — 304 tests · 95.66 % line coverage
+**Tests** (`tests/`, `node --test`, zero dependencies — 313 tests · 95.76 % line coverage
 overall, 100 % on most pure modules; `fx.js` is deliberately low, only its media helpers are
 testable without a DOM) cover the dependency-light pure logic: `search.js`
 (norm folding + the multi-tier scorer / type-priority / dedup), `kiez.js` (point-in-polygon
@@ -106,7 +106,7 @@ measures the suite (test count + line coverage) and counts the LOC of `src/*.js`
 `N tests`/`N Tests` claims in README.md/CLAUDE.md, and commits the change back with
 `[skip ci]` (no loop). So the numbers never go stale and you never hand-edit them; run
 `node tools/badges.mjs` locally to preview, or `--check` to assert without writing. (The
-`304 tests · 95.66 % line coverage` claim above is rewritten by that tool too — its regex is
+`313 tests · 95.76 % line coverage` claim above is rewritten by that tool too — its regex is
 pinned to that exact wording, so **if you rephrase that sentence, update the `CLAUDE.md` entry in
 `tools/badges.mjs`**; a non-matching pattern silently stops updating and `--check` still reports
 green.)
@@ -493,6 +493,26 @@ on the M3 spring core (`motion.js`); DOM delight (card/toast/chip) is a thin **a
 - `src/style.css` — MD3 Expressive tokens (motion/shape/state), tonal dark+light palettes,
   all component styles, beacon/radar/stamp animations, reduced-motion guard. **Desktop topbar:**
   fixed-width slots for city pill + overlay toggle so mode changes don't shove neighbouring badges.
+  **Icon buttons are 48px everywhere** (M3 minimum touch target — the old 44/40px mobile sizes were
+  below it) and **selected toggles morph from pill to squircle** (`.is-active`/`aria-pressed`/
+  `aria-expanded` → `border-radius: 16px`), the M3-Expressive shape-as-state channel that also
+  survives the grayscale Mauer mode.
+- `src/topbarLayout.js` — **which topbar actions stay visible and which collapse into the overflow
+  menu** (DOM-free rule; `main.js` `applyTopbarLayout()` only moves the elements). Eight 44px buttons
+  in one row overflowed the viewport on phones — at 320px the last one was clipped off-screen — so
+  the M3 top-app-bar rule applies: order actions by frequency and push the rest into an overflow
+  menu, which reappears in the bar at larger sizes. Compact bar = city pill + `compactSlots(width)`
+  actions (3, or **2 below 360px**) + „⋯" → menu. Priority `ACTION_ORDER` = map layers first
+  (overlay, heat), then the city signature feature (wall), then preferences; **`install` is last on
+  purpose** — it is `hidden` until `beforeinstallprompt`, so it must never claim a bar slot.
+  **`COMPACT_MAX_WIDTH` is 1000, deliberately ABOVE the app's 840px panel breakpoint**: at 840 the
+  full row leaves the search box 129px, narrower than its own placeholder (with the menu: 304px).
+  The buttons are **moved physically** between bar and menu (`append` relocates the node) instead of
+  being mirrored by proxy buttons — listeners, `is-active` state and the `innerHTML` swaps of
+  theme/account all keep working, with zero sync code. Menu rows carry a label next to the real
+  button and the whole row is the hit area. **Gotcha:** `.more-row` needs its own
+  `[hidden] { display: none }` — the author `display: flex` beats the UA `[hidden]` rule (same trap
+  already documented for `.icon-btn`). Covered by `tests/topbarLayout.test.js`.
 - `src/themeScene.js` + `src/scenePresets.js` — **atmospheric 3D layer** (`.theme-scene`, a
   `pointer-events:none` div at `z-index:1` — over `#map`, under all UI). ONE WebGL canvas: a
   sparse field of slow-drifting accent-tinted particles (three.js `Points` + additive blending,

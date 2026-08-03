@@ -172,7 +172,7 @@ body {
   flex: 0 0 auto;
 }
 .topbar-actions .icon-btn {
-  flex: 0 0 46px; width: 46px; height: 46px;
+  flex: 0 0 48px; width: 48px; height: 48px;
 }
 /* Stadt-Pill: feste Breite (längster Name = Darmstadt) — sonst springt die Leiste */
 .topbar-actions .city-btn {
@@ -259,17 +259,27 @@ body {
    ein versteckter Button (z. B. Install, wenn kein Prompt ansteht) belegte
    trotzdem einen Slot und verschob die Verteilung. Explizit ausblenden. */
 .icon-btn[hidden] { display: none; }
+/* 48px = M3-Mindest-Trefferfläche. Gilt überall, auch auf dem Desktop —
+   darunter zu gehen war der eigentliche Fehler der alten Mobile-Leiste. */
 .icon-btn {
-  position: relative; width: 46px; height: 46px; flex: 0 0 auto;
+  position: relative; width: 48px; height: 48px; flex: 0 0 auto;
   display: grid; place-items: center; border: 1px solid var(--outline-faint);
   border-radius: var(--r-full); cursor: pointer;
   background: color-mix(in srgb, var(--sc-high) 70%, transparent);
   color: var(--on-surface); backdrop-filter: blur(14px) saturate(1.2);
   box-shadow: var(--shadow-1);
   transition: transform var(--dur-short) var(--ease-emphasized),
-              border-color var(--dur-short) var(--ease-standard);
+              border-color var(--dur-short) var(--ease-standard),
+              border-radius var(--dur-medium) var(--ease-emphasized);
   -webkit-tap-highlight-color: transparent;
 }
+/* M3-Expressive-Signatur für Umschalter: der ausgewählte Zustand MORPHT von
+   der Pille zum Squircle — Form als zweiter Kanal neben der Farbe, damit
+   „an/aus" auch ohne Farbwahrnehmung und im Mauer-Graustufenmodus lesbar ist. */
+.icon-btn.is-active, .icon-btn[aria-pressed='true'], .icon-btn[aria-expanded='true'] {
+  border-radius: 16px;
+}
+@media (prefers-reduced-motion: reduce) { .icon-btn { transition: none; } }
 .icon-btn::before { /* state layer */
   content: ''; position: absolute; inset: 0; border-radius: inherit;
   background: currentColor; opacity: 0; transition: opacity var(--dur-short) var(--ease-standard);
@@ -327,6 +337,39 @@ body {
   background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 .heat-dot { flex: 0 0 auto; width: 10px; height: 10px; border-radius: 50%; }
+
+/* ── Überlauf-Menü „Mehr" (M3-Menü) ──
+   Die Aktionen aus der Leiste wandern hier PHYSISCH hinein (kein Proxy), also
+   behalten sie ihren Aktiv-Look. Beschriftung daneben, weil ein Icon ohne
+   Kontext in einem Menü nicht lesbar ist; die ganze Zeile ist Trefferfläche. */
+.more-pop { min-width: 252px; padding: .35rem; }
+.more-row {
+  position: relative; display: flex; align-items: center; gap: .7rem;
+  padding: .25rem .65rem .25rem .25rem; border-radius: var(--r-m); cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+/* wie bei .icon-btn: das `display:flex` oben schlägt das UA-`[hidden]` */
+.more-row[hidden] { display: none; }
+.more-row::before { /* state layer */
+  content: ''; position: absolute; inset: 0; border-radius: inherit;
+  background: currentColor; opacity: 0; transition: opacity var(--dur-short) var(--ease-standard);
+}
+.more-row:hover::before { opacity: var(--st-hover); }
+.more-row:active::before { opacity: var(--st-press); }
+/* im Menü kein zweiter Glas-/Schatten-Layer über der Menüfläche */
+.more-row .icon-btn {
+  box-shadow: none; backdrop-filter: none;
+  background: color-mix(in srgb, var(--on-surface) 6%, transparent);
+}
+.more-row .icon-btn.is-active, .more-row .icon-btn[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--outline));
+  color: var(--accent);
+}
+.more-label {
+  flex: 1 1 auto; min-width: 0; font-size: .88rem; font-weight: 600;
+  color: var(--on-surface); letter-spacing: -.005em;
+}
 
 .heat-legend {
   position: fixed; left: 12px; bottom: max(12px, env(safe-area-inset-bottom)); z-index: 5;
@@ -980,6 +1023,18 @@ html.theme-transition * {
   }
 }
 
+/* Kompakt-Modus (< COMPACT_MAX_WIDTH in topbarLayout.js): der Overlay-Button
+   bleibt ein gleichförmiger Kreis — sein Label würde die Reihe sprengen, sobald
+   eine Ebene aktiv ist. Der Zustand ist über Tönung, Form-Morph und die
+   „Aktueller-Bereich"-Plakette ohnehin lesbar. */
+@media (max-width: 999.98px) {
+  .topbar-actions .seg-btn {
+    width: 48px; min-width: 48px; max-width: 48px; flex-basis: 48px;
+    padding: 0; justify-content: center;
+  }
+  .topbar-actions .seg-label { display: none !important; max-width: 0 !important; margin: 0 !important; }
+}
+
 /* On phones the topbar gets crowded (brand + overlay label + theme/install) and
    squeezes the search to a few px. Put the search on its own full-width row so it
    stays a big, reliable tap target. */
@@ -990,26 +1045,20 @@ html.theme-transition * {
      bekommen die ganze Breite und verteilen sich gleichmäßig statt rechts
      zusammengedrängt. Eigene Reihe, Suche darunter. */
   .brand { display: none; }
-  .topbar-actions { order: 1; flex: 1 0 100%; margin-left: 0; gap: .3rem;
-    justify-content: space-between; }
-  .topbar-actions .icon-btn { width: 44px; height: 44px; flex-basis: 44px; }
+  .topbar-actions { order: 1; flex: 1 0 100%; margin-left: 0; gap: .4rem;
+    justify-content: flex-end; }
   /* Overlay-Button bleibt ein gleichförmiger Kreis — sein Label würde die
      Reihe sprengen; der aktive Zustand ist über die Tönung + die
      „Aktueller-Bereich"-Plakette ohnehin erkennbar. */
-  .topbar-actions .seg-btn {
-    width: 44px; min-width: 44px; max-width: 44px; flex-basis: 44px;
-    padding: 0; justify-content: center;
-  }
-  .topbar-actions .seg-label { display: none !important; max-width: 0 !important; margin: 0 !important; }
-  .search { order: 2; flex: 1 0 100%; max-width: none; min-width: 0; height: 46px; }
+  .search { order: 2; flex: 1 0 100%; max-width: none; min-width: 0; height: 48px; }
+  /* Stadt-Pille schiebt die Aktionen nach rechts, bleibt aber links verankert */
+  .topbar-actions .city-btn { margin-right: auto; }
 }
-/* Nur die extrem schmale Klasse (<360px, faktisch nur Uralt-Geräte): mit
-   sichtbarem Install-Button sind es 7 Icons — bei 44px würde das letzte
-   abgeschnitten. Leicht verkleinern, damit nichts clippt; alle realen Phones
-   (≥360px) behalten die vollen 44px oben. */
+/* Unter 360px trägt topbarLayout.js eine Aktion weniger in der Leiste — die
+   Trefferflächen bleiben bei 48px (M3-Minimum), statt die Buttons zu schrumpfen. */
 @media (max-width: 359.98px) {
-  .topbar-actions { gap: .15rem; }
-  .topbar-actions .icon-btn, .topbar-actions .seg-btn { width: 40px; height: 40px; }
+  .topbar-actions { gap: .3rem; }
+  .topbar-actions .city-btn { max-width: 4.6rem; }
 }
 
 /* desktop collapse control (mobile uses the sheet handle instead) */
