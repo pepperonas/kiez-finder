@@ -1,7 +1,7 @@
 {
   "name": "kiez-finder",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
   "description": "Dein Kiez-Pass für Berlin — finde heraus, in welchem Kiez du gerade stehst.",
   "engines": {

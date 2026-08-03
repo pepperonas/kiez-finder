@@ -3,9 +3,28 @@
 //
 // AAA anchor = approximate pole of inaccessibility (point inside the polygon
 // farthest from any boundary). Bbox centres fall outside L-shapes / near
-// edges (Neukölln's SE bulge pulled the old label off-centre). Viewport logic
-// only kicks in when that visual centre is clipped.
+// edges (Neukölln's SE bulge pulled the old label off-centre).
+//
+// The on-screen anchor is the pole of inaccessibility of *polygon ∩ viewport*:
+// every candidate is scored `min(distance to polygon boundary, distance to
+// screen edge)` and the deepest wins. Fully visible area → the screen term is
+// large everywhere → reduces to the plain visual centre. Clipped area → the
+// label centres itself in the VISIBLE mass instead of drifting to its border.
+// The old fallback (mid of bbox∩viewport, then nearest interior point) put
+// labels ON the boundary whenever that midpoint fell in a neighbouring area —
+// measured over the 12 Bezirke it reached only ~76 % of the achievable depth,
+// with labels up to 3.4 km off.
+//
+// All distances are aspect-corrected (`kx = cos(lat)`): 1° lon is ~0.61× the
+// ground length of 1° lat at 52.5°N, so a raw-degree metric is stretched
+// horizontally and tolerates sitting close to left/right borders.
 // ─────────────────────────────────────────────────────────────────────────
+
+/** Metric x-scale so lon/lat distances are comparable (≈ ground, ≈ screen). */
+export function lonScale(lat) {
+  const k = Math.cos((lat || 0) * Math.PI / 180)
+  return k > 0.15 ? k : 0.15 // guard the poles; Berlin ≈ 0.61
+}
 
 function bboxOf(feature) {
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
@@ -68,12 +87,13 @@ function dist2Seg(px, py, ax, ay, bx, by) {
   return qx * qx + qy * qy
 }
 
-/** Min distance from point to any outer-ring edge (degrees ≈ relative). */
-function distToBoundary(pt, geom) {
+/** Min distance from point to any outer-ring edge, x scaled by `kx`. */
+function distToBoundary(pt, geom, kx = 1) {
   let best = Infinity
+  const px = pt[0] * kx, py = pt[1]
   for (const ring of outerRings(geom)) {
     for (let i = 0; i < ring.length - 1; i++) {
-      const d = dist2Seg(pt[0], pt[1], ring[i][0], ring[i][1], ring[i + 1][0], ring[i + 1][1])
+      const d = dist2Seg(px, py, ring[i][0] * kx, ring[i][1], ring[i + 1][0] * kx, ring[i + 1][1])
       if (d < best) best = d
     }
   }
@@ -96,8 +116,27 @@ function approxArea(geom) {
   return tot
 }
 
-/** Grid resolution for candidate clouds / PoI search. */
+/** Fallback / minimum grid resolution for candidate clouds. */
 export const LABEL_GRID = 11
+/** Target spacing between candidates, in metric degrees (≈ 500 m). */
+export const LABEL_STEP = 0.0045
+/** Upper bound so a huge area can't explode the point cloud. */
+export const LABEL_GRID_MAX = 25
+
+/**
+ * Candidate grid resolution for one bbox. What matters is the ABSOLUTE spacing
+ * (an anchor should be accurate to a few hundred metres), not a fixed count: a
+ * 24-km Bezirk on an 11×11 grid only resolves to 2.2 km, while the same grid is
+ * overkill for a 1-km Kiez. Scaling by size makes the coarse levels accurate
+ * AND the 427 Kiez areas cheaper than the old fixed grid.
+ */
+export function gridFor(bb) {
+  const kx = lonScale((bb[1] + bb[3]) / 2)
+  const span = Math.max((bb[2] - bb[0]) * kx, bb[3] - bb[1])
+  const n = Math.ceil(span / LABEL_STEP)
+  if (!(n > LABEL_GRID)) return LABEL_GRID
+  return n < LABEL_GRID_MAX ? n : LABEL_GRID_MAX
+}
 
 /**
  * Visual centre ≈ pole of inaccessibility: interior point maximizing distance
@@ -110,6 +149,7 @@ export function visualCenter(feature, { coarse = 14, refine = 7 } = {}) {
   const bb = bboxOf(feature)
   const w = bb[2] - bb[0], h = bb[3] - bb[1]
   if (!(w > 0 && h > 0)) return [(bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2]
+  const kx = lonScale((bb[1] + bb[3]) / 2)
 
   const scan = (n, x0, x1, y0, y1) => {
     let best = null, bestD = -1
@@ -117,7 +157,7 @@ export function visualCenter(feature, { coarse = 14, refine = 7 } = {}) {
       const x = x0 + (x1 - x0) * (i + 0.5) / n
       const y = y0 + (y1 - y0) * (j + 0.5) / n
       if (!pipEvenOdd([x, y], geom)) continue
-      const d = distToBoundary([x, y], geom)
+      const d = distToBoundary([x, y], geom, kx)
       if (d > bestD) { bestD = d; best = [x, y] }
     }
     return best
@@ -139,21 +179,34 @@ export function visualCenter(feature, { coarse = 14, refine = 7 } = {}) {
 }
 
 /**
- * Build per-feature label candidates. `c` = visual centre (not bbox mid).
- * `pts` = dense interior grid + the visual centre (guaranteed anchor).
+ * Interior candidate cloud for one feature: dense grid + the visual centre
+ * (guaranteed anchor). Each point is `[lon, lat, boundaryDist]` — the boundary
+ * distance is viewport-independent, so precomputing it here (once per dataset)
+ * keeps `pickLabelPoint` O(#points) on every camera settle.
  */
-export function labelCandidates(featureColl, nameOf, { grid = LABEL_GRID } = {}) {
+function candidatePoints(feature, vc, bb, grid) {
+  const geom = feature.geometry
+  const kx = lonScale((bb[1] + bb[3]) / 2)
+  const pts = [[vc[0], vc[1], distToBoundary(vc, geom, kx)]]
+  for (let gi = 0; gi < grid; gi++) for (let gj = 0; gj < grid; gj++) {
+    const x = bb[0] + (bb[2] - bb[0]) * (gi + 0.5) / grid
+    const y = bb[1] + (bb[3] - bb[1]) * (gj + 0.5) / grid
+    if (pipEvenOdd([x, y], geom)) pts.push([x, y, distToBoundary([x, y], geom, kx)])
+  }
+  return pts
+}
+
+/**
+ * Build per-feature label candidates. `c` = visual centre (not bbox mid).
+ * `pts` = interior cloud, see candidatePoints. `grid` overrides the adaptive
+ * resolution (tests / callers that want a fixed cloud).
+ */
+export function labelCandidates(featureColl, nameOf, { grid = 0 } = {}) {
   if (!featureColl || !featureColl.features) return []
-  const N = grid
   const cands = featureColl.features.map((f, i) => {
     const bb = bboxOf(f)
     const vc = visualCenter(f) || [(bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2]
-    const pts = [vc]
-    for (let gi = 0; gi < N; gi++) for (let gj = 0; gj < N; gj++) {
-      const x = bb[0] + (bb[2] - bb[0]) * (gi + 0.5) / N
-      const y = bb[1] + (bb[3] - bb[1]) * (gj + 0.5) / N
-      if (pipEvenOdd([x, y], f.geometry)) pts.push([x, y])
-    }
+    const pts = candidatePoints(f, vc, bb, grid || gridFor(bb))
     return { id: i, name: nameOf(f), c: vc, bb, pts, area: approxArea(f.geometry), feature: f }
   })
   const byArea = cands.slice().sort((a, b) => b.area - a.area)
@@ -175,39 +228,66 @@ export function viewBox(W, E, S, N, margin = 0.12) {
     W, E, S, N,
     iW: W + dx, iE: E - dx, iS: S + dy, iN: N - dy,
     cx: (W + E) / 2, cy: (S + N) / 2,
+    kx: lonScale((S + N) / 2),
   }
 }
 
 const inBox = (p, W, E, S, N) => p[0] >= W && p[0] <= E && p[1] >= S && p[1] <= N
 
+/** Metric distance from p to the nearest viewport edge (negative = off-screen). */
+function edgeDist(p, view) {
+  const kx = view.kx || lonScale((view.S + view.N) / 2)
+  return Math.min(
+    (p[0] - view.W) * kx, (view.E - p[0]) * kx,
+    p[1] - view.S, view.N - p[1],
+  )
+}
+
 /**
- * Pick the best on-screen interior point for a candidate.
- * Prefer the visual centre when comfortably on screen; else the point nearest
- * the centre of this feature's visible bbox∩viewport.
+ * How deep inside "polygon ∩ viewport" a candidate sits — the quantity the
+ * anchor maximizes. `p[2]` is the precomputed distance to the polygon boundary.
  */
-export function pickLabelPoint(c, view) {
+export function labelDepth(p, view) {
+  const b = p.length > 2 ? p[2] : Infinity
+  const e = edgeDist(p, view)
+  return b < e ? b : e
+}
+
+/**
+ * A kept anchor survives while it is still within this fraction of the best
+ * available depth — pure position-based hysteresis let a label stay pinned to a
+ * spot that panning had pushed against a border.
+ */
+export const LABEL_KEEP_RATIO = 0.75
+
+/**
+ * Pick the deepest on-screen interior point (pole of inaccessibility of
+ * polygon ∩ viewport). `kept` = the previous anchor: it is reused while it is
+ * comfortably on screen AND still nearly as deep as the new best, which keeps
+ * labels from twitching on every pan without letting them go stale.
+ * Returns a `[lon, lat, boundaryDist]` candidate (slice for GeoJSON).
+ */
+export function pickLabelPoint(c, view, kept = null) {
   if (!c || !c.pts || !c.pts.length || !view) return null
-  const { W, E, S, N, iW, iE, iS, iN } = view
-  const visW = Math.max(c.bb[0], W), visE = Math.min(c.bb[2], E)
-  const visS = Math.max(c.bb[1], S), visN = Math.min(c.bb[3], N)
-  if (visW >= visE || visS >= visN) return null
+  const { W, E, S, N } = view
+  if (c.bb && (Math.max(c.bb[0], W) >= Math.min(c.bb[2], E)
+    || Math.max(c.bb[1], S) >= Math.min(c.bb[3], N))) return null
 
-  let tx, ty
-  if (c.c && inBox(c.c, iW, iE, iS, iN)) {
-    tx = c.c[0]; ty = c.c[1]
-  } else {
-    tx = (visW + visE) / 2
-    ty = (visS + visN) / 2
-  }
-
-  let best = null, bd = Infinity, bestInner = null, bdInner = Infinity
+  // Maximizing the depth is itself the overflow guard: a point near the screen
+  // edge scores low and only wins when the visible slice is that thin. An extra
+  // hard "must sit inside the margin" rule made it WORSE — for an area clipped
+  // down to a band it banished the label from the band's middle (Reinickendorf
+  // at the top edge dropped to 26 % of the achievable depth).
+  let best = null, bd = 0
   for (const p of c.pts) {
     if (!inBox(p, W, E, S, N)) continue
-    const d = (p[0] - tx) ** 2 + (p[1] - ty) ** 2
-    if (d < bd) { bd = d; best = p }
-    if (inBox(p, iW, iE, iS, iN) && d < bdInner) { bdInner = d; bestInner = p }
+    const d = labelDepth(p, view)
+    if (d > bd) { bd = d; best = p }
   }
-  return bestInner || best
+  if (!best) return null
+  if (kept && shouldKeepLabel(kept, view)
+    && labelDepth(kept, view) >= LABEL_KEEP_RATIO * bd) return kept
+  return best
 }
 
 /**
@@ -220,14 +300,9 @@ export function selectionAnchor(feature, view = null) {
   if (!vc) return null
   if (!view) return vc
   const bb = bboxOf(feature)
-  const pts = [vc]
-  const N = 9
-  for (let gi = 0; gi < N; gi++) for (let gj = 0; gj < N; gj++) {
-    const x = bb[0] + (bb[2] - bb[0]) * (gi + 0.5) / N
-    const y = bb[1] + (bb[3] - bb[1]) * (gj + 0.5) / N
-    if (pipEvenOdd([x, y], feature.geometry)) pts.push([x, y])
-  }
-  return pickLabelPoint({ c: vc, bb, pts }, view) || vc
+  const pts = candidatePoints(feature, vc, bb, gridFor(bb))
+  const p = pickLabelPoint({ c: vc, bb, pts }, view)
+  return p ? [p[0], p[1]] : vc
 }
 
 /**

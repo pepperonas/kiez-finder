@@ -7,7 +7,7 @@ import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { spring, SPRINGS, reduceMotion } from './motion.js'
 import { cityCenter, bboxOf, bezirkName } from './kiez.js'
-import { labelCandidates, viewBox, pickLabelPoint, shouldKeepLabel, selectionAnchor } from './overlayLabels.js'
+import { labelCandidates, viewBox, pickLabelPoint, selectionAnchor } from './overlayLabels.js'
 import { poiDotTol } from './poiHit.js'
 
 const STYLES = {
@@ -1158,12 +1158,11 @@ export class KiezMap {
     return [c.lng, c.lat]
   }
 
-  // Per visible area: visual-centre anchor (PoI), clipped → mid of visible slice.
-  // Also refreshes the selection label with the same algorithm.
+  // Per visible area: the deepest point of area ∩ visible map (see _labelView +
+  // overlayLabels.js). Also refreshes the selection label with the same algorithm.
   _updateOverlayLabels() {
-    const b = this.map.getBounds()
-    const W = b.getWest(), E = b.getEast(), S = b.getSouth(), No = b.getNorth()
-    const view = viewBox(W, E, S, No, 0.12)
+    const view = this._labelView()
+    const { W, E, S, N: No } = view
     this._updateSelLabel(view)
 
     if (!this._labelCands) return
@@ -1189,8 +1188,9 @@ export class KiezMap {
       }
       return
     }
-    // anti-jitter hysteresis: keep a feature's previously chosen point while it
-    // stays *comfortably* on screen (margin) — edge-hugging keeps are dropped
+    // anti-jitter hysteresis: the previous anchor is handed to pickLabelPoint,
+    // which keeps it while it stays comfortably on screen AND nearly as deep in
+    // the visible slice as the new best (see overlayLabels.js)
     if (this._lblKeepLvl !== lvl) { this._lblKeepLvl = lvl; this._lblKeep = new Map() }
     const keep = this._lblKeep
     const selName = this._selName || null
@@ -1198,14 +1198,11 @@ export class KiezMap {
     for (const c of cands) {
       if (c.bb[2] < W || c.bb[0] > E || c.bb[3] < S || c.bb[1] > No) { keep.delete(c.id); continue } // off-screen
       if (selName && c.name === selName) { keep.delete(c.id); continue } // the selection carries its own label
-      let best = keep.get(c.id)
-      if (!shouldKeepLabel(best, view)) {
-        best = pickLabelPoint(c, view)
-        if (best) keep.set(c.id, best)
-        else keep.delete(c.id)
-      }
-      if (best) feats.push({
-        type: 'Feature', geometry: { type: 'Point', coordinates: best },
+      const best = pickLabelPoint(c, view, keep.get(c.id))
+      if (!best) { keep.delete(c.id); continue }
+      keep.set(c.id, best) // full candidate incl. its precomputed boundary distance
+      feats.push({
+        type: 'Feature', geometry: { type: 'Point', coordinates: [best[0], best[1]] },
         properties: { name: c.name, sort: c.sort, szf: c.szf },
       })
     }
@@ -1213,17 +1210,14 @@ export class KiezMap {
     if (src) src.setData({ type: 'FeatureCollection', features: feats })
   }
 
-  /** Selection label at visual centre (or mid of visible slice when clipped). */
+  /** Selection label at the deepest point of the selection ∩ visible map. */
   _updateSelLabel(view) {
     const selSrc = this.map.getSource('sel-pt')
     if (!selSrc) return
     const feature = this._activeFeature
     const name = this._selName
     if (!feature || !name) { selSrc.setData(emptyFC()); return }
-    const v = view || (() => {
-      const b = this.map.getBounds()
-      return viewBox(b.getWest(), b.getEast(), b.getSouth(), b.getNorth(), 0.12)
-    })()
+    const v = view || this._labelView()
     const pt = selectionAnchor(feature, v)
     if (!pt) { selSrc.setData(emptyFC()); return }
     selSrc.setData({
@@ -1343,6 +1337,41 @@ export class KiezMap {
       essential: true,
       maxZoom: 15.5, // short streets: close enough to read the name, still with context
     })
+  }
+
+  /**
+   * Geographic box of the map the user can ACTUALLY see — the canvas minus the
+   * pass card / topbar (the same chrome `_fitPadding` keeps clear of a fit).
+   * Labels centre themselves in this box, so an area whose geometric middle
+   * hides behind the side panel is labelled in its visible remainder instead.
+   * Safe because the map is north-up (rotation + pitch are disabled).
+   */
+  _labelView() {
+    const cv = this.map.getCanvas()
+    const w = cv.clientWidth || cv.width, h = cv.clientHeight || cv.height
+    const p = this._fitPadding()
+    const wide = window.matchMedia('(min-width: 840px)').matches
+    let l = wide ? p.left : 0, bt = wide ? 0 : p.bottom
+    // Measure the card instead of trusting _fitPadding's static numbers: it
+    // follows a collapsed side panel (slid off-screen → rect.right ≤ 0) and a
+    // merely PEEKED bottom sheet, where the static 50 % would banish every
+    // label to the top half of the screen.
+    // keep retrying while absent — the map can settle before the card mounts,
+    // and caching that null would silently disable the chrome awareness forever
+    if (!this._cardEl) this._cardEl = document.querySelector('.pass')
+    const rect = this._cardEl && this._cardEl.getBoundingClientRect()
+    if (rect && rect.width > 0 && rect.height > 0) {
+      if (wide) l = Math.min(Math.max(rect.right, 0), w * 0.45)
+      else bt = Math.min(Math.max(h - Math.max(rect.top, 0), 0), h * 0.5)
+    }
+    const r = Math.min(p.right, w * 0.3), t = Math.min(p.top, h * 0.3)
+    const tl = this.map.unproject([l, t])
+    const br = this.map.unproject([w - r, h - bt])
+    if (!(br.lng > tl.lng && tl.lat > br.lat)) { // degenerate → whole canvas
+      const b = this.map.getBounds()
+      return viewBox(b.getWest(), b.getEast(), b.getSouth(), b.getNorth(), 0.12)
+    }
+    return viewBox(tl.lng, br.lng, br.lat, tl.lat, 0.12)
   }
 
   // leave room for the pass card (bottom sheet on mobile, side panel on desktop)

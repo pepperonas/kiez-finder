@@ -58,7 +58,9 @@ const rewrites = {
     [/\*\*\d+ Tests\b/g, `**${tests} Tests`],
   ],
   'CLAUDE.md': [
-    [/\d+ tests, 100% line/g, `${tests} tests, 100% line`],
+    // Muster MUSS zur Formulierung in CLAUDE.md passen — matcht es nicht mehr,
+    // veraltet die Zahl still (und --check meldet trotzdem grün).
+    [/\d+ tests · [\d.]+ % line coverage/g, `${tests} tests · ${lines} % line coverage`],
   ],
 }
 

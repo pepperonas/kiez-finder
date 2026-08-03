@@ -32,11 +32,27 @@ npm run dev      # Vite dev server
 npm run build    # → dist/
 npm run preview  # serve dist/ locally
 npm test         # unit tests (Node's built-in runner, no deps) — tests/*.test.js
+
+node --test tests/hunt.test.js                              # a single file
+node --test --test-name-pattern='Quantil' tests/heat.test.js # a single test (regex on the name)
 ```
 No linter configured. Geolocation needs a secure context (localhost or HTTPS).
 
-**Tests** (`tests/`, `node --test`, zero dependencies — 297 tests, 100% line coverage on
-the ten unit-testable modules) cover the dependency-light pure logic: `search.js`
+**Data rebuilds** (`tools/*.mjs`, one-off scripts, never part of `npm run build` — they hit
+Wikidata/Wikipedia/Commons/Overpass/WFS and write into `public/data/` + `public/img/`): the full
+per-dataset command list with runtimes lives in the README (*„Kiez-Daten neu erzeugen"*,
+*„Statistiken + Kiez-Beschreibungen neu erzeugen"*, *„Frankfurt / Darmstadt"*). The convention that
+matters: **every city-capable tool takes `--city=<id>`** (`build-pois`, `build-poi-facts`,
+`build-poi-info`, `build-poi-images`, `recover-poi-images`, `reconcile-poi-year-facts`,
+`build-kiez-images`, `build-streets.js`) — **no flag = Berlin** (`public/data/…`), `--city=darmstadt`
+= `public/data/darmstadt/…`; per-city constants (POI target/quota) sit in a `CITY` table in the tool.
+Boundaries/stats/prices/info have **dedicated per-city scripts** instead
+(`build-{frankfurt,darmstadt}{,-stats,-heat-prices,-kiez-info}.mjs`) because every city's open-data
+source has its own schema. Vendored source files + their licences: `tools/vendor/README.md`.
+
+**Tests** (`tests/`, `node --test`, zero dependencies — 304 tests · 95.66 % line coverage
+overall, 100 % on most pure modules; `fx.js` is deliberately low, only its media helpers are
+testable without a DOM) cover the dependency-light pure logic: `search.js`
 (norm folding + the multi-tier scorer / type-priority / dedup), `kiez.js` (point-in-polygon
 classification incl. holes + MultiPolygon, `bezirkName`, `kmFromBerlin`, `bboxOf`,
 `levelName` — plus, via a **fetch mock**, the loaders and the loaded-state functions:
@@ -66,7 +82,16 @@ local ∪ remote and still applies the merge if the upload fails; plus `readLogi
 `overlayLabels.js` (visual-centre / PoI approx, clipped-slice pick, selectionAnchor —
 maplibre-free so label placement is testable without WebGL),
 `fx.js` (reduced-motion / coarse-pointer media helpers behind the anime delight layer),
-and `poiHit.js` (`poiDotTol` — zoom-dependent POI hit pad so city-wide views don't steal Kiez taps).
+and `poiHit.js` (`poiDotTol` — zoom-dependent POI hit pad so city-wide views don't steal Kiez taps),
+`city.js` (bbox lookup + the boot resolution order + persist-and-reload switch, via `location`/
+`localStorage` stubs) and `datapath.js` (the shared data dir). Two further categories that are NOT
+unit tests of `src/`: **`server/lib/*`** via `tests/server-{auth,progress}.test.js` (HMAC session
+forgery/expiry, cookie shadowing, upload validation, union-merge) and **dataset-shape tests** —
+`frankfurt-data` / `darmstadt-data` / `darmstadt` / `streets-data` / `wall-data` / `info-defaults`
+read the SHIPPED `public/data/**` and assert schema + cross-file ID consistency (46 Stadtteile,
+plr_id↔stats↔pois joins, ~480 km² West-Berlin …), so a bad data rebuild fails `npm test` instead of
+shipping silently. `year-reconcile` covers the pure core of the POI year-chip reconciler in
+`tools/lib/`.
 `main.js`/`map.js` aren't covered — they pull in MapLibre + CSS, so pure logic worth
 testing (persistence, graph-colouring, label anchors, hit pads) is **extracted into a
 maplibre-free module first** (`prefs.js`, `overlayLabels.js`, `poiHit.js`). Add tests alongside as
@@ -80,8 +105,11 @@ measures the suite (test count + line coverage) and counts the LOC of `src/*.js`
 **writes** the three dynamic badges (Unit-Tests · Lines of Code · Coverage) and the
 `N tests`/`N Tests` claims in README.md/CLAUDE.md, and commits the change back with
 `[skip ci]` (no loop). So the numbers never go stale and you never hand-edit them; run
-`node tools/badges.mjs` locally to preview, or `--check` to assert without writing. (This
-paragraph's `297 tests, 100% line` count is rewritten by that tool too.)
+`node tools/badges.mjs` locally to preview, or `--check` to assert without writing. (The
+`304 tests · 95.66 % line coverage` claim above is rewritten by that tool too — its regex is
+pinned to that exact wording, so **if you rephrase that sentence, update the `CLAUDE.md` entry in
+`tools/badges.mjs`**; a non-matching pattern silently stops updating and `--check` still reports
+green.)
 
 **README screenshots** (`docs/screenshot-*.png`) are regenerated with
 `tools/screenshots.cjs` against a `npm run preview -- --port 4190` server (needs a
@@ -98,6 +126,23 @@ Vanilla JS + Vite, deliberately dependency-light. **One JS island**; spatial she
 on the M3 spring core (`motion.js`); DOM delight (card/toast/chip) is a thin **anime.js v4** layer
 (`fx.js`). MapLibre + optional dynamic `three` for the atmosphere scene.
 
+- `src/city.js` — **the city-parameterization layer** (read this first when touching anything
+  multi-city). `CITIES` is the single source of truth per city: `term` (the colloquial unit the
+  user "steht in" — Kiez/Stadtteil/Viertel), `demonym`, `article`, `center`, `bbox`, `fallback`
+  (+`fallbackArea`/`fallbackHint` for the no-location toast), `dataDir`, `outlineFile`, the `levels`
+  rows shown under the title (Berlin has the LOR mid-tiers, the satellites don't), and
+  `features:{wall}` (Berlin-only). **No city strings belong in `main.js`/`map.js` — add a field
+  here.** `resolveCity()` runs once at boot (URL `?city=` > `localStorage kf-city` > subdomain >
+  Berlin) and calls `setCityData` → `setDataDir`; `cityWasExplicit()` distinguishes a deliberate
+  choice from the pure default (drives the two cross-city intents in `locateAt`, see `main.js`);
+  `cityIdForPoint(lon,lat)` is the bbox test behind "you're in another supported city";
+  `switchCity(id)` persists + **reloads** (every loader is memoised, so a reload is the honest way
+  to repoint them). Covered by `tests/city.test.js`.
+- `src/datapath.js` — the 3-function indirection every loader in `kiez.js`/`stats.js`/`heat.js`/
+  `hunt.js` fetches through (`dpath(file)`). Berlin's dir is `/data`, so Berlin paths are unchanged;
+  a satellite city sets `/data/<city>` once and ALL datasets repoint together. A city that lacks an
+  enrichment file simply 404s and the loader degrades to `null` — **no Berlin data can leak into
+  another city**. Covered by `tests/datapath.test.js`.
 - `src/main.js` — orchestrator + state machine (locating → found / outside-Berlin), builds the
   DOM with a safe `h()` helper (Kiez names via `textContent`, only static strings via innerHTML),
   owns the lock-on flow, theme toggle (View Transitions circular reveal), install prompt, card tilt.
@@ -205,9 +250,11 @@ on the M3 spring core (`motion.js`); DOM delight (card/toast/chip) is a thin **a
   **Dynamic area labels:** every *visible* area of the active overlay is labelled. Placement lives in
   maplibre-free `src/overlayLabels.js` (unit-tested): each feature gets a **visual centre ≈ pole of
   inaccessibility** (max distance to boundary — not bbox mid, which sits outside L-shapes and drifts
-  SE on Neukölln) plus a dense interior grid; on `moveend`/`zoomend` + mode change,
-  `_updateOverlayLabels()` picks the on-screen point nearest that centre (or the mid of
-  bbox∩viewport when the centre is clipped), with edge-margin + anti-jitter hysteresis →
+  SE on Neukölln) plus an interior candidate grid; on `moveend`/`zoomend` + mode change,
+  `_updateOverlayLabels()` picks the candidate that maximizes
+  **`min(distance to polygon boundary, distance to the visible map edge)`** — i.e. the pole of
+  inaccessibility of *area ∩ visible map*, so a clipped Bezirk is labelled in the middle of the part
+  you can SEE →
   `pt-bez`/`pt-bzr`/`pt-kiez` → `lbl-bez`/`lbl-bzr`/`lbl-kiezarea`. Inactive levels' sources are
   emptied; `lbl-kiez` (ambient OSM names) is hidden in Kieze mode so it doesn't double the
   merged-area labels. `main.js` also keeps a floating **"current area" chip**
@@ -216,8 +263,14 @@ on the M3 spring core (`motion.js`); DOM delight (card/toast/chip) is a thin **a
   `symbol-sort-key`: big areas beat slivers in collisions) and `szf` (data-driven text-size factor:
   top-20% areas ×1.14, bottom-40% ×0.88 → visual size hierarchy). All area/ambient labels use
   `text-variable-anchor` (center/top/bottom/left/right + radial offset) so crowded labels slide aside
-  instead of vanishing. **Anti-jitter hysteresis:** `_lblKeep` keeps a feature's chosen interior point
-  while it stays *comfortably* on screen (margin); edge-hugging keeps are dropped. **Selection label
+  instead of vanishing. **Anti-jitter hysteresis:** `_lblKeep` hands the previous anchor back into
+  `pickLabelPoint`, which reuses it while it is comfortably on screen AND still ≥`LABEL_KEEP_RATIO`
+  (0.75) as deep as the new best — position-only hysteresis let a label stay pinned to a spot that
+  panning had pushed against a border. **The label viewport is the map MINUS the UI chrome**
+  (`_labelView()`): it measures the `.pass` card rect (so it follows a collapsed side panel and a
+  merely peeked bottom sheet, unlike `_fitPadding`'s static numbers) and unprojects the remaining
+  box — legal because rotation/pitch are disabled. Without it the geometry-optimal anchor happily
+  centred "Friedrichshain-Kreuzberg" *behind* the desktop panel. **Selection label
   `lbl-sel`:** same visual-centre algorithm (`selectionAnchor`, refreshed on pan) + **same weight as
   Bezirk overlay labels** (uppercase, zoom size scale, high-contrast white + dark halo — not a
   smaller accent mixed-case). The same-named overlay label is suppressed (`_selName`) so it isn't
@@ -377,7 +430,8 @@ on the M3 spring core (`motion.js`); DOM delight (card/toast/chip) is a thin **a
   geosearch around the POI coords (same BAD_CAT map/seal/Stolperstein reject as the Kiez photos).
   Re-run it after adding POIs.** **POI photos are SELF-HOSTED, not runtime-from-Commons:**
   `tools/build-poi-images.mjs` downloads each Commons image ONCE, resizes+optimises to WebP (width 480,
-  q74, ~24 KB avg) → `public/img/poi/<qid>.webp` (~22 MB, committed), and rewrites poi-info `img` from the
+  q74, ~24 KB avg) → `public/img/poi/<qid>.webp` (committed; 1520 files / 53 MB across all three
+  cities — one flat folder, qids are globally unique), and rewrites poi-info `img` from the
   filename to a boolean `1`/`0`. The card loads `poiImgSrc(qid)` = `/img/poi/<qid>.webp` — same-origin,
   HTTP/2, no Commons 302-redirect → fast; `<img loading=lazy>` self-removes on error. **The old runtime
   path (`commons.wikimedia.org/Special:FilePath?width=` → 302 → `upload.wikimedia.org`) was the slowness
@@ -422,7 +476,18 @@ on the M3 spring core (`motion.js`); DOM delight (card/toast/chip) is a thin **a
   kicks skip scale so fixed badge slots don't jitter. Honors `prefers-reduced-motion` + shortens on
   coarse pointers. Covered by `tests/fx.test.js` (media helpers).
 - `src/overlayLabels.js` — maplibre-free label anchors: `visualCenter` (PoI approx), `labelCandidates`,
-  `pickLabelPoint`, `selectionAnchor`. Covered by `tests/overlayLabels.test.js`.
+  `pickLabelPoint`, `selectionAnchor`. The anchor maximizes `labelDepth` = `min(boundary distance,
+  screen-edge distance)` → pole of inaccessibility of *area ∩ viewport* (see the map.js label
+  section). Two things that look like details but decide the result: (a) **all distances are
+  aspect-corrected** by `lonScale(lat)` (1° lon ≈ 0.61× 1° lat at 52.5°N — a raw-degree metric is
+  stretched horizontally and tolerates hugging left/right borders); (b) the candidate grid is
+  **size-adaptive** (`gridFor`, ≈500 m spacing, `LABEL_GRID`…`LABEL_GRID_MAX`) — a fixed 11×11 grid
+  resolved a 24-km Bezirk only to 2.2 km while being overkill for a 1-km Kiez. Each candidate is
+  `[lon, lat, boundaryDist]`, precomputed once per dataset so a camera settle stays O(#points).
+  Do NOT re-add a hard "anchor must sit inside the margin" rule: maximizing depth already keeps
+  labels off the edge, and the hard rule banished them from the middle of thin clipped bands
+  (Reinickendorf dropped to 26 % of the achievable depth). Measured over the 12 Bezirke, mean depth
+  went 76 % → 97 % of the achievable optimum (`tests/overlayLabels.test.js`).
 - `src/poiHit.js` — zoom-dependent `poiDotTol` for `_poiAtPoint` (0 px ≤z12 → 10 px by z14). Covered
   by `tests/poiHit.test.js`.
 - `src/style.css` — MD3 Expressive tokens (motion/shape/state), tonal dark+light palettes,
@@ -620,3 +685,21 @@ npm run build
 rsync -avz --delete dist/ root@69.62.121.168:/var/www/kiezfinder.celox.io/
 ```
 TLS via certbot (Let's Encrypt), auto-renewing. DNS A-record kiezfinder.celox.io → 69.62.121.168.
+`dist/` carries the Berlin precache **plus** `data/frankfurt/` + `data/darmstadt/` (runtime
+CacheFirst, 5.9 MB of data in total) and `img/` — **71 MB / ~2000 committed WebPs** (1520 POI +
+487 Kiez photos, all three cities in one flat folder each, keyed by qid/gid). That tree, not the
+code, dominates both the repo and the rsync: the first deploy after an image build is slow, later
+ones only ship the diff.
+
+**Optional account-sync backend** (only when `server/` changed — the static app keeps working
+without it):
+```bash
+rsync -avz --exclude node_modules --exclude data --exclude .env \
+  server/ root@69.62.121.168:/opt/kiezfinder-api/
+ssh root@69.62.121.168 'cd /opt/kiezfinder-api && npm install --omit=dev && systemctl restart kiezfinder-api'
+```
+One-time: `/opt/kiezfinder-api/.env` after `server/.env.example` (mode 640, root:www-data),
+`kiezfinder-api.service` → `/etc/systemd/system/` + `systemctl enable --now`, nginx
+`location /api/ { proxy_pass http://127.0.0.1:4251; … }`, and
+`https://kiezfinder.celox.io/api/auth/google/callback` as an authorized redirect URI in the Google
+Cloud Console. `server/data/` (SQLite) and the `.env` are excluded on purpose — never overwrite them.
