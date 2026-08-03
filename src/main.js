@@ -32,7 +32,7 @@ import {
 } from './fx.js'
 import { mountThemeScene } from './themeScene.js'
 import { CITIES, activeCity, resolveCity, switchCity, cityIdForPoint, cityWasExplicit } from './city.js'
-import { topbarPlan, isCompact } from './topbarLayout.js'
+import { topbarPlan, isCompact, searchEscapeAction } from './topbarLayout.js'
 
 // Stadt aus URL/localStorage/Subdomain auflösen und kiez.js darauf ausrichten —
 // MUSS vor dem ersten Datenladen (loadKieze im Boot) laufen. Berlin = Default.
@@ -216,6 +216,16 @@ const searchBox = h('div', { class: 'search' },
   h('span', { class: 'search-icon', 'aria-hidden': 'true', html: ICONS.search }),
   searchInput, searchClear, searchResults)
 
+// Kompakt-Suche (M3): auf Phones ist die Suche ein Icon-Button, der die
+// Suchzeile aufklappt — „the search view appears when users either tap the
+// search bar or the 'Search' icon button". Spart die zweite Dauer-Zeile, die
+// die Karte zusätzlich beschnitt.
+const searchBtn = h('button', {
+  class: 'icon-btn search-btn', type: 'button',
+  title: 'Suchen', aria: { label: 'Suche öffnen', expanded: 'false' },
+  html: ICONS.search,
+})
+
 // Overflow („Mehr") — M3: was nicht in die Leiste passt, wandert in ein Menü,
 // statt die Reihe über den Rand zu schieben (s. topbarLayout.js).
 const moreBtn = h('button', {
@@ -244,6 +254,21 @@ const topbar = h('header', { class: 'topbar' },
 // deklariert, weil applyTopbarLayout sie beim Umbau invalidiert
 let _topbarBottom = -1
 
+/**
+ * Höhe der Topbar als CSS-Variable veröffentlichen. Toast und Bottom-Sheet
+ * richten sich danach — vorher lag der Toast mit z-index 9 einfach ÜBER der
+ * Aktionsreihe (45 von 48 px verdeckt) und das offene Sheet (88 dvh) schob
+ * sich 17 px unter die Suchleiste. Beides sind gemessene Werte, keine
+ * geschätzten Konstanten: die Leiste ist je nach Breite ein- oder zweizeilig.
+ */
+function syncTopbarMetrics() {
+  const b = topbar.getBoundingClientRect().bottom
+  if (b > 0) {
+    _topbarBottom = b
+    document.documentElement.style.setProperty('--topbar-h', Math.round(b) + 'px')
+  }
+}
+
 const ACTION_EL = {
   overlay: overlayBtn, heat: heatBtn, wall: wallBtn,
   autozoom: autoZoomBtn, account: acctBtn, theme: themeBtn, install: installBtn,
@@ -270,7 +295,7 @@ function moreRow(key) {
 function applyTopbarLayout() {
   const width = window.innerWidth
   const plan = topbarPlan({ compact: isCompact(width), width, hasWall: !!CITY.features.wall })
-  actionsEl.append(cityBtn)
+  actionsEl.append(cityBtn, searchBtn)
   for (const key of plan.bar) actionsEl.append(ACTION_EL[key])
   actionsEl.append(moreBtn)
   for (const key of plan.menu) {
@@ -282,7 +307,35 @@ function applyTopbarLayout() {
   moreBtn.hidden = plan.menu.length === 0
   if (moreBtn.hidden) closeMorePop()
   _topbarBottom = -1 // Leiste kann die Höhe gewechselt haben
+  requestAnimationFrame(syncTopbarMetrics)
 }
+/** Kompakt-Suche auf/zu (nur ≤600px sichtbar; darüber steht die Zeile immer). */
+function setSearchOpen(open) {
+  topbar.dataset.search = open ? 'open' : 'closed'
+  searchBtn.setAttribute('aria-expanded', String(open))
+  searchBtn.classList.toggle('is-active', open)
+  searchBtn.setAttribute('aria-label', open ? 'Suche schließen' : 'Suche öffnen')
+  if (open) requestAnimationFrame(() => searchInput.focus())
+  else {
+    searchResults.hidden = true
+    searchInput.setAttribute('aria-expanded', 'false')
+    if (document.activeElement === searchInput) searchInput.blur()
+  }
+  requestAnimationFrame(() => {
+    syncTopbarMetrics()
+    if (!areaChip.hidden) positionAreaChip()
+    // die Leiste ist eine Zeile höher/niedriger → das Sheet darf nicht darunter
+    if (sheetEnabled()) { measureSheet(); snapTo(sheet.state, true) }
+  })
+}
+searchBtn.addEventListener('click', () => setSearchOpen(topbar.dataset.search !== 'open'))
+// ESC schließt die Zeile auch, wenn der Fokus NICHT im Feld liegt (nach einer
+// Kartenauswahl wandert er in die Card) — der Feld-Handler unten deckt nur den
+// fokussierten Fall ab und stufte sonst ins Leere.
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && e.target !== searchInput && topbar.dataset.search === 'open') setSearchOpen(false)
+})
+
 function openMorePop() {
   closeHeatPop(); closeAcctPop()
   for (const key of Object.keys(moreRows)) moreRows[key].hidden = ACTION_EL[key].hidden
@@ -344,6 +397,7 @@ const toastWrap = h('div', { class: 'toasts', aria: { live: 'polite' } })
 const poiBrowser = h('section', { class: 'poi-browser', hidden: true, aria: { label: 'Orte durchstöbern', modal: 'true' }, role: 'dialog' })
 
 app.append(mapEl, themeSceneEl, stage, topbar, heatPop, acctPop, morePop, heatLegend, areaChip, reopenBtn, poiBrowser, toastWrap)
+topbar.dataset.search = 'closed'
 applyTopbarLayout() // Aktionen auf Leiste + Überlauf verteilen (breitenabhängig)
 
 // ── desktop: collapse / expand the info panel ────────────────────────────────
@@ -1948,6 +2002,9 @@ function selectPlace(e) {
   searchInput.value = e.label
   searchClear.hidden = false
   searchInput.blur()
+  // Treffer gewählt → auf Phones die Suchzeile wieder einklappen, sonst
+  // verdeckt sie das Ergebnis, das sie gerade geöffnet hat
+  if (topbar.dataset.search === 'open') setSearchOpen(false)
   state.selectedPlace = e
   if (e.type === 'str') { selectStreet(e); return }
   if (e.type === 'poi') { selectPoi(e); return }
@@ -2041,7 +2098,15 @@ searchInput.addEventListener('keydown', (e) => {
     if (_searchTimer) { clearTimeout(_searchTimer); runSearch() }
     const e2 = _hits[_active] || _hits[0]; if (e2) { e.preventDefault(); selectPlace(e2) }
   }
-  else if (e.key === 'Escape') { e.preventDefault(); if (searchResults.hidden) { searchInput.value = ''; searchClear.hidden = true } else { searchResults.hidden = true; searchInput.setAttribute('aria-expanded', 'false') } }
+  else if (e.key === 'Escape') {
+    e.preventDefault()
+    const act = searchEscapeAction({
+      resultsOpen: !searchResults.hidden, compactOpen: topbar.dataset.search === 'open',
+    })
+    if (act === 'closeResults') { searchResults.hidden = true; searchInput.setAttribute('aria-expanded', 'false') }
+    else if (act === 'closeSearch') setSearchOpen(false)
+    else { searchInput.value = ''; searchClear.hidden = true }
+  }
 })
 searchClear.addEventListener('click', () => {
   searchInput.value = ''; searchClear.hidden = true
@@ -2225,6 +2290,7 @@ async function boot() {
       fitKiezName()
       applyTopbarLayout() // Breakpoint/Breite geändert → Leiste vs. Überlauf neu verteilen
       _topbarBottom = -1 // topbar may have rewrapped — re-measure lazily
+      syncTopbarMetrics()
       if (!areaChip.hidden) positionAreaChip()
       if (sheetEnabled()) { measureSheet(); snapTo(sheet.state, true) }
       else { card.style.removeProperty('--sheet-y'); card.removeAttribute('data-sheet') }

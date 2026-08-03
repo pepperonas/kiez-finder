@@ -50,7 +50,7 @@ Boundaries/stats/prices/info have **dedicated per-city scripts** instead
 (`build-{frankfurt,darmstadt}{,-stats,-heat-prices,-kiez-info}.mjs`) because every city's open-data
 source has its own schema. Vendored source files + their licences: `tools/vendor/README.md`.
 
-**Tests** (`tests/`, `node --test`, zero dependencies — 313 tests · 95.76 % line coverage
+**Tests** (`tests/`, `node --test`, zero dependencies — 314 tests · 95.78 % line coverage
 overall, 100 % on most pure modules; `fx.js` is deliberately low, only its media helpers are
 testable without a DOM) cover the dependency-light pure logic: `search.js`
 (norm folding + the multi-tier scorer / type-priority / dedup), `kiez.js` (point-in-polygon
@@ -106,7 +106,7 @@ measures the suite (test count + line coverage) and counts the LOC of `src/*.js`
 `N tests`/`N Tests` claims in README.md/CLAUDE.md, and commits the change back with
 `[skip ci]` (no loop). So the numbers never go stale and you never hand-edit them; run
 `node tools/badges.mjs` locally to preview, or `--check` to assert without writing. (The
-`313 tests · 95.76 % line coverage` claim above is rewritten by that tool too — its regex is
+`314 tests · 95.78 % line coverage` claim above is rewritten by that tool too — its regex is
 pinned to that exact wording, so **if you rephrase that sentence, update the `CLAUDE.md` entry in
 `tools/badges.mjs`**; a non-matching pattern silently stops updating and `--check` still reports
 green.)
@@ -512,7 +512,27 @@ on the M3 spring core (`motion.js`); DOM delight (card/toast/chip) is a thin **a
   theme/account all keep working, with zero sync code. Menu rows carry a label next to the real
   button and the whole row is the hit area. **Gotcha:** `.more-row` needs its own
   `[hidden] { display: none }` — the author `display: flex` beats the UA `[hidden]` rule (same trap
-  already documented for `.icon-btn`). Covered by `tests/topbarLayout.test.js`.
+  already documented for `.icon-btn`). Also exports `searchEscapeAction` (ESC = at most two stages:
+  close the result list, then close the compact search — a third stage just to empty the field is one
+  too many on a phone; that is what the ✕ is for). Covered by `tests/topbarLayout.test.js`.
+- **`--topbar-h` (measured, `syncTopbarMetrics()` in main.js)** — the topbar is one row or two
+  depending on width, so anything that must sit clear of it measures instead of guessing. Two bugs
+  came from NOT having it: the toast sat at `top: .85rem` with `z-index: 9` and covered **45 of the
+  48px** action row (only the ≥840px case had ever been fixed), and the mobile sheet's `max-height:
+  88dvh` pushed the open card **17px under the search bar**. Both now derive from the variable
+  (`.toasts { top: calc(var(--topbar-h) + .5rem) }`, `.pass { max-height: calc(100dvh -
+  var(--topbar-h) - .75rem) }`). It is re-synced on resize, after `applyTopbarLayout`, and whenever
+  the compact search opens/closes (which changes the row count) — that last call also re-runs
+  `measureSheet`/`snapTo`.
+- **Compact search (≤600px):** the search row is not permanent on phones; a magnifier in the action
+  row expands it (M3: *"the search view appears when users either tap the search bar or the 'Search'
+  icon button"*). That removes the always-on second row (topbar 131px → 75px), which is what made
+  the card/search overlap possible at all. Closing: the magnifier again, ESC, or picking a result
+  (`selectPlace` collapses it — otherwise the row covers the very result it just produced). A
+  **window-level ESC** handler is needed in addition to the input's own: after a result is picked
+  the focus moves into the card, so the field-scoped handler would never fire. The **brand is hidden
+  below 840px** (not just below 600): between 601–839 it shared the row with search + actions and
+  squeezed the search box to 160px (now 279–460px).
 - `src/themeScene.js` + `src/scenePresets.js` — **atmospheric 3D layer** (`.theme-scene`, a
   `pointer-events:none` div at `z-index:1` — over `#map`, under all UI). ONE WebGL canvas: a
   sparse field of slow-drifting accent-tinted particles (three.js `Points` + additive blending,

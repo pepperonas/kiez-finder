@@ -5,7 +5,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   topbarPlan, compactSlots, isCompact, ACTION_ORDER, COMPACT_SLOTS, NARROW_SLOTS,
-  NARROW_WIDTH, COMPACT_MAX_WIDTH,
+  NARROW_WIDTH, COMPACT_MAX_WIDTH, searchEscapeAction,
 } from '../src/topbarLayout.js'
 
 const keys = (p) => [...p.bar, ...p.menu]
@@ -86,4 +86,13 @@ test('defaults are safe when called without options', () => {
   const p = topbarPlan()
   assert.deepEqual(p.menu, [], 'no compact flag → desktop layout')
   assert.ok(p.bar.length > 0)
+})
+
+test('ESC in the search: at most two stages (results → search view)', () => {
+  assert.equal(searchEscapeAction({ resultsOpen: true, compactOpen: true }), 'closeResults')
+  assert.equal(searchEscapeAction({ resultsOpen: true, compactOpen: false }), 'closeResults')
+  // compact phone row: second ESC closes the whole search, it does not just empty it
+  assert.equal(searchEscapeAction({ resultsOpen: false, compactOpen: true }), 'closeSearch')
+  // desktop: the row is permanent, so ESC clears the field instead
+  assert.equal(searchEscapeAction({ resultsOpen: false, compactOpen: false }), 'clearInput')
 })

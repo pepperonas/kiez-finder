@@ -741,9 +741,12 @@ body {
 .poi-more { margin: .4rem 0 0 .55rem; font-size: .74rem; color: var(--on-surface-var); }
 
 /* ── Entdeckungs-Toasts ── */
+/* Unter der Topbar, nicht darüber: mit z-index 9 verdeckte der Toast sonst die
+   Aktionsreihe (gemessen 45 von 48 px). --topbar-h wird gemessen (syncTopbarMetrics),
+   weil die Leiste je nach Breite ein- oder zweizeilig ist. */
 .toasts {
   position: fixed; z-index: 9; left: 50%; transform: translateX(-50%);
-  top: max(.85rem, env(safe-area-inset-top)); display: flex; flex-direction: column; gap: .5rem;
+  top: calc(var(--topbar-h, 62px) + .5rem); display: flex; flex-direction: column; gap: .5rem;
   width: min(92vw, 380px); pointer-events: none;
 }
 .toast {
@@ -1012,7 +1015,10 @@ html.theme-transition * {
     position: fixed; left: 0; right: 0; bottom: 0; width: 100%; max-width: none; margin: 0;
     border-radius: var(--r-xl) var(--r-xl) 0 0;
     border-left: none; border-right: none; border-bottom: none;
-    max-height: 88vh; max-height: 88dvh;
+    /* nie unter die Topbar: 88dvh schob das offene Sheet 17px unter die
+       Suchleiste. --topbar-h ist gemessen (syncTopbarMetrics). */
+    max-height: 88vh;
+    max-height: calc(100dvh - var(--topbar-h, 62px) - .75rem);
     /* default off-screen until JS measures + slides it up (no first-frame flash) */
     transform: translateY(var(--sheet-y, 110%));
     animation: none; /* JS-driven slide-up + spring snapping */
@@ -1022,6 +1028,16 @@ html.theme-transition * {
     padding: .15rem clamp(1.1rem, 4.5vw, 1.5rem) calc(1.1rem + env(safe-area-inset-bottom));
   }
 }
+
+/* Unterhalb des Desktop-Layouts fliegt das Markenlogo raus: zwischen 601 und
+   839px teilte es sich die Zeile mit Suche + Aktionen und drückte das Suchfeld
+   auf 160px. Home ist in der SPA ohnehin nur ein Reload. */
+@media (max-width: 839.98px) { .brand { display: none; } }
+
+/* Die Lupe ersetzt die Dauer-Suchzeile nur auf Phones; ab 601px steht das
+   Suchfeld ohnehin neben den Aktionen. */
+.search-btn { display: none; }
+@media (max-width: 600px) { .search-btn:not([hidden]) { display: grid; } }
 
 /* Kompakt-Modus (< COMPACT_MAX_WIDTH in topbarLayout.js): der Overlay-Button
    bleibt ein gleichförmiger Kreis — sein Label würde die Reihe sprengen, sobald
@@ -1050,7 +1066,10 @@ html.theme-transition * {
   /* Overlay-Button bleibt ein gleichförmiger Kreis — sein Label würde die
      Reihe sprengen; der aktive Zustand ist über die Tönung + die
      „Aktueller-Bereich"-Plakette ohnehin erkennbar. */
-  .search { order: 2; flex: 1 0 100%; max-width: none; min-width: 0; height: 48px; }
+  .search { order: 2; flex: 1 0 100%; max-width: none; min-width: 0; height: 48px;
+    animation: md-drop var(--dur-medium) var(--ease-emphasized) both; }
+  /* eingeklappt = die Leiste ist EINE Zeile; das Suchfeld kommt per Lupe */
+  .topbar[data-search='closed'] .search { display: none; }
   /* Stadt-Pille schiebt die Aktionen nach rechts, bleibt aber links verankert */
   .topbar-actions .city-btn { margin-right: auto; }
 }

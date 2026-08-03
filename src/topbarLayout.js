@@ -46,3 +46,16 @@ export function topbarPlan({ compact, width = 1280, hasWall = true } = {}) {
   const n = compactSlots(width)
   return { bar: available.slice(0, n), menu: available.slice(n) }
 }
+
+/**
+ * What ESC does in the search field. Two stages at most: close the result list,
+ * then close the (compact) search view — a third stage just to empty the field
+ * is one too many on a phone, that is what the ✕ is for. On desktop the row is
+ * permanent, so there ESC clears the input instead.
+ * @returns {'closeResults'|'closeSearch'|'clearInput'}
+ */
+export function searchEscapeAction({ resultsOpen, compactOpen }) {
+  if (resultsOpen) return 'closeResults'
+  if (compactOpen) return 'closeSearch'
+  return 'clearInput'
+}
